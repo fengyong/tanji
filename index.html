@@ -347,6 +347,8 @@
             <option value="douyin">抖音商单(平台结算)</option>
           </select>
         </div>
+        <div class="frow"><label>渠道</label><input id="f-channel" placeholder="如:蜂向/小爱/金城/食物,直客可空"></div>
+        <div class="frow"><label>出镜</label><input id="f-partner" placeholder="出镜搭档,如:花花;单人拍摄可空"></div>
         <div class="frow"><label>预约日期</label><input id="f-date" type="date"></div>
         <div class="frow"><label>预约时间</label><input id="f-time" type="time" value="10:00"></div>
         <div class="frow"><label>总价(¥)</label><input id="f-price" type="number" inputmode="numeric" placeholder="如 1200"></div>
@@ -411,7 +413,7 @@ function greeting(){const h=now.getHours();return h<11?'早上好':h<14?'中午�
 const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null};
 
 /* ================= 种子数据(相对今天生成,首启后即为用户真实数据) ================= */
-function seed(){
+function demoSeed(){
   const O=[
     {id:1, store:'麓野日料·万象城店', cat:'餐饮', contact:'王店长 138****2043', price:1600, deposit:500, settleVia:'private',
      appt:dOff(0,'14:00'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
@@ -473,8 +475,92 @@ function seed(){
   return {orders:O, payments:P, threshold:15};
 }
 
+/* ================= 初始数据:大王(深圳)· 2026年11月真实档期 ================= */
+/* 记号约定:🌹=元;店名前缀(小爱❤️/蜂向🌸/金城⭐🌙♦️/食物♦️⭐)=渠道;尾缀人名=出镜搭档;
+   线下结算⚡=私收已结;不组队=单人拍摄;拍图片=交付照片。金额口径为档期价(weekly ❤️=档期额)。 */
+function dawangSeed(){
+  const O=[],P=[];let id=1;
+  const add=(d,t,store,price,opts={})=>{
+    const appt=`2026-11-${d}T${t}`;
+    const past=new Date(appt)<=now;
+    const o={id:id++,store,cat:opts.cat||'餐饮',contact:'',price,deposit:opts.dep||0,
+      settleVia:'private',appt,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
+      depositPaidAt:null,finalPaidAt:null,remindAt:null,
+      note:opts.note||'',channel:opts.ch||'直客',partner:opts.pt||''};
+    if(past){
+      const off=m=>{const x=new Date(appt);x.setMinutes(x.getMinutes()+m);
+        return `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`};
+      o.shotAt=off(45);o.submittedAt=off(180);
+      const nd=new Date(appt);nd.setDate(nd.getDate()+1);
+      o.shortAt=`${toISO(nd)}T12:00`;o.longAt=`${toISO(nd)}T18:30`;
+      if(opts.mode==='Z'){o.finalPaidAt=off(180)}
+      else if(opts.mode!=='N'){
+        o.finalPaidAt=`${toISO(nd)}T20:00`;
+        if(price>0)P.push({oid:o.id,kind:'尾款',amount:price,at:o.finalPaidAt,method:'微信',note:opts.mode==='X'?'线下结算':null});
+      }
+    }
+    if(opts.dep>0){
+      const pd=new Date(appt);pd.setDate(pd.getDate()-1);
+      o.depositPaidAt=`${toISO(pd)}T18:00`;
+      P.push({oid:o.id,kind:'定金',amount:opts.dep,at:o.depositPaidAt,method:'微信'});
+    }
+    O.push(o);
+  };
+  /* —— 第一周(11-01 休息)—— */
+  add('02','11:30','内衣拍摄',0,{cat:'服饰',mode:'Z',note:'档期原文「内衣拍摄」,未报价'});
+  add('02','18:00','阿遇烧烤',2150,{cat:'烧烤',mode:'N',note:'档期原文:800+1500-150出镜;已收定金(金额待补记)'});
+  add('03','12:00','郭璐璐(龙华)',280,{ch:'小爱',pt:'郭璐璐',cat:'其他',note:'店名待补(档期原文:小爱❤️郭璐璐龙华)'});
+  add('03','15:30','黔牛汇(龙华)',300,{ch:'蜂向'});
+  add('03','17:00','林记潮汕牛肉火锅(南山)',250,{ch:'金城'});
+  add('03','18:30','南山眷坊(蛇口)',330,{ch:'食物'});
+  add('03','21:30','聚满满鲜货烧烤(龙华)',330,{ch:'食物',note:'拍图片(非视频)'});
+  add('04','12:00','你好遇见你(坂田)',300,{ch:'蜂向',pt:'花花'});
+  add('04','18:30','中隆烧鸡(坪山)',300,{ch:'蜂向',pt:'花花'});
+  add('05','12:00','蛙来哒(KK ONE)',300,{pt:'花花'});
+  add('05','14:30','无刺泡泡',1700,{pt:'花花',note:'档期原文:700+1000'});
+  add('05','17:30','鹤乡炭火记(坂田)',300,{ch:'蜂向',pt:'花花'});
+  add('05','20:30','潮泰社·烧烤音乐餐厅(金啤广场店)',330,{ch:'食物',pt:'花花',cat:'烧烤'});
+  add('06','14:00','克茗冰室(卓悦汇店)',300,{});
+  add('06','19:30','围屋烟火烤鱼',300,{ch:'蜂向',cat:'烧烤'});
+  /* —— 第二周(11-07/08 休息)—— */
+  add('09','13:30','峰盛牛庄(宝安)',280,{ch:'小爱',pt:'花花'});
+  add('09','17:00','湖小灶(坂田)',300,{pt:'花花',mode:'X',note:'线下结算'});
+  add('09','19:30','岳州大叔(坂田)',500,{pt:'花花'});
+  add('10','12:30','深圳打铁匠(海雅缤纷城)',1600,{mode:'N',note:'档期原文:600+1000;已收定金(金额待补记)'});
+  add('10','17:45','胖娇娇螺蛳粉(上沙)',340,{ch:'食物'});
+  add('10','19:30','佛洛力斯·蔓罗泰国料理(地王星荟店)',340,{ch:'食物'});
+  /* —— 11日「拍爆品」为拍摄任务,非商单,未建单 —— */
+  add('12','11:30','湘村小灶',300,{ch:'蜂向',pt:'邱邱'});
+  add('12','14:00','莫娜花园(罗湖)',340,{ch:'食物'});
+  add('12','16:30','日日香',340,{ch:'食物'});
+  add('12','19:30','回酒店',340,{ch:'食物',note:'档期原文即「回酒店」'});
+  add('13','14:30','大冬家(沙井佳漾汇)',300,{pt:'干饭小美'});
+  add('13','18:00','周记美蛙鱼',300,{ch:'蜂向',pt:'花花',cat:'烧烤'});
+  /* —— 第三周(11-14/15 休息)—— */
+  add('16','12:00','塔斯丁(福田)',0,{cat:'快餐',mode:'Z',note:'置换/未报价'});
+  add('16','18:00','梅小湘',2000,{pt:'房多多',mode:'N',dep:400,note:'已收定金 400,尾款 1600 待结'});
+  add('17','14:00','牛叠叠(西丽宝能)',280,{ch:'小爱'});
+  add('17','17:00','客味小馆(保利店)',300,{pt:'阿勇/凯哥'});
+  add('17','19:00','川野江湖菜',300,{ch:'蜂向',pt:'邱邱'});
+  add('17','21:00','一沙一城云剪',100,{cat:'其他',note:'云剪服务(档期未写时间)'});
+  add('18','12:00','湘当食在',250,{ch:'金城'});
+  add('18','14:30','师烤(新沙天虹)',300,{pt:'花花'});
+  add('18','17:30','老湖南乡村土菜(共和店)',300,{pt:'小柚'});
+  add('19','11:30','大牛火锅',250,{ch:'金城',cat:'火锅',mode:'N'});
+  add('19','13:30','农家柴火鸡(西丽)',300,{ch:'蜂向',mode:'N'});
+  add('19','17:00','乔睿四季轩(龙华)',250,{ch:'金城',mode:'N'});
+  add('19','19:30','乐聚东北烧烤(龙华)',250,{ch:'金城',cat:'烧烤',mode:'N'});
+  add('20','14:00','潮味好牛',300,{pt:'凯哥',mode:'N'});
+  add('20','17:30','滨海脆肉鲩(龙岗)',300,{ch:'蜂向',mode:'N',note:'不组队'});
+  add('20','20:00','狮子三脆(东门店)',300,{pt:'玲玲',mode:'N'});
+  add('21','17:30','湖湘荟',340,{ch:'食物'});
+  add('22','15:00','串掌门(五和店)',600,{pt:'稻草人',note:'要豁免;线下结算'});
+  add('24','12:00','牧海季',600,{note:'300+300 两段'});
+  return {orders:O,payments:P,threshold:15,owner:'大王',month:'2026-11'};
+}
+
 /* ================= 持久化:IndexedDB(真实 SQLite .db 字节) + localStorage 双保险 ================= */
-let db=seed();
+let db=dawangSeed();
 const Store={sqlite3:null};
 const idb={_db:null,
   open(){return new Promise(res=>{if(this._db)return res(this._db);try{
@@ -524,15 +610,16 @@ function buildSqliteBytes(){
       price REAL NOT NULL, deposit REAL DEFAULT 0,
       appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
       deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+      channel TEXT, partner TEXT,
       note TEXT, created_at TEXT, updated_at TEXT);
     CREATE TABLE IF NOT EXISTS payments(
       id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
       paid_at TEXT, method TEXT, note TEXT);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
-    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     db.orders.forEach(o=>{
       so.bind([o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
-               o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.note||null,null,null]);
+               o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.channel||null,o.partner||null,o.note||null,null,null]);
       so.step();so.reset();
     });
     so.finalize();
@@ -602,8 +689,8 @@ function download(name,content,type){
 }
 function q(v){return `"${String(v??'').replace(/"/g,'""')}"`}
 function exportCsv(){
-  const head=['ID','商家','类型','结算方式','联系方式','总价','定金','预约时间','实际拍摄','提审时间','短片发出','长片发出','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
-  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',o.note].map(q).join(','));
+  const head=['ID','商家','类型','结算方式','渠道','出镜搭档','联系方式','总价','定金','预约时间','实际拍摄','提审时间','短片发出','长片发出','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
+  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.channel||'',o.partner||'',o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',o.note].map(q).join(','));
   const phead=['序号','订单ID','商家','类型','金额','到账时间','收款方式'];
   const plines=db.payments.map((p,i)=>[i+1,p.oid,storeOf(p.oid),p.kind,p.amount,p.at,p.method].map(q).join(','));
   download(`探记-导出-${TODAY}.csv`,[head.map(q).join(','),...lines,'','',phead.map(q).join(','),...plines].join('\n'),'text/csv;charset=utf-8');
@@ -637,6 +724,8 @@ CREATE TABLE orders (
   settle_via     TEXT DEFAULT 'private',
                  <span class="c">-- 结算方式:private 私收 / douyin 抖音商单(平台结算,不催收)</span>
   remind_at      TEXT,           <span class="c">-- 催收备忘:下次提醒时间(1/3/7 天)</span>
+  channel        TEXT,           <span class="c">-- 渠道/机构:蜂向、小爱、金城、食物、直客…</span>
+  partner        TEXT,           <span class="c">-- 出镜搭档:花花、邱邱…(空=不组队/未记)</span>
   note           TEXT,
   created_at     TEXT, updated_at TEXT
 );
@@ -678,6 +767,7 @@ function updateConflict(){
 function openNew(){
   $('#f-store').value='';$('#f-price').value='';$('#f-deposit').value='';
   $('#f-contact').value='';$('#f-note').value='';$('#f-settle').value='private';
+  $('#f-channel').value='';$('#f-partner').value='';
   $('#f-date').value=TODAY;$('#f-time').value='10:00';$('#f-err').style.display='none';
   updateConflict();
   showSheet('sheet-new');
@@ -689,6 +779,7 @@ function saveOrder(){
   const date=$('#f-date').value||TODAY,time=$('#f-time').value||'10:00';
   const o={id:Math.max(...db.orders.map(x=>x.id))+1,store,cat:$('#f-cat').value,
     contact:$('#f-contact').value.trim(),price,deposit,settleVia:$('#f-settle').value,
+    channel:$('#f-channel').value.trim()||'直客',partner:$('#f-partner').value.trim(),
     appt:`${date}T${time}`,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
     depositPaidAt:null,finalPaidAt:null,remindAt:null,note:$('#f-note').value.trim()};
   db.orders.push(o);save();
@@ -791,12 +882,14 @@ function openDetail(id){
     <div class="info-grid">
       <div class="ig"><div class="k">预约时间</div><div class="v">${fmtD(o.appt)} ${fmtHM(o.appt)}</div></div>
       <div class="ig"><div class="k">实际拍摄</div><div class="v">${fmtDT(o.shotAt)}</div></div>
-      <div class="ig"><div class="k">结算方式</div><div class="v">${o.settleVia==='douyin'?'抖音商单':'私收'}</div></div>
-      <div class="ig"><div class="k">已收合计</div><div class="v" style="color:#239648">${received>0?fmtMoney(received):'—'}</div></div>
+      <div class="ig"><div class="k">渠道</div><div class="v">${o.channel||'直客'}</div></div>
+      <div class="ig"><div class="k">出镜搭档</div><div class="v">${o.partner||(o.note&&o.note.includes('不组队')?'不组队':'—')}</div></div>
       <div class="ig"><div class="k">总价</div><div class="v">${fmtMoney(o.price)}</div></div>
       <div class="ig"><div class="k">定金 ${o.depositPaidAt?'· 已收 '+fmtD(o.depositPaidAt):''}</div><div class="v">${fmtMoney(o.deposit)}</div></div>
       <div class="ig"><div class="k">尾款 ${o.finalPaidAt?'· 已收 '+fmtD(o.finalPaidAt):''}</div><div class="v">${fmtMoney(o.price-o.deposit)}</div></div>
+      <div class="ig"><div class="k">已收合计</div><div class="v" style="color:#239648">${received>0?fmtMoney(received):'—'}</div></div>
       <div class="ig"><div class="k">当前待收</div><div class="v" style="${owedOf(o)>0?'color:var(--red)':'color:#239648'}">${owedOf(o)>0?fmtMoney(owedOf(o)):'已结清'}</div></div>
+      <div class="ig"><div class="k">结算方式</div><div class="v">${o.settleVia==='douyin'?'抖音商单':'私收'}</div></div>
     </div>
     ${o.note?`<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">📝 ${o.note}</div></div>`:''}
     <div style="padding-top:16px"><button class="btn danger-ghost" data-act="del-order" data-oid="${o.id}">删除订单</button></div>`;
@@ -967,7 +1060,7 @@ function orderRowTrip(o){
   return `<div class="row" data-act="open" data-oid="${o.id}">
     <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${o.cat}</div></div>
     <div class="rmain"><div class="rname">${o.store}</div>
-      <div class="chiprow">${workChip(o)}${depChip||payChip(o)}</div></div>
+      <div class="chiprow">${workChip(o)}${depChip||payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${o.channel}</span>`:''}</div></div>
     <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div><div class="rsub">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div></div>
   </div>`;
 }
@@ -1035,8 +1128,8 @@ function renderOrders(){
     <div class="row" data-act="open" data-oid="${o.id}">
       <div class="rmain">
         <div class="rname">${o.store}</div>
-        <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${o.cat}</div>
-        <div class="chiprow">${workChip(o)}${payChip(o)}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
+        <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${o.cat}${o.partner?' · 出镜 '+o.partner:''}</div>
+        <div class="chiprow">${workChip(o)}${payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${o.channel}</span>`:''}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
       </div>
       <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div>
         <div class="rsub" style="${owedOf(o)>0?'color:var(--red);font-weight:700':''}">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div>
@@ -1203,12 +1296,17 @@ function renderStats(){
         <div class="menu-t"><div class="menu-name">导出 JSON 备份</div><div class="menu-sub">含订单 + 收款流水 + 设置,可用于迁移</div></div>
         <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
       </div>
-      <div class="menu-row" data-act="reset">
+      <div class="menu-row" data-act="reset-dawang">
         <span class="menu-ic" style="background:var(--red-soft);color:var(--red)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 5.5v5h5"/><path d="M4.6 10.5A8 8 0 1 1 4 14"/></svg></span>
-        <div class="menu-t"><div class="menu-name">清空全部数据</div><div class="menu-sub">恢复到示例数据(建议先导出备份)</div></div>
+        <div class="menu-t"><div class="menu-name">恢复初始数据(大王 · 11月)</div><div class="menu-sub">还原 11 月真实档期初始化状态,当前改动会丢失(建议先导出备份)</div></div>
         <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
       </div>
-      <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0">探记 TanJi v0.2 · 数据仅存本机,请定期导出备份</div>
+      <div class="menu-row" data-act="reset-demo">
+        <span class="menu-ic" style="background:var(--purple-soft);color:var(--purple)"><svg class="ic" viewBox="0 0 24 24"><rect x="5.5" y="3.8" width="13" height="16.5" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/></svg></span>
+        <div class="menu-t"><div class="menu-name">载入开发演示数据</div><div class="menu-sub">17 笔虚构示例订单,仅用于产品演示(demo)</div></div>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </div>
+      <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0">探记 TanJi v0.3 · 初始档期:大王(深圳)· 2026年11月 · 数据仅存本机,请定期导出备份</div>
     </div>`;
 }
 
@@ -1269,8 +1367,11 @@ document.addEventListener('click',e=>{
       i=Math.min(opts.length-1,Math.max(0,i+ +t.dataset.v));
       db.threshold=opts[i];save();renderAll();rerenderDetail();
       toast(`催收阈值已设为 ${db.threshold} 天`);break;}
-    case 'reset':
-      if(confirm('清空全部数据并恢复为示例数据?\n建议先导出备份!')){db=seed();save();renderAll();showTab('home');toast('已恢复示例数据')}
+    case 'reset-dawang':
+      if(confirm('恢复为「大王(深圳)· 2026年11月」初始档期数据?\n当前改动会丢失,建议先导出备份!')){db=dawangSeed();save();renderAll();showTab('home');toast('已恢复大王 11 月初始档期 ✓')}
+      break;
+    case 'reset-demo':
+      if(confirm('载入开发演示数据(17 笔虚构示例)?\n当前数据会被替换,建议先导出备份!')){db=demoSeed();save();renderAll();showTab('home');toast('已载入开发演示数据 ✓')}
       break;
   }
 });

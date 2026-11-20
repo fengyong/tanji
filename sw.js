@@ -1,5 +1,5 @@
 /* 探记 TanJi · Service Worker:App 外壳缓存,离线可用 */
-const VERSION='tanji-v0.2.2';
+const VERSION='tanji-v0.3.0';
 const ASSETS=[
   './',
   './index.html',
