@@ -1,5 +1,5 @@
 /* 探记 TanJi · Service Worker:App 外壳缓存,离线可用 */
-const VERSION='tanji-v0.3.2';
+const VERSION='tanji-v0.3.3';
 const ASSETS=[
   './',
   './index.html',
@@ -20,16 +20,28 @@ self.addEventListener('activate',e=>{
 });
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET')return;
+  const url=new URL(e.request.url);
+  const isHTML=e.request.mode==='navigate'||(url.origin===location.origin&&(url.pathname==='/'||url.pathname.endsWith('.html')));
+  if(isHTML){
+    // HTML 走网络优先:有网必拿最新版本,断网回退缓存
+    e.respondWith(
+      fetch(e.request).then(res=>{
+        if(res.ok){const c=res.clone();caches.open(VERSION).then(x=>x.put(e.request,c))}
+        return res;
+      }).catch(()=>caches.match(e.request,{ignoreSearch:true}).then(h=>h||caches.match('./index.html')))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request,{ignoreSearch:true}).then(hit=>{
       if(hit)return hit;
       return fetch(e.request).then(res=>{
-        if(res.ok&&new URL(e.request.url).origin===location.origin){
+        if(res.ok&&url.origin===location.origin){
           const copy=res.clone();
           caches.open(VERSION).then(c=>c.put(e.request,copy));
         }
         return res;
-      }).catch(()=>caches.match('./index.html'));
+      });
     })
   );
 });
