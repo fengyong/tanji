@@ -590,7 +590,7 @@ function dawangSeed(){
 }
 
 /* ================= 持久化:IndexedDB(真实 SQLite .db 字节) + localStorage 双保险 ================= */
-let db=dawangSeed();
+let db=demoSeed(); // 默认演示数据(对外展示安全);真实档期经 统计→数据管理 或首启选择载入
 const Store={sqlite3:null};
 const idb={_db:null,
   open(){return new Promise(res=>{if(this._db)return res(this._db);try{
@@ -1190,17 +1190,17 @@ function renderTrip(){
   const listHtml=list.length?list.map(orderRowTrip).join('')
     : `<div class="empty"><div class="e-ic">📭</div>这一天暂无拍摄安排</div>`;
   const base=new Date(ui.selDay+'T00:00');
+  // 整月时间线:所浏览月份的全部档期按日分组(可一路滚到月初/月末)
   let up='';
-  for(let i=1;i<=14;i++){
-    const d=new Date(base);d.setDate(d.getDate()+i);
-    const iso=toISO(d);
-    const ds=db.orders.filter(o=>o.appt.slice(0,10)===iso).sort((a,b)=>a.appt.localeCompare(b.appt));
-    if(!ds.length)continue;
-    const tag=iso===toISO(new Date(base.getTime()+864e5))?' · 明天':'';
+  const mdays=[...new Set(mOrders.map(o=>o.appt.slice(0,10)))].sort();
+  for(const iso of mdays){
+    const ds=mOrders.filter(o=>o.appt.slice(0,10)===iso).sort((a,b)=>a.appt.localeCompare(b.appt));
+    const d=new Date(iso+'T00:00');
+    const tag=iso===TODAY?' · 今天':(iso===toISO(new Date(base.getTime()+864e5))?' · 明天':'');
     up+=`<div class="sec-title">${d.getMonth()+1}月${d.getDate()}日 周${dowOf(iso)}${tag}</div>
     <div class="card rows">${ds.map(orderRowTrip).join('')}</div>`;
   }
-  if(!up)up=`<div class="empty">点按上方日历查看任意日期,或点右上角「预约」新增</div>`;
+  if(!up)up=`<div class="empty">${m}月暂无档期 · 点右上角「预约」新增</div>`;
   $('#v-trip').innerHTML=`
     <div class="htop-row">
       <div><div class="eyebrow">整月档期 · ‹ › 可翻月</div><h1 class="big">行程</h1>
@@ -1224,6 +1224,7 @@ function renderTrip(){
     </div>
     <div class="sec-title">${ui.selDay===TODAY?'今日行程':`${+ui.selDay.slice(5,7)}月${+ui.selDay.slice(8,10)}日 周${dowOf(ui.selDay)}`}${list.length&&dayBadge(list.length,list.reduce((s,o)=>s+o.price,0))?` · ${dayBadge(list.length,list.reduce((s,o)=>s+o.price,0)).e} ${dayBadge(list.length,list.reduce((s,o)=>s+o.price,0)).t}`:''}</div>
     <div class="card rows">${listHtml}</div>
+    <div class="sec-title">${m}月全部档期 · 往下滚看整月</div>
     ${up}`;
 }
 
@@ -1420,12 +1421,12 @@ function renderStats(){
       </div>
       <div class="menu-row" data-act="reset-dawang">
         <span class="menu-ic" style="background:var(--red-soft);color:var(--red)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 5.5v5h5"/><path d="M4.6 10.5A8 8 0 1 1 4 14"/></svg></span>
-        <div class="menu-t"><div class="menu-name">恢复初始数据(大王 · 11月)</div><div class="menu-sub">还原 11 月真实档期初始化状态,当前改动会丢失(建议先导出备份)</div></div>
+        <div class="menu-t"><div class="menu-name">载入大王(深圳)11 月真实档期</div><div class="menu-sub">46 笔真实订单 · 对外展示请改用演示数据;此操作会替换当前数据</div></div>
         <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
       </div>
       <div class="menu-row" data-act="reset-demo">
         <span class="menu-ic" style="background:var(--purple-soft);color:var(--purple)"><svg class="ic" viewBox="0 0 24 24"><rect x="5.5" y="3.8" width="13" height="16.5" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/></svg></span>
-        <div class="menu-t"><div class="menu-name">载入开发演示数据</div><div class="menu-sub">17 笔虚构示例订单,仅用于产品演示(demo)</div></div>
+        <div class="menu-t"><div class="menu-name">载入演示数据(对外展示)</div><div class="menu-sub">17 笔虚构示例订单,公开演示 / 截图安全</div></div>
         <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
       </div>
       <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0">探记 TanJi v0.3 · 初始档期:大王(深圳)· 2026年11月 · 数据仅存本机,请定期导出备份</div>
@@ -1530,7 +1531,7 @@ $('#f-date').value=TODAY;
   renderAll();showTab('home');
   initSqlite().then(s=>{if(s){Store.sqlite3=s;persistFull()}});
   if(!had&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
-    setTimeout(()=>toast('已载入大王(深圳)11 月初始档期 · 打开即可继续使用'),1200);
+    setTimeout(()=>toast('已载入演示数据 · 统计页可载入真实档期或清空开始记录'),1200);
   }
 })();
 </script>
