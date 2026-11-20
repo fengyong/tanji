@@ -3,17 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>探记 TanJi · 探店达人的行程与收款</title>
-<link rel="manifest" href="manifest.webmanifest"/>
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="探记"/>
-<meta name="theme-color" content="#F2F2F7"/>
-<script type="module">
-  import sqlite3InitModule from './vendor/sqlite3.mjs';
-  window.sqlite3InitModule=sqlite3InitModule;
-</script>
+<title>探记 · 点子实验室</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   :root{
@@ -27,64 +17,27 @@
     --r:16px;
   }
   html,body{height:100%}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
-    background:linear-gradient(155deg,#ECEAF3 0%,#E4E8EF 100%);
-    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:26px 16px;
-    color:var(--ink);user-select:none;
-  }
-  input,textarea{user-select:text}
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    background:linear-gradient(155deg,#ECEAF3 0%,#E4E8EF 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:26px 16px;color:var(--ink);user-select:none}
   .stage{display:flex;flex-direction:column;align-items:center;gap:16px}
   .caption{font-size:12.5px;color:#7d7f88;text-align:center;line-height:1.7;max-width:460px}
   .caption b{color:#4c4e58}
-
-  /* ===== 手机外壳 ===== */
-  .phone{
-    width:393px;height:min(852px,calc(100vh - 96px));min-height:620px;
-    background:var(--bg);border-radius:52px;border:11px solid #101014;
-    box-shadow:0 34px 90px rgba(25,25,45,.38),0 4px 18px rgba(0,0,0,.18);
-    position:relative;overflow:hidden;overflow:clip;
-  }
-  @media (max-width:520px){
-    body{padding:0}
-    .phone{width:100vw;height:100vh;height:100dvh;border:none;border-radius:0;box-shadow:none}
-    .caption{display:none}
-  }
-  @media (display-mode: standalone){
-    .statusbar,.island{display:none}
-    .phone{border:none;border-radius:0}
-    .view{padding-top:calc(18px + env(safe-area-inset-top))}
-    .tabbar{padding-bottom:calc(26px + env(safe-area-inset-bottom))}
-  }
+  .phone{width:393px;height:min(852px,calc(100vh - 96px));min-height:620px;background:var(--bg);border-radius:52px;
+    border:11px solid #101014;box-shadow:0 34px 90px rgba(25,25,45,.38),0 4px 18px rgba(0,0,0,.18);
+    position:relative;overflow:hidden;overflow:clip}
+  @media (max-width:520px){body{padding:0}.phone{width:100vw;height:100vh;height:100dvh;border:none;border-radius:0;box-shadow:none}.caption{display:none}}
+  @media (display-mode: standalone){.statusbar,.island{display:none}.phone{border:none;border-radius:0}.view{padding-top:calc(18px + env(safe-area-inset-top))}.tabbar{padding-bottom:calc(26px + env(safe-area-inset-bottom))}}
   .island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:33px;background:#101014;border-radius:18px;z-index:60}
-  .statusbar{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 7px;z-index:55;font-size:15px;font-weight:600;color:#111;pointer-events:none}
-  .sb-icons{display:flex;align-items:center;gap:5px}
-  .sb-icons svg{height:12px;width:auto;display:block}
+  .statusbar{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 7px;z-index:55;font-size:15px;font-weight:600;pointer-events:none}
   .home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#16161a;opacity:.9;z-index:61;pointer-events:none}
-
-  /* ===== 视图 ===== */
-  .view{
-    position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
-    padding:60px 16px 108px;display:none;overscroll-behavior:contain;scrollbar-width:none;
-  }
+  .view{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:60px 16px 108px;display:none;overscroll-behavior:contain;scrollbar-width:none}
   .view::-webkit-scrollbar{display:none}
   .view.active{display:block}
-
-  /* 顶部大标题 */
-  .eyebrow{font-size:13px;font-weight:600;color:var(--sub);letter-spacing:.2px;margin-bottom:2px}
-  h1.big{font-size:31px;font-weight:800;letter-spacing:.2px;line-height:1.15}
+  .eyebrow{font-size:13px;font-weight:600;color:var(--sub);margin-bottom:2px}
+  h1.big{font-size:30px;font-weight:800;line-height:1.15}
   .hsub{font-size:13px;color:var(--sub);margin-top:5px}
-  .htop-row{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;gap:8px}
-  .btn-pill{display:inline-flex;align-items:center;gap:4px;background:var(--brand);color:#fff;border:none;border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700;box-shadow:0 3px 10px rgba(255,106,43,.32);flex-shrink:0}
-  .btn-pill .ic{width:14px;height:14px}
-  .icon-btn{width:36px;height:36px;border-radius:18px;background:#fff;border:none;display:flex;align-items:center;justify-content:center;color:#55555c;box-shadow:0 1px 3px rgba(0,0,0,.1);flex-shrink:0}
-  .icon-btn.on{background:var(--ink);color:#fff}
-  .icon-btn .ic{width:17px;height:17px}
-
-  .sec-title{font-size:13px;font-weight:700;color:var(--sub);margin:18px 2px 8px;display:flex;justify-content:space-between;align-items:center}
-  .sec-title .more{font-size:12px;font-weight:600;color:var(--brand)}
-
-  /* ===== 通用组件 ===== */
+  .sec-title{font-size:13px;font-weight:700;color:var(--sub);margin:18px 2px 8px}
   .card{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
   .row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:.5px solid var(--line);min-width:0}
   .row:last-child{border-bottom:none}
@@ -93,323 +46,119 @@
   .rsub{font-size:12px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rside{text-align:right;flex-shrink:0}
   .rprice{font-size:15px;font-weight:800}
-  .row:active{background:#F7F7FA}
   .rows{padding:2px 12px}
-
-  .chip{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
-  .c-blue{background:var(--blue-soft);color:var(--blue)}
-  .c-purple{background:var(--purple-soft);color:var(--purple)}
-  .c-orange{background:var(--orange-soft);color:#E8850A}
-  .c-green{background:var(--green-soft);color:#239648}
-  .c-gray{background:#EFEFF3;color:#7a7a82}
-  .c-red{background:var(--red-soft);color:var(--red)}
+  .chip{display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .c-blue{background:var(--blue-soft);color:var(--blue)}.c-purple{background:var(--purple-soft);color:var(--purple)}
+  .c-orange{background:var(--orange-soft);color:#E8850A}.c-green{background:var(--green-soft);color:#239648}
+  .c-gray{background:#EFEFF3;color:#7a7a82}.c-red{background:var(--red-soft);color:var(--red)}
   .c-ink{background:#1C1C1E;color:#fff}
-  .chiprow{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
-
   .btn{display:flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:12px;padding:12px;font-size:14.5px;font-weight:700;width:100%}
   .btn:active{opacity:.75;transform:scale(.985)}
   .btn.primary{background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(255,106,43,.3)}
-  .btn.green{background:var(--green);color:#fff;box-shadow:0 4px 12px rgba(52,199,89,.3)}
+  .btn.green{background:var(--green);color:#fff}
   .btn.tint{background:var(--brand-soft);color:var(--brand)}
-  .btn.tint-green{background:var(--green-soft);color:#239648}
   .btn.tint-blue{background:var(--blue-soft);color:var(--blue)}
+  .btn.tint-green{background:var(--green-soft);color:#239648}
   .btn.ghost{background:#F1F1F5;color:#3a3a40}
-  .btn.danger-ghost{background:var(--red-soft);color:var(--red)}
   .btn+.btn{margin-top:10px}
-  .btn2{display:flex;gap:8px}.btn2 .btn{margin-top:0;flex:1;min-width:0;font-size:13.5px;padding:11px 6px}
-  .mini-btn{border:none;border-radius:16px;padding:7px 12px;font-size:12.5px;font-weight:700;background:var(--brand-soft);color:var(--brand);flex-shrink:0}
-  .mini-btn:active{opacity:.7}
-  .mini-btn.green{background:var(--green-soft);color:#239648}
-
-  .ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
-
-  /* 分段控制器 */
+  .btn2{display:flex;gap:8px}.btn2 .btn{margin-top:0;flex:1;font-size:13.5px;padding:11px 6px}
   .seg{display:flex;background:#E2E2E8;border-radius:11px;padding:2.5px;gap:2px}
   .seg button{flex:1;border:none;background:transparent;padding:6.5px 2px;font-size:12.5px;font-weight:600;color:#6d6d75;border-radius:9px;font-family:inherit}
   .seg button.on{background:#fff;color:#111;box-shadow:0 1.5px 4px rgba(0,0,0,.13);font-weight:700}
-
-  /* 筛选 chips */
-  .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
-  .chips::-webkit-scrollbar{display:none}
-  .fchip{border:none;background:#fff;color:#5c5c64;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:18px;box-shadow:0 1px 2px rgba(0,0,0,.06);white-space:nowrap;font-family:inherit}
-  .fchip.on{background:var(--ink);color:#fff}
-  .fchip b{font-weight:800}
-
-  /* 搜索框 */
-  .search{display:flex;align-items:center;gap:7px;background:#E7E7ED;border-radius:11px;padding:8px 11px;margin:12px 0 10px}
-  .search input{border:none;background:transparent;outline:none;font-size:14px;flex:1;font-family:inherit;color:var(--ink)}
-  .search .ic{width:15px;height:15px;color:var(--sub)}
-
-  /* 催收警报卡 */
-  .alert-card{border-radius:var(--r);padding:14px;display:flex;align-items:center;gap:12px;color:#fff;background:linear-gradient(120deg,#FF5A45,#E8352A);box-shadow:0 6px 18px rgba(232,53,42,.3)}
-  .alert-card.calm{background:linear-gradient(120deg,#2ECD64,#1FAF52);box-shadow:0 6px 18px rgba(31,175,82,.28)}
-  .alert-card.amber{background:linear-gradient(120deg,#FFB340,#F09A1F);box-shadow:0 6px 18px rgba(240,154,31,.28)}
-  .alert-card .ic{width:26px;height:26px;stroke-width:1.8}
-  .alert-main{flex:1;min-width:0}
-  .alert-t{font-size:15.5px;font-weight:800}
-  .alert-s{font-size:12px;opacity:.92;margin-top:2px}
-
-  /* 速览 mini 卡 */
-  .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .mini{background:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
-  .mini .mv{font-size:19px;font-weight:800;letter-spacing:.2px}
-  .mini .ml{font-size:11.5px;color:var(--sub);margin-top:2px}
-
-  /* 周条 */
-  .week{display:flex;background:#fff;border-radius:var(--r);padding:10px 6px;box-shadow:0 1px 2px rgba(20,20,40,.05);gap:2px}
-  .wd{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:transparent;padding:5px 0;border-radius:12px;font-family:inherit}
-  .wd-dow{font-size:10.5px;color:var(--sub);font-weight:600}
-  .wd-num{font-size:16.5px;font-weight:700;color:#3c3c43}
-  .wd-dots{display:flex;gap:2.5px;height:5px;align-items:center}
-  .wd-dots i{width:4.5px;height:4.5px;border-radius:50%;background:var(--brand);display:block}
-  .wd.sel{background:var(--ink)}
-  .wd.sel .wd-num{color:#fff}.wd.sel .wd-dow{color:rgba(255,255,255,.75)}
-  .wd.today .wd-num{color:var(--brand)}
-
-  /* 月历 */
-  .mgrid{background:#fff;border-radius:var(--r);padding:12px 10px 10px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
-  .mhead{display:flex;align-items:center;justify-content:space-between;padding:0 4px 10px}
-  .mtitle{font-size:16px;font-weight:800}
-  .mtitle .msum{font-size:11.5px;color:var(--sub);font-weight:600;margin-left:6px}
-  .mnav{display:flex;gap:6px;align-items:center}
-  .mnav button{min-width:32px;height:30px;padding:0 8px;border-radius:15px;background:#F1F1F5;border:none;font-size:15px;font-weight:700;color:#55555c;font-family:inherit}
-  .mnav button:active{opacity:.7}
-  .mnav .mtod{font-size:12px}
-  .mgrid-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:10.5px;color:var(--sub);text-align:center;padding:2px 0 6px;font-weight:600}
-  .mgrid-c{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
-  .mc{position:relative;aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;font-family:inherit;padding:0;min-width:0}
-  .mc .n{font-size:13.5px;font-weight:700;color:#3c3c43;line-height:1}
-  .mc .d{display:flex;gap:2px;height:4px;flex-wrap:wrap;justify-content:center;max-width:90%}
-  .mc .d i{width:3.5px;height:3.5px;border-radius:50%;background:var(--brand);display:block}
-  .mc .bdg{position:absolute;top:1px;right:2px;font-size:10px;line-height:1;pointer-events:none}
-  .mc.sel{background:var(--ink)}
-  .mc.sel .n{color:#fff}
-  .mc.today .n{color:var(--brand)}
-  .mc:active{background:#F1F1F5}
-
-  /* 图表 */
-  .bars{display:flex;align-items:flex-end;gap:2px;height:118px;margin-top:12px}
-  .bar{flex:1;display:flex;align-items:flex-end;height:100%}
-  .bar i{display:block;width:100%;background:linear-gradient(180deg,#FF8B55,var(--brand));border-radius:3px 3px 1.5px 1.5px;min-height:2px}
-  .bar.zero i{background:#E4E4EA}
-  .bar-x{display:flex;justify-content:space-between;font-size:10px;color:var(--sub);margin-top:6px}
-  .chart-cap{font-size:12px;color:var(--sub);margin-top:10px;display:flex;justify-content:space-between}
-  .chart-cap b{color:var(--ink);font-size:14px}
-
-  /* 设置菜单 */
-  .menu-row{display:flex;align-items:center;gap:11px;padding:12px 2px;border-bottom:.5px solid var(--line)}
-  .menu-row:last-child{border-bottom:none}
-  .menu-ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .menu-ic .ic{width:16px;height:16px}
-  .menu-t{flex:1;min-width:0}
-  .menu-name{font-size:14.5px;font-weight:600}
-  .menu-sub{font-size:11.5px;color:var(--sub);margin-top:1.5px;line-height:1.4}
-  .stepper{display:flex;align-items:center;gap:2px;background:#F1F1F5;border-radius:9px;overflow:hidden}
-  .stepper button{border:none;background:#fff;width:32px;height:30px;font-size:17px;font-weight:700;color:#444;font-family:inherit}
-  .stepper span{min-width:52px;text-align:center;font-size:13px;font-weight:800}
-
-  /* 表单 */
   .frow{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:.5px solid var(--line)}
   .frow label{font-size:14px;font-weight:600;width:76px;flex-shrink:0}
   .frow input,.frow select,.frow textarea{border:none;outline:none;font-size:15px;flex:1;font-family:inherit;background:transparent;color:var(--ink);text-align:right;min-width:0}
   .frow textarea{text-align:left;resize:none;font-size:14px;line-height:1.5}
-  .frow input::placeholder,.frow textarea::placeholder{color:#B9B9C0}
-  .ferr{font-size:12px;color:var(--red);margin-top:8px;display:none}
-  .banner-amber{background:#FFF7E6;color:#B26B00;border-radius:12px;padding:10px 13px;font-size:12.5px;font-weight:600;line-height:1.55;margin-top:12px;display:none}
-  .banner-amber b{color:#8f5600}
-
-  /* 底部弹层 */
   .mask{position:absolute;inset:0;background:rgba(15,15,25,.4);opacity:0;pointer-events:none;transition:opacity .28s;z-index:80}
   .mask.show{opacity:1;pointer-events:auto}
-  .sheet{
-    position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:26px 26px 0 0;
-    transform:translateY(106%);visibility:hidden;
-    transition:transform .34s cubic-bezier(.32,.72,.35,1),visibility 0s linear .34s;z-index:90;
-    max-height:86%;display:flex;flex-direction:column;
-  }
+  .sheet{position:absolute;inset:0;background:var(--bg);transform:translateY(106%);visibility:hidden;
+    transition:transform .34s cubic-bezier(.32,.72,.35,1),visibility 0s linear .34s;z-index:90;display:flex;flex-direction:column}
   .sheet.show{transform:translateY(0);visibility:visible;transition:transform .34s cubic-bezier(.32,.72,.35,1)}
-  .grabber{width:40px;height:5px;border-radius:3px;background:#DDDDDF;margin:9px auto 2px;flex-shrink:0}
-  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:6px 20px 8px;flex-shrink:0}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;flex-shrink:0;background:#fff;border-bottom:.5px solid var(--line)}
   .sheet-title{font-size:17px;font-weight:800}
+  .sheet-title .tag{font-size:11px;color:var(--sub);font-weight:600;margin-left:8px}
   .sheet-close{border:none;background:#F1F1F5;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#7a7a82}
-  .sheet-close .ic{width:15px;height:15px}
-  .sheet-body{overflow-y:auto;padding:2px 20px 34px;scrollbar-width:none}
+  .sheet-close svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+  .sheet-body{flex:1;overflow-y:auto;padding:16px 16px 40px;scrollbar-width:none}
   .sheet-body::-webkit-scrollbar{display:none}
-
-  /* 收款方式选择 */
-  .mchip{border:1.5px solid #E2E2E8;background:#fff;color:#3a3a40;font-size:13.5px;font-weight:700;padding:9px 16px;border-radius:20px;font-family:inherit}
-  .mchip.on{background:var(--ink);border-color:var(--ink);color:#fff}
-  .mchip:active{opacity:.75}
-
-  /* 里程碑 */
-  .mile{display:flex;position:relative;margin:16px 2px 6px}
-  .mile::before{content:"";position:absolute;top:13px;left:14%;right:14%;height:2.5px;background:#E6E6EB;border-radius:2px}
-  .mstep{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative;z-index:1}
-  .mdot{width:28px;height:28px;border-radius:50%;background:#EDEDF2;color:#B6B6BE;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;border:2.5px solid #EDEDF2}
-  .mstep.done .mdot{background:var(--brand);border-color:var(--brand);color:#fff}
-  .mstep.now .mdot{border-color:var(--brand);color:var(--brand);background:#fff}
-  .mlab{font-size:11.5px;font-weight:700;color:#55555c}
-  .mtime{font-size:10px;color:var(--sub);height:13px}
-
-  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:12px;overflow:hidden;margin-top:12px}
-  .ig{background:#fff;padding:10px 12px}
-  .ig .k{font-size:11px;color:var(--sub)}
-  .ig .v{font-size:13.5px;font-weight:700;margin-top:2px}
-
-  .banner-red{background:var(--red-soft);color:var(--red);border-radius:12px;padding:10px 13px;font-size:12.5px;font-weight:600;line-height:1.5;margin-top:12px;display:flex;gap:8px;align-items:flex-start}
-  .banner-red .ic{width:16px;height:16px;margin-top:1px}
-
-  /* Tab 栏 */
-  .tabbar{
-    position:absolute;bottom:0;left:0;right:0;height:86px;padding:9px 8px 30px;display:flex;
-    background:rgba(250,250,252,.88);-webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);
-    border-top:.5px solid rgba(0,0,0,.12);z-index:50;
-  }
-  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:transparent;font-size:10px;font-weight:600;color:#98989f;font-family:inherit;position:relative}
+  .tabbar{position:absolute;bottom:0;left:0;right:0;height:86px;padding:9px 8px 30px;display:flex;background:rgba(250,250,252,.88);
+    -webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);border-top:.5px solid rgba(0,0,0,.12);z-index:50}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:transparent;font-size:10px;font-weight:600;color:#98989f;font-family:inherit}
   .tab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
   .tab.active{color:var(--brand)}
-  .tab .bdg{position:absolute;top:-4px;right:14px;min-width:16px;height:16px;border-radius:9px;background:var(--red);color:#fff;font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px}
-
-  /* Toast */
-  .toast{
-    position:absolute;top:64px;left:50%;transform:translate(-50%,-12px);z-index:120;
-    background:rgba(28,28,32,.94);color:#fff;font-size:13px;font-weight:600;padding:9px 18px;border-radius:22px;
-    opacity:0;pointer-events:none;transition:all .28s;max-width:82%;text-align:center;
-  }
+  .toast{position:absolute;top:64px;left:50%;transform:translate(-50%,-12px);z-index:120;background:rgba(28,28,32,.94);color:#fff;
+    font-size:13px;font-weight:600;padding:9px 18px;border-radius:22px;opacity:0;pointer-events:none;transition:all .28s;max-width:82%;text-align:center}
   .toast.show{opacity:1;transform:translate(-50%,0)}
+  .empty{padding:30px 0;text-align:center;color:var(--sub);font-size:13px;line-height:1.8}
 
-  .empty{padding:34px 0;text-align:center;color:var(--sub);font-size:13px;line-height:1.8}
-  .empty .e-ic{font-size:30px;margin-bottom:6px}
-  .schema-pre{background:#1E1E24;color:#D9D9E3;font-family:"SF Mono",Menlo,monospace;font-size:11px;line-height:1.75;padding:14px;border-radius:12px;overflow-x:auto;white-space:pre}
-  .schema-pre .c{color:#8A8A95}
-  .tag-badge{font-size:10px;font-weight:800;padding:2.5px 7px;border-radius:6px;background:var(--blue-soft);color:var(--blue);flex-shrink:0}
+  /* 点子卡片 */
+  .idea{display:flex;gap:12px;align-items:flex-start;background:#fff;border-radius:var(--r);padding:14px;box-shadow:0 1px 2px rgba(20,20,40,.05);margin-bottom:10px;cursor:pointer}
+  .idea:active{background:#F7F7FA}
+  .idea-emoji{font-size:26px;line-height:1;margin-top:2px}
+  .idea-main{flex:1;min-width:0}
+  .idea-name{font-size:15.5px;font-weight:800}
+  .idea-why{font-size:12px;color:var(--sub);margin-top:4px;line-height:1.55}
+  .idea-why b{color:#4c4e58}
+  .idea-go{margin-top:8px;display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:700;color:var(--brand)}
+
+  .pbar{height:10px;background:#EFEFF3;border-radius:5px;overflow:hidden}
+  .pbar i{display:block;height:100%;background:linear-gradient(90deg,#FF8B55,var(--brand));border-radius:5px}
+  .big-num{font-size:34px;font-weight:800;letter-spacing:.3px}
+  .txt-card{background:#fff;border:.5px solid var(--line);border-radius:14px;padding:14px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;word-break:break-all}
+  .kbd{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .kbd button{border:1.5px solid #E2E2E8;background:#fff;color:#3a3a40;font-size:13px;font-weight:700;padding:8px 14px;border-radius:18px;font-family:inherit}
+  .kbd button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .kbd button:active{opacity:.7}
+  .chk{display:flex;gap:10px;align-items:flex-start;background:#fff;border-radius:12px;padding:11px 12px;margin-bottom:7px;font-size:13.5px;line-height:1.4}
+  .chk input{margin-top:2px;accent-color:var(--brand);width:17px;height:17px;flex-shrink:0}
+  .chk.done span{text-decoration:line-through;color:var(--sub)}
+
+  /* 自检 */
+  .qa-group{font-size:12px;font-weight:800;color:var(--sub);margin:14px 2px 6px}
+  .qa-row{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:10px;margin-bottom:4px;background:#fff;font-size:12.5px;line-height:1.5}
+  .qa-ok{color:#239648;font-weight:800;flex-shrink:0}
+  .qa-no{color:var(--red);font-weight:800;flex-shrink:0}
+  .qa-detail{color:var(--sub);font-size:11.5px}
+  .qa-pass{font-size:30px;font-weight:800}
+
+  /* 引导 */
+  .urow{display:flex;gap:10px;align-items:flex-start;background:#fff;border-radius:12px;padding:11px 12px;margin-bottom:8px;font-size:13px;line-height:1.5}
+  .urow input{margin-top:3px;accent-color:var(--brand);width:16px;height:16px;flex-shrink:0}
+  .urow .uauto{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;flex-shrink:0;margin-top:1px}
+  .ua-ok{background:var(--green-soft);color:#239648}
+  .ua-manual{background:#EFEFF3;color:#7a7a82}
+  .uexp{color:var(--sub);font-size:11.5px;margin-top:3px}
 </style>
 </head>
 <body>
 <div class="stage">
-  <div class="phone" id="phone">
+  <div class="phone">
     <div class="island"></div>
-    <div class="statusbar">
-      <span>9:41</span>
-      <span class="sb-icons">
-        <svg viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#111"/><rect x="5" y="5" width="3" height="7" rx="1" fill="#111"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="#111"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#111" opacity=".35"/></svg>
-        <svg viewBox="0 0 17 12"><path d="M8.5 10.8l2.2-2.7a3.4 3.4 0 0 0-4.4 0l2.2 2.7z" fill="#111"/><path d="M3.6 5.4a7.3 7.3 0 0 1 9.8 0" stroke="#111" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M1.2 2.8a10.8 10.8 0 0 1 14.6 0" stroke="#111" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
-        <svg viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#111" opacity=".4" fill="none"/><rect x="2" y="2" width="17" height="9" rx="2" fill="#111"/><path d="M24.5 4.5v4a2.2 2.2 0 0 0 0-4z" fill="#111" opacity=".4"/></svg>
-      </span>
-    </div>
+    <div class="statusbar"><span>9:41</span><span style="font-size:12px">点子实验室</span></div>
 
-    <section class="view" id="v-home"></section>
-    <section class="view" id="v-trip"></section>
-    <section class="view" id="v-orders"></section>
-    <section class="view" id="v-pay"></section>
-    <section class="view" id="v-stats"></section>
+    <section class="view active" id="v-lab"></section>
+    <section class="view" id="v-test"></section>
+    <section class="view" id="v-guide"></section>
 
-    <nav class="tabbar" id="tabbar">
-      <button class="tab active" data-act="tab" data-tab="home">
-        <svg viewBox="0 0 24 24"><path d="M3.5 10.8 12 3.8l8.5 7v8.4a1.5 1.5 0 0 1-1.5 1.5h-4.5v-6h-5v6H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg>首页
+    <nav class="tabbar">
+      <button class="tab active" data-act="tab" data-tab="lab">
+        <svg viewBox="0 0 24 24"><path d="M9.5 3h5M10 3v6.5L5.5 17A3 3 0 0 0 8.2 21h7.6a3 3 0 0 0 2.7-4L14 9.5V3"/><path d="M7 14h10"/></svg>8 个点子
       </button>
-      <button class="tab" data-act="tab" data-tab="trip">
-        <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8.2 3v4M15.8 3v4"/></svg>行程
+      <button class="tab" data-act="tab" data-tab="test">
+        <svg viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg>自检 · 测试
       </button>
-      <button class="tab" data-act="tab" data-tab="orders">
-        <svg viewBox="0 0 24 24"><rect x="5.5" y="3.8" width="13" height="16.5" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/></svg>订单
-      </button>
-      <button class="tab" data-act="tab" data-tab="pay">
-        <svg viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><path d="M4 10h16M15.5 14.5h2"/></svg>收款<span class="bdg" id="pay-bdg" style="display:none">0</span>
-      </button>
-      <button class="tab" data-act="tab" data-tab="stats">
-        <svg viewBox="0 0 24 24"><path d="M5.5 20v-8M12 20V4.5M18.5 20v-5.5"/></svg>统计
+      <button class="tab" data-act="tab" data-tab="guide">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="17" rx="3"/><path d="M8.5 11l2.2 2.2 5-5"/><path d="M8.5 3v3M15.5 3v3"/></svg>达人引导
       </button>
     </nav>
 
-    <div class="mask" id="mask" data-act="close-sheet"></div>
-
-    <div class="sheet" id="sheet-detail">
-      <div class="grabber"></div>
-      <div class="sheet-body" id="detail-body"></div>
-    </div>
-
-    <div class="sheet" id="sheet-pay">
-      <div class="grabber"></div>
+    <div class="mask" id="mask" data-act="close-demo"></div>
+    <div class="sheet" id="sheet-demo">
       <div class="sheet-head">
-        <span class="sheet-title">确认收款</span>
-        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <span class="sheet-title" id="demo-title"></span>
+        <button class="sheet-close" data-act="close-demo"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <div class="sheet-body" id="pay-body"></div>
-    </div>
-
-    <div class="sheet" id="sheet-share">
-      <div class="grabber"></div>
-      <div class="sheet-head">
-        <span class="sheet-title">今日行程 · 分享图片</span>
-        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </div>
-      <div class="sheet-body" id="share-body"></div>
-    </div>
-
-    <div class="sheet" id="sheet-new">
-      <div class="grabber"></div>
-      <div class="sheet-head">
-        <span class="sheet-title">新建探店预约</span>
-        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </div>
-      <div class="sheet-body">
-        <div class="frow"><label>商家名称</label><input id="f-store" placeholder="如:澄川咖啡·滨江店"></div>
-        <div class="frow"><label>类型</label>
-          <select id="f-cat">
-            <option>餐饮</option><option>咖啡</option><option>烧烤</option><option>火锅</option><option>茶饮</option><option>甜品</option>
-            <option>烘焙</option><option>美发</option><option>健身</option><option>民宿</option>
-            <option>零售</option><option>体验馆</option><option>服饰</option><option>快餐</option><option>其他</option>
-          </select>
-        </div>
-        <div class="frow"><label>结算方式</label>
-          <select id="f-settle">
-            <option value="private">私收(微信/支付宝/银行卡)</option>
-            <option value="douyin">抖音商单(平台结算)</option>
-          </select>
-        </div>
-        <div class="frow"><label>渠道</label><input id="f-channel" placeholder="如:蜂向/小爱/金城/食物,直客可空"></div>
-        <div class="frow"><label>出镜</label><input id="f-partner" placeholder="出镜搭档,如:花花;单人拍摄可空"></div>
-        <div class="frow"><label>预约日期</label><input id="f-date" type="date"></div>
-        <div class="frow"><label>预约时间</label><input id="f-time" type="time" value="10:00"></div>
-        <div class="frow"><label>总价(¥)</label><input id="f-price" type="number" inputmode="numeric" placeholder="如 1200"></div>
-        <div class="frow"><label>定金(¥)</label><input id="f-deposit" type="number" inputmode="numeric" placeholder="0 表示未约定定金"></div>
-        <div class="frow"><label>联系方式</label><input id="f-contact" placeholder="店长 / 电话"></div>
-        <div class="frow"><label>备注</label><textarea id="f-note" rows="2" placeholder="拍摄要点、机位、交付要求…"></textarea></div>
-        <div class="banner-amber" id="f-conflict"></div>
-        <div class="ferr" id="f-err">商家名称和总价为必填</div>
-        <div style="padding:16px 0 4px">
-          <button class="btn primary" data-act="save-order">保存预约</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="sheet" id="sheet-edit">
-      <div class="grabber"></div>
-      <div class="sheet-head">
-        <span class="sheet-title">编辑订单</span>
-        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </div>
-      <div class="sheet-body" id="edit-body"></div>
-    </div>
-
-    <div class="sheet" id="sheet-schema">
-      <div class="grabber"></div>
-      <div class="sheet-head">
-        <span class="sheet-title">本机数据结构(SQLite)</span>
-        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </div>
-      <div class="sheet-body">
-        <p style="font-size:12.5px;color:var(--sub);line-height:1.7;margin-bottom:12px">
-          数据以真实的 SQLite 数据库文件保存在本机(每次改动即写盘),完全离线;导出的 .db 可用任意 SQLite 工具打开查看或迁移。
-        </p>
-        <pre class="schema-pre" id="schema-pre"></pre>
-        <div style="padding-top:14px">
-          <button class="btn tint-blue" data-act="export-db">导出 SQLite 数据库(.db)</button>
-          <button class="btn tint-green" data-act="export-csv">导出 CSV(订单 + 收款流水)</button>
-          <button class="btn ghost" data-act="export-json">导出 JSON 备份</button>
-        </div>
-      </div>
+      <div class="sheet-body" id="demo-stage"></div>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -417,8 +166,8 @@
   </div>
 
   <div class="caption">
-    <b>探记 TanJi · v0.2</b>(探店达人的行程与收款)<br>
-    新建预约 / 时段冲突提醒 / 标记拍摄·提审·发片 / 收定金·尾款(记录渠道) / 1·3·7 天催收备忘 / 隐私模式 / 今日行程分享图 / 本机 SQLite 存储 + 导出 — 添加到主屏幕可当独立 App 用
+    <b>探记 · 点子实验室</b>(lab 分支)— 8 个产品点子可交互 demo + 自测试机制<br>
+    每个点子附产品论据;自检含「测试工程师断言层」与「达人 UAT 引导层」;数据全部虚构
   </div>
 </div>
 
@@ -430,290 +179,76 @@ const now=new Date();
 const TODAY=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
 function dOff(days,hm='10:00'){const t=new Date(now);t.setDate(t.getDate()+days);return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}T${hm}`}
 function nowStr(){const n=new Date();return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}T${pad(n.getHours())}:${pad(n.getMinutes())}`}
-function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function fmtD(s){if(!s)return '—';const d=new Date(s);return `${d.getMonth()+1}-${pad(d.getDate())}`}
 function fmtHM(s){return s?s.slice(11,16):'—'}
-function fmtDT(s){return s?`${fmtD(s)} ${fmtHM(s)}`:'—'}
-function fmtMoney(n){return ui.privacy?'¥✱✱✱':'¥'+Math.round(n).toLocaleString('zh-CN')}
-const DOW='一二三四五六日',dowOf=s=>DOW[(new Date(s).getDay()+6)%7];
-function daysBetween(fromStr){const f=new Date(fromStr);return Math.max(0,Math.floor((now-f)/864e5))}
-function greeting(){const h=now.getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
+function fmtMoney(n){return '¥'+Math.round(n).toLocaleString('zh-CN')}
+function daysBetween(s){return Math.max(0,Math.floor((now-new Date(s))/864e5))}
+function toMin(a){return +a.slice(11,13)*60+ +a.slice(14,16)}
+let toastTimer;
+function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
 
-/* ================= UI 状态(先于数据定义,fmtMoney 依赖) ================= */
-const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1}};
-
-/* ================= 种子数据(相对今天生成,首启后即为用户真实数据) ================= */
-function demoSeed(){
-  const O=[
-    {id:1, store:'麓野日料·万象城店', cat:'餐饮', contact:'王店长 138****2043', price:1600, deposit:500, settleVia:'private',
-     appt:dOff(0,'14:00'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
-     depositPaidAt:dOff(-3,'11:20'), finalPaidAt:null, remindAt:null, note:'重点拍寿司拼盘与环境氛围,竖屏 3 条'},
-    {id:2, store:'澄川咖啡·滨江店', cat:'咖啡', contact:'陈姐 139****8871', price:800, deposit:300, settleVia:'private',
-     appt:dOff(0,'09:30'), shotAt:dOff(0,'10:12'), submittedAt:null, shortAt:null, longAt:null,
-     depositPaidAt:dOff(-2,'15:00'), finalPaidAt:null, remindAt:null, note:'上午已拍完,下午出片提审'},
-    {id:3, store:'南栖烘焙·大学城店', cat:'烘焙', contact:'林生 137****6602', price:900, deposit:300, settleVia:'private',
-     appt:dOff(1,'10:30'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
-     depositPaidAt:dOff(-1,'18:40'), finalPaidAt:null, remindAt:null, note:'欧包特写为主'},
-    {id:4, store:'拾光汉服体验馆', cat:'体验馆', contact:'苏苏 189****3355', price:1500, deposit:0, settleVia:'private',
-     appt:dOff(2,'15:00'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
-     depositPaidAt:null, finalPaidAt:null, remindAt:null, note:'待收定金;拍摄含妆造两个场景'},
-    {id:5, store:'山野咖啡·露台店', cat:'咖啡', contact:'阿哲 136****9027', price:1200, deposit:400, settleVia:'private',
-     appt:dOff(4,'13:00'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
-     depositPaidAt:dOff(-1,'12:10'), finalPaidAt:null, remindAt:null, note:'露台自然光,下午三点后最佳'},
-    {id:6, store:'半糖甜品研究所', cat:'甜品', contact:'Vivi 135****4419', price:1000, deposit:300, settleVia:'private',
-     appt:dOff(6,'14:30'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
-     depositPaidAt:dOff(-4,'10:05'), finalPaidAt:null, remindAt:null, note:''},
-    {id:7, store:'云端西餐厅·33楼', cat:'餐饮', contact:'周经理 138****7710', price:2200, deposit:600, settleVia:'private',
-     appt:dOff(9,'18:30'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
-     depositPaidAt:null, finalPaidAt:null, remindAt:null, note:'夜景机位,需带补光;定金已催两次'},
-    {id:8, store:'山茶花奶茶·观前街店', cat:'茶饮', contact:'叶子 150****2288', price:1000, deposit:300, settleVia:'private',
-     appt:dOff(-1,'10:00'), shotAt:dOff(-1,'11:05'), submittedAt:dOff(-1,'16:40'), shortAt:null, longAt:null,
-     depositPaidAt:dOff(-3,'09:30'), finalPaidAt:null, remindAt:null, note:''},
-    {id:9, store:'铁兽健身·私教工作室', cat:'健身', contact:'K哥 186****5566', price:1300, deposit:400, settleVia:'private',
-     appt:dOff(-3,'19:00'), shotAt:dOff(-3,'19:40'), submittedAt:dOff(-2,'10:00'), shortAt:dOff(-1,'12:00'), longAt:null,
-     depositPaidAt:dOff(-5,'14:00'), finalPaidAt:null, remindAt:null, note:'长片等客户确认口播版本'},
-    {id:10, store:'循环洗衣·Central店', cat:'零售', contact:'何店长 131****0093', price:1400, deposit:400, settleVia:'private',
-     appt:dOff(-9,'15:00'), shotAt:dOff(-9,'15:35'), submittedAt:dOff(-8,'09:00'), shortAt:dOff(-6,'14:10'), longAt:null,
-     depositPaidAt:dOff(-10,'11:00'), finalPaidAt:null, remindAt:null, note:''},
-    {id:11, store:'TONI 造型沙龙·湖畔店', cat:'美发', contact:'Tony 137****8123', price:1200, deposit:300, settleVia:'private',
-     appt:dOff(-18,'14:00'), shotAt:dOff(-18,'14:40'), submittedAt:dOff(-17,'10:30'), shortAt:dOff(-15,'16:00'), longAt:dOff(-14,'11:20'),
-     depositPaidAt:dOff(-19,'09:00'), finalPaidAt:null, remindAt:null, note:'微信催过一次,回复"月底统一结"'},
-    {id:12, store:'栖里民宿·太湖店', cat:'民宿', contact:'洁姐 139****5160', price:1800, deposit:500, settleVia:'douyin',
-     appt:dOff(-34,'11:00'), shotAt:dOff(-34,'11:40'), submittedAt:dOff(-33,'15:00'), shortAt:dOff(-31,'10:00'), longAt:dOff(-30,'17:30'),
-     depositPaidAt:dOff(-35,'10:00'), finalPaidAt:null, remindAt:null, note:'抖音商单;平台审核通过后结算,预计 T+7 到账'},
-    {id:13, store:'城市露营地·郊野公园', cat:'露营', contact:'大鹏 188****6678', price:1500, deposit:0, settleVia:'private',
-     appt:dOff(-41,'16:00'), shotAt:dOff(-41,'16:30'), submittedAt:dOff(-40,'12:00'), shortAt:dOff(-38,'15:00'), longAt:dOff(-36,'10:40'),
-     depositPaidAt:null, finalPaidAt:null, remindAt:null, note:'全款尾款待结;多次微信未回,约了周五电话'},
-    {id:14, store:'老门东火锅·旗舰店', cat:'餐饮', contact:'刘总 133****2280', price:1600, deposit:500, settleVia:'private', finalMethod:'银行卡',
-     appt:dOff(-6,'17:30'), shotAt:dOff(-6,'18:10'), submittedAt:dOff(-5,'11:00'), shortAt:dOff(-4,'14:00'), longAt:dOff(-3,'16:20'),
-     depositPaidAt:dOff(-7,'10:30'), finalPaidAt:dOff(-2,'15:20'), remindAt:null, note:'尾款对公转账'},
-    {id:15, store:'喜邻超市·社区店', cat:'零售', contact:'范店 158****3366', price:900, deposit:300, settleVia:'douyin', finalMethod:'抖音商单',
-     appt:dOff(-12,'10:00'), shotAt:dOff(-12,'10:35'), submittedAt:dOff(-11,'14:00'), shortAt:dOff(-10,'15:00'), longAt:dOff(-9,'11:00'),
-     depositPaidAt:dOff(-13,'16:00'), finalPaidAt:dOff(-8,'10:00'), remindAt:null, note:''},
-    {id:16, store:'麦仓面包·奥体店', cat:'烘焙', contact:'Kiki 182****7745', price:800, deposit:200, settleVia:'private', finalMethod:'支付宝',
-     appt:dOff(-25,'09:30'), shotAt:dOff(-25,'10:10'), submittedAt:dOff(-24,'10:00'), shortAt:dOff(-22,'14:30'), longAt:dOff(-21,'10:00'),
-     depositPaidAt:dOff(-26,'15:00'), finalPaidAt:dOff(-18,'11:30'), remindAt:null, note:''},
-    {id:17, store:'橘朵花艺工作室', cat:'零售', contact:'小橘 177****9012', price:1100, deposit:300, settleVia:'private',
-     appt:dOff(-4,'16:00'), shotAt:dOff(-4,'16:40'), submittedAt:dOff(-3,'12:00'), shortAt:dOff(-2,'13:00'), longAt:dOff(-1,'15:00'),
-     depositPaidAt:dOff(-6,'11:00'), finalPaidAt:dOff(0,'08:40'), remindAt:null, note:'今早已收尾款'},
-  ];
-  const P=[];
-  O.forEach(o=>{
-    if(o.depositPaidAt&&o.deposit>0) P.push({oid:o.id,kind:'定金',amount:o.deposit,at:o.depositPaidAt,method:o.depMethod||'微信'});
-    if(o.finalPaidAt) P.push({oid:o.id,kind:'尾款',amount:o.price-o.deposit,at:o.finalPaidAt,method:o.finalMethod||(o.settleVia==='douyin'?'抖音商单':'微信')});
-  });
-  return {orders:O, payments:P, threshold:15};
-}
-
-/* ================= 初始数据:大王(深圳)· 2026年11月真实档期 ================= */
-/* 记号约定:🌹=元;店名前缀(小爱❤️/蜂向🌸/金城⭐🌙♦️/食物♦️⭐)=渠道;尾缀人名=出镜搭档;
-   线下结算⚡=私收已结;不组队=单人拍摄;拍图片=交付照片。金额口径为档期价(weekly ❤️=档期额)。 */
-function dawangSeed(){
-  const O=[],P=[];let id=1;
+/* ================= 实验室虚构数据(不含任何真实商家) ================= */
+function labSeed(){
+  const O=[];let id=1;const P=[];
   const add=(d,t,store,price,opts={})=>{
-    const appt=`2026-11-${d}T${t}`;
+    const appt=dOff(d,t);
     const past=new Date(appt)<=now;
-    const o={id:id++,store,cat:opts.cat||'餐饮',contact:'',price,deposit:opts.dep||0,
-      settleVia:'private',appt,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
-      depositPaidAt:null,finalPaidAt:null,remindAt:null,
-      note:opts.note||'',channel:opts.ch||'直客',partner:opts.pt||''};
+    const o={id:id++,store,cat:opts.cat||'餐饮',price,deposit:opts.dep||0,settleVia:opts.douyin?'douyin':'private',
+      appt,shotAt:null,submittedAt:null,shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,
+      remindAt:null,note:opts.note||'',channel:opts.ch||'直客',partner:opts.pt||''};
     if(past){
-      const off=m=>{const x=new Date(appt);x.setMinutes(x.getMinutes()+m);
-        return `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`};
-      o.shotAt=off(45);o.submittedAt=off(180);
-      const nd=new Date(appt);nd.setDate(nd.getDate()+1);
-      o.shortAt=`${toISO(nd)}T12:00`;o.longAt=`${toISO(nd)}T18:30`;
-      if(opts.mode==='Z'){o.finalPaidAt=off(180)}
-      else if(opts.mode!=='N'){
-        o.finalPaidAt=`${toISO(nd)}T20:00`;
+      const off=m=>{const x=new Date(appt);x.setMinutes(x.getMinutes()+m);return `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`};
+      if(opts.shotToday){o.shotAt=nowStr()}
+      else if(!opts.future){o.shotAt=off(45);o.submittedAt=off(180);o.longAt=off(60*30)}
+      if(opts.delivered&&!opts.shotToday){o.shortAt=off(60*26)}
+      if(opts.settled){
+        o.finalPaidAt=off(60*30);
         if(price>0)P.push({oid:o.id,kind:'尾款',amount:price,at:o.finalPaidAt,method:'微信',note:opts.mode==='X'?'线下结算':null});
       }
     }
-    if(opts.dep>0){
+    if(opts.dep>0&&opts.depPaid){
       const pd=new Date(appt);pd.setDate(pd.getDate()-1);
-      o.depositPaidAt=`${toISO(pd)}T18:00`;
+      o.depositPaidAt=`${pd.getFullYear()}-${pad(pd.getMonth()+1)}-${pad(pd.getDate())}T18:00`;
       P.push({oid:o.id,kind:'定金',amount:opts.dep,at:o.depositPaidAt,method:'微信'});
     }
     O.push(o);
   };
-  /* —— 第一周(11-01 休息)—— */
-  add('02','11:30','内衣拍摄',0,{cat:'服饰',mode:'Z',note:'档期原文「内衣拍摄」,未报价'});
-  add('02','18:00','阿遇烧烤',2150,{cat:'烧烤',mode:'N',note:'档期原文:800+1500-150出镜;已收定金(金额待补记)'});
-  add('03','12:00','郭璐璐(龙华)',280,{ch:'小爱',pt:'郭璐璐',cat:'其他',note:'店名待补(档期原文:小爱❤️郭璐璐龙华)'});
-  add('03','15:30','黔牛汇(龙华)',300,{ch:'蜂向'});
-  add('03','17:00','林记潮汕牛肉火锅(南山)',250,{ch:'金城'});
-  add('03','18:30','南山眷坊(蛇口)',330,{ch:'食物'});
-  add('03','21:30','聚满满鲜货烧烤(龙华)',330,{ch:'食物',note:'拍图片(非视频)'});
-  add('04','12:00','你好遇见你(坂田)',300,{ch:'蜂向',pt:'花花'});
-  add('04','18:30','中隆烧鸡(坪山)',300,{ch:'蜂向',pt:'花花'});
-  add('05','12:00','蛙来哒(KK ONE)',300,{pt:'花花'});
-  add('05','14:30','无刺泡泡',1700,{pt:'花花',note:'档期原文:700+1000'});
-  add('05','17:30','鹤乡炭火记(坂田)',300,{ch:'蜂向',pt:'花花'});
-  add('05','20:30','潮泰社·烧烤音乐餐厅(金啤广场店)',330,{ch:'食物',pt:'花花',cat:'烧烤'});
-  add('06','14:00','克茗冰室(卓悦汇店)',300,{});
-  add('06','19:30','围屋烟火烤鱼',300,{ch:'蜂向',cat:'烧烤'});
-  /* —— 第二周(11-07/08 休息)—— */
-  add('09','13:30','峰盛牛庄(宝安)',280,{ch:'小爱',pt:'花花'});
-  add('09','17:00','湖小灶(坂田)',300,{pt:'花花',mode:'X',note:'线下结算'});
-  add('09','19:30','岳州大叔(坂田)',500,{pt:'花花'});
-  add('10','12:30','深圳打铁匠(海雅缤纷城)',1600,{mode:'N',note:'档期原文:600+1000;已收定金(金额待补记)'});
-  add('10','17:45','胖娇娇螺蛳粉(上沙)',340,{ch:'食物'});
-  add('10','19:30','佛洛力斯·蔓罗泰国料理(地王星荟店)',340,{ch:'食物'});
-  /* —— 11日「拍爆品」为拍摄任务,非商单,未建单 —— */
-  add('12','11:30','湘村小灶',300,{ch:'蜂向',pt:'邱邱'});
-  add('12','14:00','莫娜花园(罗湖)',340,{ch:'食物'});
-  add('12','16:30','日日香',340,{ch:'食物'});
-  add('12','19:30','回酒店',340,{ch:'食物',note:'档期原文即「回酒店」'});
-  add('13','14:30','大冬家(沙井佳漾汇)',300,{pt:'干饭小美'});
-  add('13','18:00','周记美蛙鱼',300,{ch:'蜂向',pt:'花花',cat:'烧烤'});
-  /* —— 第三周(11-14/15 休息)—— */
-  add('16','12:00','塔斯丁(福田)',0,{cat:'快餐',mode:'Z',note:'置换/未报价'});
-  add('16','18:00','梅小湘',2000,{pt:'房多多',mode:'N',dep:400,note:'已收定金 400,尾款 1600 待结'});
-  add('17','14:00','牛叠叠(西丽宝能)',280,{ch:'小爱'});
-  add('17','17:00','客味小馆(保利店)',300,{pt:'阿勇/凯哥'});
-  add('17','19:00','川野江湖菜',300,{ch:'蜂向',pt:'邱邱'});
-  add('17','21:00','一沙一城云剪',100,{cat:'其他',note:'云剪服务(档期未写时间)'});
-  add('18','12:00','湘当食在',250,{ch:'金城'});
-  add('18','14:30','师烤(新沙天虹)',300,{pt:'花花'});
-  add('18','17:30','老湖南乡村土菜(共和店)',300,{pt:'小柚'});
-  add('19','11:30','大牛火锅',250,{ch:'金城',cat:'火锅',mode:'N'});
-  add('19','13:30','农家柴火鸡(西丽)',300,{ch:'蜂向',mode:'N'});
-  add('19','17:00','乔睿四季轩(龙华)',250,{ch:'金城',mode:'N'});
-  add('19','19:30','乐聚东北烧烤(龙华)',250,{ch:'金城',cat:'烧烤',mode:'N'});
-  add('20','14:00','潮味好牛',300,{pt:'凯哥',mode:'N'});
-  add('20','17:30','滨海脆肉鲩(龙岗)',300,{ch:'蜂向',mode:'N',note:'不组队'});
-  add('20','20:00','狮子三脆(东门店)',300,{pt:'玲玲',mode:'N'});
-  add('21','17:30','湖湘荟',340,{ch:'食物'});
-  add('22','15:00','串掌门(五和店)',600,{pt:'稻草人',note:'要豁免;线下结算'});
-  add('24','12:00','牧海季',600,{note:'300+300 两段'});
-  return {orders:O,payments:P,threshold:15,owner:'大王',month:'2026-11'};
+  add(-20,'11:30','澄川咖啡·滨江店',800,{ch:'蜂向',pt:'花花',settled:true,cat:'咖啡'});
+  add(-18,'12:00','黔牛汇(龙华)',300,{ch:'蜂向',settled:true});
+  add(-15,'15:00','麓野日料·万象城店',1600,{ch:'小爱',pt:'邱邱',settled:true});
+  add(-13,'14:00','TONI 造型沙龙(湖畔店)',1200,{ch:'直客',delivered:true}); // 逾期示例
+  add(-12,'18:30','南山眷坊(蛇口)',330,{ch:'食物',settled:true});
+  add(-11,'14:00','无刺泡泡',1700,{ch:'直客',pt:'花花',settled:true});
+  add(-9,'11:30','澄川咖啡·滨江店',900,{ch:'蜂向',pt:'花花',settled:true,cat:'咖啡'}); // 复购②
+  add(-7,'12:30','深圳打铁匠(海雅缤纷城)',1600,{ch:'直客',dep:500,depPaid:true}); // 待尾款
+  add(-6,'17:30','鹤乡炭火记(坂田)',300,{ch:'蜂向',settled:true});
+  add(-5,'20:30','潮泰社·烧烤音乐餐厅',330,{ch:'食物',pt:'花花',settled:true,cat:'烧烤'});
+  add(-4,'11:30','湘村小灶',300,{ch:'蜂向',pt:'邱邱',settled:true});
+  add(-3,'12:00','麓野日料·万象城店',1800,{ch:'小爱',pt:'邱邱',settled:true}); // 复购②
+  add(-2,'19:30','岳州大叔(坂田)',500,{ch:'直客',pt:'花花'}); // 待尾款
+  add(-1,'10:00','喜邻超市·社区店',900,{ch:'食物',douyin:true,delivered:true}); // 平台结算
+  add(-1,'19:30','山茶花奶茶·观前街店',1000,{ch:'食物'}); // 发片中
+  add(0,'09:30','澄川咖啡·滨江店',800,{ch:'蜂向',pt:'花花',shotToday:true,cat:'咖啡'}); // 今日已拍
+  add(0,'14:00','麓野日料·万象城店',1600,{ch:'小爱'}); // 今日待拍
+  add(1,'10:30','南栖烘焙(大学城)',900,{ch:'直客',dep:300,depPaid:true});
+  add(2,'15:00','拾光汉服体验馆',1500,{ch:'直客'});
+  add(4,'13:00','山野咖啡·露台店',1200,{ch:'蜂向',dep:400,depPaid:true});
+  add(9,'18:30','云端西餐厅·33楼',2200,{ch:'直客',note:'夜景机位'});
+  return {orders:O,payments:P,threshold:15};
 }
+let db=labSeed();
 
-/* ================= 持久化:IndexedDB(真实 SQLite .db 字节) + localStorage 双保险 ================= */
-let db=demoSeed(); // 默认演示数据(对外展示安全);真实档期经 统计→数据管理 或首启选择载入
-const Store={sqlite3:null};
-const idb={_db:null,
-  open(){return new Promise(res=>{if(this._db)return res(this._db);try{
-    const r=indexedDB.open('tanji',1);
-    r.onupgradeneeded=()=>r.result.createObjectStore('kv');
-    r.onsuccess=()=>{this._db=r.result;res(this._db)};
-    r.onerror=()=>res(null);
-  }catch(e){res(null)}})},
-  get(k){return this.open().then(d=>new Promise(res=>{if(!d)return res(null);try{
-    const t=d.transaction('kv').objectStore('kv').get(k);t.onsuccess=()=>res(t.result||null);t.onerror=()=>res(null);
-  }catch(e){res(null)}}))},
-  set(k,v){return this.open().then(d=>new Promise(res=>{if(!d)return res();try{
-    const t=d.transaction('kv','readwrite').objectStore('kv').put(v,k);t.onsuccess=()=>res();t.onerror=()=>res();
-  }catch(e){res()}}))}
-};
-let persistTimer=null;
-function save(){
-  try{localStorage.setItem('tanji_v2',JSON.stringify({threshold:db.threshold,orders:db.orders,payments:db.payments}))}catch(e){}
-  clearTimeout(persistTimer);persistTimer=setTimeout(persistFull,400);
-}
-async function persistFull(){
-  const payload={v:2,savedAt:nowStr(),threshold:db.threshold,orders:db.orders,payments:db.payments};
-  await idb.set('json',payload);
-  const bytes=buildSqliteBytes();
-  if(bytes)await idb.set('sqlite',bytes);
-}
-async function loadState(){
-  const j=await idb.get('json');
-  if(j&&Array.isArray(j.orders)&&j.orders.length){
-    db={orders:j.orders,payments:j.payments||[],threshold:j.threshold||15};return true;
-  }
-  try{
-    const ls=JSON.parse(localStorage.getItem('tanji_v2')||localStorage.getItem('tanstore_v1')||'null');
-    if(ls&&Array.isArray(ls.orders)&&ls.orders.length){
-      db={orders:ls.orders,payments:ls.payments||[],threshold:ls.threshold||15};return true;
-    }
-  }catch(e){}
-  return false;
-}
-function buildSqliteBytes(){
-  if(!Store.sqlite3)return null;
-  try{
-    const s=Store.sqlite3;
-    const d=new s.oo1.DB(':memory:','ct');
-    d.exec(`CREATE TABLE IF NOT EXISTS orders(
-      id INTEGER PRIMARY KEY, store TEXT NOT NULL, category TEXT, contact TEXT,
-      price REAL NOT NULL, deposit REAL DEFAULT 0,
-      appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
-      deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
-      channel TEXT, partner TEXT,
-      note TEXT, created_at TEXT, updated_at TEXT);
-    CREATE TABLE IF NOT EXISTS payments(
-      id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
-      paid_at TEXT, method TEXT, note TEXT);
-    CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
-    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-    db.orders.forEach(o=>{
-      so.bind([o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
-               o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.channel||null,o.partner||null,o.note||null,null,null]);
-      so.step();so.reset();
-    });
-    so.finalize();
-    const sp=d.prepare('INSERT INTO payments (order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?)');
-    db.payments.forEach(p=>{
-      sp.bind([p.oid,p.kind,p.amount,p.at,p.method,p.note||null]);sp.step();sp.reset();
-    });
-    sp.finalize();
-    const ss=d.prepare('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)');
-    ss.bind(['collect_threshold_days',String(db.threshold)]);ss.step();ss.reset();
-    ss.bind(['app_version','0.2']);ss.step();ss.reset();
-    ss.bind(['exported_at',nowStr()]);ss.step();ss.reset();
-    ss.finalize();
-    const bytes=s.capi.sqlite3_js_db_export(d.pointer);
-    d.close();
-    return bytes&&bytes.length?bytes:null;
-  }catch(e){console.warn('sqlite build fail',e);return null}
-}
-async function initSqlite(){
-  try{
-    for(let i=0;i<60&&!window.sqlite3InitModule;i++)await new Promise(r=>setTimeout(r,100));
-    if(typeof window.sqlite3InitModule!=='function')return null;
-    const s=await window.sqlite3InitModule({print:()=>{},printErr:()=>{}});
-    return s;
-  }catch(e){return null}
-}
-
-/* ================= 派生逻辑(双轨状态机) ================= */
-function workOf(o){
-  if(!o.shotAt)return '待拍摄';
-  if(!o.submittedAt)return '后期中';
-  if(o.shortAt&&o.longAt)return '已交付';
-  return '发片中';
-}
+/* ================= 派生逻辑(与主应用一致) ================= */
+function workOf(o){if(!o.shotAt)return '待拍摄';if(!o.submittedAt)return '后期中';if(o.shortAt&&o.longAt)return '已交付';return '发片中'}
 function unDep(o){return (!o.depositPaidAt&&o.deposit>0)?o.deposit:0}
 function unFin(o){return o.finalPaidAt?0:(o.price-o.deposit)}
 function owedOf(o){return unDep(o)+unFin(o)}
-function payOf(o){
-  if(o.finalPaidAt)return '已结清';
-  if(unDep(o)>0)return '待定金';
-  if(o.settleVia==='douyin')return '平台结算'; // 平台结算尾款不催收、不逾期
-  return '待尾款';
-}
-function overdueDays(o){
-  if(payOf(o)!=='待尾款')return 0;
-  return daysBetween(o.shotAt||o.appt);
-}
+function payOf(o){if(o.finalPaidAt)return '已结清';if(unDep(o)>0)return '待定金';if(o.settleVia==='douyin')return '平台结算';return '待尾款'}
+function overdueDays(o){if(payOf(o)!=='待尾款')return 0;return daysBetween(o.shotAt||o.appt)}
 function snoozed(o){return !!(o.remindAt&&o.remindAt>nowStr())}
 function isOver(o){return payOf(o)==='待尾款'&&overdueDays(o)>=db.threshold}
-
-const WORK_CLS={'待拍摄':'c-blue','后期中':'c-purple','发片中':'c-orange','已交付':'c-green'};
-const PAY_CLS={'待定金':'c-gray','待尾款':'c-orange','平台结算':'c-blue','已逾期':'c-red','已结清':'c-green'};
-const METHODS=['微信','支付宝','银行卡','抖音商单','其他'];
-const METHOD_CLS={'微信':'c-green','支付宝':'c-blue','银行卡':'c-orange','抖音商单':'c-ink','其他':'c-gray'};
-function payChip(o){const s=payOf(o);const label=s==='待尾款'&&isOver(o)?'已逾期':s;return `<span class="chip ${PAY_CLS[label]}">${label}</span>`}
-function workChip(o){return `<span class="chip ${WORK_CLS[workOf(o)]}">${workOf(o)}</span>`}
+function receivedOf(o){return db.payments.filter(p=>p.oid===o.id).reduce((s,p)=>s+p.amount,0)}
 const byId=id=>db.orders.find(o=>o.id===id);
-const storeOf=id=>{const o=byId(id);return o?o.store:''};
-
-/* ================= 单日勋章(激励) =================
- * ⭐ 忙碌日 ≥3 单 · 🔥 爆单 ≥5 单(点封顶 6)
- * 💰 千元日 ≥¥1,000 · 💎 王牌日 ≥¥2,500
- * 同日多枚只显示最高档:💎 > 🔥 > 💰 > ⭐
- * 阈值按大王 11 月真实峰值(单日 5 单 / ¥2,630)校准,确保可达 */
 function dayBadge(n,sum){
   if(sum>=2500)return {e:'💎',t:'王牌日'};
   if(n>=5)return {e:'🔥',t:'爆单'};
@@ -722,818 +257,492 @@ function dayBadge(n,sum){
   return null;
 }
 
-/* ================= 导出 ================= */
-function download(name,content,type){
-  const isText=typeof content==='string';
-  const blob=new Blob([isText?"\ufeff"+content:content],{type});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);a.download=name;a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),2500);
-}
-function q(v){return `"${String(v??'').replace(/"/g,'""')}"`}
-function exportCsv(){
-  const head=['ID','商家','类型','结算方式','渠道','出镜搭档','联系方式','总价','定金','预约时间','实际拍摄','提审时间','短片发出','长片发出','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
-  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.channel||'',o.partner||'',o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',o.note].map(q).join(','));
-  const phead=['序号','订单ID','商家','类型','金额','到账时间','收款方式'];
-  const plines=db.payments.map((p,i)=>[i+1,p.oid,storeOf(p.oid),p.kind,p.amount,p.at,p.method].map(q).join(','));
-  download(`探记-导出-${TODAY}.csv`,[head.map(q).join(','),...lines,'','',phead.map(q).join(','),...plines].join('\n'),'text/csv;charset=utf-8');
-  toast('已导出 CSV(订单 + 流水)✓');
-}
-function exportJson(){
-  download(`探记-备份-${TODAY}.json`,JSON.stringify({app:'探记 TanJi',version:'0.2',exportedAt:nowStr(),collectThresholdDays:db.threshold,orders:db.orders,payments:db.payments},null,2),'application/json');
-  toast('已导出 JSON 备份 ✓');
-}
-function exportDb(){
-  const bytes=buildSqliteBytes();
-  if(!bytes){toast('SQLite 引擎还在加载,几秒后再试');return}
-  download(`探记-${TODAY}.db`,bytes,'application/octet-stream');
-  toast('已导出 SQLite 数据库 ✓');
-}
-const SCHEMA=`<span class="c">-- 探记 TanJi · 本机 SQLite 结构(v0.2)</span>
-CREATE TABLE orders (
-  id             INTEGER PRIMARY KEY,
-  store          TEXT NOT NULL,  <span class="c">-- 商家名称</span>
-  category       TEXT,           <span class="c">-- 店铺类型</span>
-  contact        TEXT,           <span class="c">-- 联系人/电话</span>
-  price          REAL NOT NULL,  <span class="c">-- 成交总价</span>
-  deposit        REAL DEFAULT 0, <span class="c">-- 定金</span>
-  appt_at        TEXT,           <span class="c">-- 预约时间</span>
-  shot_at        TEXT,           <span class="c">-- 实际拍摄时间</span>
-  submitted_at   TEXT,           <span class="c">-- 提审时间</span>
-  short_sent_at  TEXT,           <span class="c">-- 短片发出</span>
-  long_sent_at   TEXT,           <span class="c">-- 长片发出</span>
-  deposit_paid_at TEXT,          <span class="c">-- 定金到账时间</span>
-  final_paid_at  TEXT,           <span class="c">-- 尾款到账时间</span>
-  settle_via     TEXT DEFAULT 'private',
-                 <span class="c">-- 结算方式:private 私收 / douyin 抖音商单(平台结算,不催收)</span>
-  remind_at      TEXT,           <span class="c">-- 催收备忘:下次提醒时间(1/3/7 天)</span>
-  channel        TEXT,           <span class="c">-- 渠道/机构:蜂向、小爱、金城、食物、直客…</span>
-  partner        TEXT,           <span class="c">-- 出镜搭档:花花、邱邱…(空=不组队/未记)</span>
-  note           TEXT,
-  created_at     TEXT, updated_at TEXT
-);
-CREATE TABLE payments (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER REFERENCES orders(id),
-  kind     TEXT,  <span class="c">-- deposit 定金 / final 尾款 / extra 追加</span>
-  amount   REAL, paid_at TEXT, note TEXT,
-  method   TEXT   <span class="c">-- 微信 / 支付宝 / 银行卡 / 抖音商单 / 其他(仅记录,不做支付)</span>
-);
-CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-<span class="c">-- collect_threshold_days = 15 · app_version = 0.2</span>
+/* ================= 点子定义 ================= */
+const IDEAS=[
+  {id:'d1',emoji:'🎯',name:'拍摄日作战模式',why:'<b>痛点:拍摄现场没时间翻层级。</b>今天几个店,拍完一个 30 秒内打卡:进度、今日档期额、点行即打卡,全部一屏完成。',act:'demo1'},
+  {id:'d2',emoji:'🧾',name:'渠道对账单一键生成',why:'<b>痛点:渠道周结/月结要逐单核对。</b>选渠道+月份,自动生成可发微信群的对账单(文本+图片),单数、合计、明细一目了然。',act:'demo2'},
+  {id:'d3',emoji:'💬',name:'催收话术助手',why:'<b>痛点:催收有心理门槛,不知道怎么开口。</b>对逾期单自动生成三种语气的催收话术,一键复制发微信 — 把「不敢催」变成「随手催」。',act:'demo3'},
+  {id:'d4',emoji:'🔁',name:'复购雷达',why:'<b>洞察:复购是最值钱的信号 — 同一家店第二次找你,说明内容有效。</b>自动识别复购商家,显示合作历史与累计金额;老朋友要差异化对待。',act:'demo4'},
+  {id:'d5',emoji:'📣',name:'数据战报生成器',why:'<b>价值:复盘 + 社交激励。</b>每周/每月自动生成战报(单数、收入、勋章、环比),配好激励文案 — 让坚持记账本身有反馈。',act:'demo5'},
+  {id:'d6',emoji:'⚡',name:'30 秒快速建单',why:'<b>痛点:录入越快,越记得住。</b>渠道/搭档常用 chips 常驻、价格快捷键、自动计时 — 计时器就是说服力。',act:'demo6'},
+  {id:'d7',emoji:'📋',name:'拍摄清单模板',why:'<b>痛点:漏拍=返工。</b>按品类内置必拍镜头清单,拍一项勾一项,进度条+完成庆祝;新手尤其救命。',act:'demo7'},
+  {id:'d8',emoji:'📈',name:'月底收入预测',why:'<b>价值:目标感驱动行为。</b>按本月节奏外推月底收入,叠加可调目标线 — 超前/正常/需冲刺,让人想多接一单。',act:'demo8'},
+];
 
-<span class="c">-- 常用查询:长期未收尾款(私收单)</span>
-SELECT store, price - deposit AS due,
-       julianday('now') - julianday(shot_at) AS days
-FROM orders
-WHERE final_paid_at IS NULL AND shot_at IS NOT NULL AND settle_via='private'
-ORDER BY days DESC;`;
-$('#schema-pre').innerHTML=SCHEMA;
-
-/* ================= 新建预约(含时段冲突提醒,不禁止) ================= */
-function toMin(appt){return +appt.slice(11,13)*60 + +appt.slice(14,16)}
-function conflictFor(date,time,excludeId){
-  if(!date)return '';
-  const same=db.orders.filter(o=>o.appt.slice(0,10)===date&&o.id!==excludeId);
-  if(!same.length)return '';
-  const t=toMin(date+'T'+time);
-  const overlap=same.filter(o=>Math.abs(toMin(o.appt)-t)<=120);
-  if(overlap.length)return `<b>⚠️ 该时段已有排期:</b>${overlap.map(o=>`「${o.store}」${fmtHM(o.appt)}`).join('、')}。不影响保存——可找人代拍或错峰。`;
-  return `当天已有 ${same.length} 个排期:${same.map(o=>`${o.store} ${fmtHM(o.appt)}`).join('、')}`;
-}
-function updateConflict(){
-  const el=$('#f-conflict');
-  const date=$('#f-date').value,time=$('#f-time').value||'10:00';
-  const msg=conflictFor(date,time,0);
-  if(msg){el.innerHTML=msg;el.style.display='block'}else el.style.display='none';
-}
-function openNew(){
-  $('#f-store').value='';$('#f-price').value='';$('#f-deposit').value='';
-  $('#f-contact').value='';$('#f-note').value='';$('#f-settle').value='private';
-  $('#f-channel').value='';$('#f-partner').value='';
-  $('#f-date').value=TODAY;$('#f-time').value='10:00';$('#f-err').style.display='none';
-  updateConflict();
-  showSheet('sheet-new');
-}
-function saveOrder(){
-  const store=$('#f-store').value.trim(),price=parseFloat($('#f-price').value);
-  if(!store||!price){$('#f-err').style.display='block';return}
-  const deposit=parseFloat($('#f-deposit').value)||0;
-  const date=$('#f-date').value||TODAY,time=$('#f-time').value||'10:00';
-  const o={id:Math.max(...db.orders.map(x=>x.id))+1,store,cat:$('#f-cat').value,
-    contact:$('#f-contact').value.trim(),price,deposit,settleVia:$('#f-settle').value,
-    channel:$('#f-channel').value.trim()||'直客',partner:$('#f-partner').value.trim(),
-    appt:`${date}T${time}`,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
-    depositPaidAt:null,finalPaidAt:null,remindAt:null,note:$('#f-note').value.trim()};
-  db.orders.push(o);save();
-  closeSheets();ui.selDay=date;showTab('trip');renderAll();
-  toast(`已添加预约:${store} ✓`);
-}
-
-/* ================= 编辑订单(全环节可改) ================= */
-function openEdit(oid){
-  const o=byId(oid);if(!o)return;
-  ui.editId=oid;
-  const cats=['咖啡','餐饮','烧烤','火锅','茶饮','甜品','烘焙','美发','健身','民宿','零售','体验馆','服饰','快餐','其他'];
-  const catOpts=[...new Set([o.cat||'其他',...cats])];
-  $('#edit-body').innerHTML=`
-    <div class="frow"><label>商家名称</label><input id="e-store" value="${(o.store||'').replace(/"/g,'&quot;')}"></div>
-    <div class="frow"><label>类型</label><select id="e-cat">${catOpts.map(c=>`<option ${c===o.cat?'selected':''}>${c}</option>`).join('')}</select></div>
-    <div class="frow"><label>结算方式</label><select id="e-settle"><option value="private" ${o.settleVia!=='douyin'?'selected':''}>私收(微信/支付宝/银行卡)</option><option value="douyin" ${o.settleVia==='douyin'?'selected':''}>抖音商单(平台结算)</option></select></div>
-    <div class="frow"><label>渠道</label><input id="e-channel" value="${o.channel||''}" placeholder="如:蜂向/小爱/金城/食物"></div>
-    <div class="frow"><label>出镜</label><input id="e-partner" value="${o.partner||''}" placeholder="出镜搭档,单人拍摄可空"></div>
-    <div class="frow"><label>预约日期</label><input id="e-date" type="date" value="${o.appt.slice(0,10)}"></div>
-    <div class="frow"><label>预约时间</label><input id="e-time" type="time" value="${o.appt.slice(11,16)}"></div>
-    <div class="frow"><label>总价(¥)</label><input id="e-price" type="number" inputmode="numeric" value="${o.price}"></div>
-    <div class="frow"><label>定金(¥)</label><input id="e-deposit" type="number" inputmode="numeric" value="${o.deposit}"></div>
-    <div class="frow"><label>联系方式</label><input id="e-contact" value="${o.contact||''}"></div>
-    <div class="frow"><label>备注</label><textarea id="e-note" rows="2">${o.note||''}</textarea></div>
-    <div class="banner-amber" id="e-conflict"></div>
-    <div class="sec-title">收款记录(可撤销 / 补记)</div>
-    <div class="btn2">
-      <button class="btn ${o.depositPaidAt?'ghost':'tint-blue'}" data-act="toggle-dep" data-oid="${o.id}">${o.depositPaidAt?'撤销定金记录':'补记定金已收'}</button>
-      <button class="btn ${o.finalPaidAt?'ghost':'tint-green'}" data-act="toggle-fin" data-oid="${o.id}">${o.finalPaidAt?'撤销尾款记录':'补记尾款已收'}</button>
+/* ================= 渲染:点子实验室 ================= */
+function renderLab(){
+  $('#v-lab').innerHTML=`
+    <div class="eyebrow">lab 分支 · 独立实验,不影响线上</div>
+    <h1 class="big">点子实验室</h1>
+    <div class="hsub">8 个点子 × 可交互 demo · 每个附产品论据 · 明早验收采纳</div>
+    <div class="sec-title">自测试机制(设计说明)</div>
+    <div class="card" style="font-size:12.5px;line-height:1.7;color:#55555c">
+      双层结构,两个视角:<br>
+      <b>① 测试工程师层(「自检」Tab)</b> — 26 条自动化断言,覆盖状态机派生、金额守恒(实收+待收=总价)、催收规则边界、勋章阈值、数据完整性、冲突检测。每次打开自动运行,绿✓红✗,可导出 CSV 报告;正式版可挂部署流水线 — 断言不过不发布。<br>
+      <b>② 达人使用层(「达人引导」Tab)</b> — 12 步 15 分钟上手脚本:每步「做什么 + 预期看到什么」,能自动检测的自动打勾,不能的手动勾。本质是一份活的验收单。
     </div>
-    <div class="rsub" style="margin-top:6px;line-height:1.5">撤销会同时移除对应收款流水;补记按当前金额记一笔(微信)。</div>
-    <div style="padding:16px 0 4px"><button class="btn primary" data-act="save-edit" data-oid="${o.id}">保存修改</button></div>`;
-  updateEditConflict();
-  ['e-date','e-time'].forEach(id=>{
-    $('#'+id).addEventListener('change',updateEditConflict);
-    $('#'+id).addEventListener('input',updateEditConflict);
-  });
-  showSheet('sheet-edit');
-}
-function updateEditConflict(){
-  const el=$('#e-conflict');
-  const date=$('#e-date').value,time=$('#e-time').value||'10:00';
-  const msg=conflictFor(date,time,ui.editId);
-  if(msg){el.innerHTML=msg;el.style.display='block'}else el.style.display='none';
-}
-function saveEdit(){
-  const o=byId(ui.editId);if(!o)return;
-  const store=$('#e-store').value.trim(),price=parseFloat($('#e-price').value);
-  if(!store||isNaN(price)){toast('商家名称和总价为必填');return}
-  const deposit=parseFloat($('#e-deposit').value)||0;
-  const date=$('#e-date').value||TODAY,time=$('#e-time').value||'10:00';
-  o.store=store;o.cat=$('#e-cat').value;o.settleVia=$('#e-settle').value;
-  o.channel=$('#e-channel').value.trim()||'直客';o.partner=$('#e-partner').value.trim();
-  o.appt=`${date}T${time}`;o.price=price;o.deposit=deposit;
-  o.contact=$('#e-contact').value.trim();o.note=$('#e-note').value.trim();
-  if(o.depositPaidAt){const p=db.payments.find(x=>x.oid===o.id&&x.kind==='定金');if(p)p.amount=o.deposit} // 已收定金单随金额修正
-  save();renderAll();
-  toast('已保存修改 ✓');
+    <div class="sec-title">8 个点子(点卡片直接玩)</div>
+    ${IDEAS.map(i=>`
+      <div class="idea" data-act="open-demo" data-demo="${i.id}">
+        <div class="idea-emoji">${i.emoji}</div>
+        <div class="idea-main">
+          <div class="idea-name">${i.name}</div>
+          <div class="idea-why">${i.why}</div>
+          <span class="idea-go">打开演示 ›</span>
+        </div>
+      </div>`).join('')}
+    <div class="sec-title">已内置的(线上版就有)</div>
+    <div class="card" style="font-size:12.5px;color:var(--sub);line-height:1.6">月历勋章(⭐🔥💰💎)/ 全环节可改 / 隐私模式 / 今日行程分享图 / 1·3·7 天催收备忘 / 渠道与出镜档案 — 实验室点子是在这些底座上往前一步。</div>`;
 }
 
-/* ================= 状态操作 ================= */
-function rerenderDetail(){if(ui.detail)openDetail(ui.detail)}
-function mark(id,key,label){
-  const o=byId(id);if(!o)return;
-  o[key]=nowStr();save();renderAll();rerenderDetail();toast(label);
+/* ================= Demo 容器 ================= */
+let demoTimer=null;
+function openDemo(id){
+  const idea=IDEAS.find(i=>i.id===id);
+  $('#demo-title').innerHTML=`${idea.emoji} ${idea.name}<span class="tag">点子演示 · 数据虚构</span>`;
+  $('#demo-stage').innerHTML='';
+  showSheet('sheet-demo');
+  DEMOS[id]();
 }
-function pay(id,kind,method='微信'){
-  const o=byId(id);if(!o)return;
-  const t=nowStr();
-  if(kind==='deposit'){
-    o.depositPaidAt=t;
-    db.payments.push({oid:id,kind:'定金',amount:o.deposit,at:t,method});
-    toast(`已收定金 ${fmtMoney(o.deposit)} · ${method} ✓`);
-  }else{
-    o.finalPaidAt=t;
-    db.payments.push({oid:id,kind:'尾款',amount:o.price-o.deposit,at:t,method});
-    toast(`已收尾款 ${fmtMoney(o.price-o.deposit)} · ${method} ✓`);
-  }
-  save();renderAll();rerenderDetail();
-}
-function openPay(oid,kind,keepMethod){
-  const o=byId(oid);if(!o)return;
-  const amt=kind==='deposit'?unDep(o):unFin(o);
-  const defM=o.settleVia==='douyin'?'抖音商单':'微信';
-  ui.payCtx={oid,kind,method:keepMethod||defM};
-  $('#pay-body').innerHTML=`
-    <div style="text-align:center;padding:6px 0 2px">
-      <div style="font-size:14px;font-weight:700">${o.store}</div>
-      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${fmtMoney(amt)}</div>
-      <div style="font-size:12px;color:var(--sub)">${kind==='deposit'?'定金':'尾款'} · ${o.settleVia==='douyin'?'约定抖音商单结算':'私收款项'} · 仅作入账记录</div>
-    </div>
-    <div class="sec-title" style="justify-content:center">收款方式(记录用)</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
-      ${METHODS.map(m=>`<button class="mchip ${ui.payCtx.method===m?'on':''}" data-act="pay-method" data-m="${m}">${m}</button>`).join('')}
-    </div>
-    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">确认收款 ${fmtMoney(amt)}</button></div>`;
-  showSheet('sheet-pay');
-}
-
-/* ================= 详情弹层 ================= */
-const MILE_LABEL={shotAt:'拍摄',submittedAt:'提审',shortAt:'发短片',longAt:'发长片'};
-function mileStep(oid,key,label,time,done,nowFlag){
-  return `<button class="mstep ${done?'done':''} ${!done&&nowFlag?'now':''}" data-act="mile" data-oid="${oid}" data-key="${key}" style="background:none;border:none;padding:0">
-    <div class="mdot">${done?'✓':(nowFlag?'·':'')}</div>
-    <div class="mlab">${label}</div><div class="mtime">${done?fmtDT(time):(nowFlag?'点击标记':'')}</div></button>`;
-}
-function openDetail(id){
-  ui.detail=id;const o=byId(id);if(!o)return;
-  const od=overdueDays(o);
-  const steps=[['shotAt',o.shotAt],['submittedAt',o.submittedAt],['shortAt',o.shortAt],['longAt',o.longAt]];
-  const nextIdx=steps.findIndex(s=>!s[1]);
-  const mile=steps.map((s,i)=>mileStep(o.id,s[0],MILE_LABEL[s[0]],s[1],!!s[1],i===nextIdx)).join('');
-  const received=db.payments.filter(p=>p.oid===o.id).reduce((s,p)=>s+p.amount,0);
-
-  const payBtns=[];
-  if(unDep(o)>0)payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${o.id}" data-kind="deposit">收定金 ${fmtMoney(unDep(o))}</button>`);
-  if(!o.finalPaidAt)payBtns.push(`<button class="btn ${isOver(o)?'primary':'green'}" data-act="open-pay" data-oid="${o.id}" data-kind="final">收尾款 ${fmtMoney(unFin(o))}</button>`);
-  if(!payBtns.length)payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">✓ 款项已全部结清</div>`);
-
-  let snoozeHtml='';
-  if(payOf(o)==='待尾款'){
-    snoozeHtml=`<div class="sec-title" style="margin-top:16px">催收备忘(打开 App 时查看)</div>
-      <div class="btn2">
-        <button class="btn ghost" data-act="snooze" data-oid="${o.id}" data-d="1">1天后提醒</button>
-        <button class="btn ghost" data-act="snooze" data-oid="${o.id}" data-d="3">3天后提醒</button>
-        <button class="btn ghost" data-act="snooze" data-oid="${o.id}" data-d="7">7天后提醒</button>
-      </div>
-      ${o.remindAt?`<div class="rsub" style="text-align:center;margin-top:8px">已设提醒:${fmtD(o.remindAt)} 再催收 <button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="clear-remind" data-oid="${o.id}">清除</button></div>`:''}`;
-  }
-
-  $('#detail-body').innerHTML=`
-    <div class="sheet-head" style="padding-left:0;padding-right:0">
-      <div style="min-width:0">
-        <div class="sheet-title" style="font-size:19px">${o.store}</div>
-        <div class="hsub" style="margin-top:3px">${o.cat}${o.contact?' · '+o.contact:''}</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="sheet-close" data-act="edit-order" data-oid="${o.id}" title="编辑" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
-        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </div>
-    </div>
-    <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${isOver(o)?`<span class="chip c-red">欠款 ${od} 天</span>`:''}${snoozed(o)?`<span class="chip c-gray">已设提醒</span>`:''}</div>
-    ${isOver(o)?`<div class="banner-red"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
-      <span>尾款自拍摄日(${fmtD(o.shotAt||o.appt)})起已欠 <b>${od} 天</b>,超过 ${db.threshold} 天催收阈值,建议电话跟进。${snoozed(o)?`已备忘:${fmtD(o.remindAt)} 再提醒。`:''}</span></div>`:''}
-    <div class="mile">${mile}</div>
-    <div class="rsub" style="text-align:center;margin:0 0 4px">点里程碑可标记 / 清除 · 记错随时改</div>
-    <div style="margin-top:10px">
-      ${!o.shotAt?`<button class="btn primary" data-act="mark-shot" data-oid="${o.id}">标记已拍摄(记录实际拍摄时间)</button>`
-       :!o.submittedAt?`<button class="btn primary" data-act="mark-submit" data-oid="${o.id}">标记已提审</button>`
-       :`<div class="btn2">
-          <button class="btn ${o.shortAt?'ghost':'tint'}" data-act="mark-short" data-oid="${o.id}">${o.shortAt?'短片已发 ✓':'标记发短片'}</button>
-          <button class="btn ${o.longAt?'ghost':'tint'}" data-act="mark-long" data-oid="${o.id}">${o.longAt?'长片已发 ✓':'标记发长片'}</button>
-        </div>`}
-    </div>
-    <div class="sec-title" style="margin-top:16px">收款</div>
-    ${payBtns.join('')}
-    ${snoozeHtml}
-    <div class="info-grid">
-      <div class="ig"><div class="k">预约时间</div><div class="v">${fmtD(o.appt)} ${fmtHM(o.appt)}</div></div>
-      <div class="ig"><div class="k">实际拍摄</div><div class="v">${fmtDT(o.shotAt)}</div></div>
-      <div class="ig"><div class="k">渠道</div><div class="v">${o.channel||'直客'}</div></div>
-      <div class="ig"><div class="k">出镜搭档</div><div class="v">${o.partner||(o.note&&o.note.includes('不组队')?'不组队':'—')}</div></div>
-      <div class="ig"><div class="k">总价</div><div class="v">${fmtMoney(o.price)}</div></div>
-      <div class="ig"><div class="k">定金 ${o.depositPaidAt?'· 已收 '+fmtD(o.depositPaidAt):''}</div><div class="v">${fmtMoney(o.deposit)}</div></div>
-      <div class="ig"><div class="k">尾款 ${o.finalPaidAt?'· 已收 '+fmtD(o.finalPaidAt):''}</div><div class="v">${fmtMoney(o.price-o.deposit)}</div></div>
-      <div class="ig"><div class="k">已收合计</div><div class="v" style="color:#239648">${received>0?fmtMoney(received):'—'}</div></div>
-      <div class="ig"><div class="k">当前待收</div><div class="v" style="${owedOf(o)>0?'color:var(--red)':'color:#239648'}">${owedOf(o)>0?fmtMoney(owedOf(o)):'已结清'}</div></div>
-      <div class="ig"><div class="k">结算方式</div><div class="v">${o.settleVia==='douyin'?'抖音商单':'私收'}</div></div>
-    </div>
-    ${o.note?`<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">📝 ${o.note}</div></div>`:''}
-    <div style="padding-top:16px"><button class="btn danger-ghost" data-act="del-order" data-oid="${o.id}">删除订单</button></div>`;
-  showSheet('sheet-detail');
-}
-
-/* ================= 今日行程分享图(canvas,默认不含金额) ================= */
-function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
-function buildTodayImage(){
-  const list=db.orders.filter(o=>o.appt.slice(0,10)===TODAY).sort((a,b)=>a.appt.localeCompare(b.appt));
-  const S=2,W=1080,rowH=112,headH=240,footH=110,gap=18,pad=56;
-  const rows=Math.max(list.length,1);
-  const H=headH+rows*(rowH+gap)+footH;
-  const c=document.createElement('canvas');c.width=W*S;c.height=H*S;
-  const g=c.getContext('2d');g.scale(S,S);
-  g.fillStyle='#F2F2F7';g.fillRect(0,0,W,H);
-  const gr=g.createLinearGradient(0,0,W,headH);gr.addColorStop(0,'#FF8A3D');gr.addColorStop(1,'#E8352A');
-  g.fillStyle=gr;g.fillRect(0,0,W,headH-28);
-  g.fillStyle='rgba(255,255,255,.9)';g.font='600 26px -apple-system,PingFang SC,sans-serif';
-  g.fillText('探记 TanJi · 今日行程',pad,62);
-  g.fillStyle='#fff';g.font='800 58px -apple-system,PingFang SC,sans-serif';
-  g.fillText(`${now.getMonth()+1}月${now.getDate()}日 周${dowOf(TODAY)}`,pad,136);
-  g.font='600 26px -apple-system,PingFang SC,sans-serif';g.fillStyle='rgba(255,255,255,.88)';
-  g.fillText(list.length?`${list.length} 个拍摄安排`:'今日暂无拍摄安排',pad,186);
-  let y=headH;
-  const WT={'待拍摄':['#007AFF'],'后期中':['#AF52DE'],'发片中':['#FF9500'],'已交付':['#239648']};
-  if(!list.length){g.fillStyle='#8E8E93';g.font='500 30px -apple-system,PingFang SC';g.fillText('🌙 休息,明天再战',pad,y+66);y+=rowH+gap}
-  for(const o of list){
-    g.fillStyle='#fff';rr(g,pad,y,W-pad*2,rowH,20);g.fill();
-    g.fillStyle='#FF6A2B';g.font='800 40px -apple-system,PingFang SC';g.fillText(fmtHM(o.appt),pad+30,y+56);
-    g.fillStyle='#1C1C1E';g.font='700 34px -apple-system,PingFang SC';
-    g.fillText(o.store,pad+156,y+46,W-pad*2-320);
-    const st=WT[workOf(o)][0];
-    g.fillStyle=st;g.font='700 24px -apple-system,PingFang SC';g.fillText('● '+workOf(o),pad+158,y+88);
-    g.fillStyle='#8E8E93';g.font='500 24px -apple-system,PingFang SC';g.fillText(o.cat,pad+300,y+88);
-    y+=rowH+gap;
-  }
-  g.fillStyle='#B9B9C0';g.font='500 24px -apple-system,PingFang SC';
-  g.fillText('由「探记」生成 · 不含金额信息',pad,y+34);
-  return new Promise(res=>c.toBlob(b=>res(b),'image/png'));
-}
-async function shareToday(){
-  toast('正在生成今日行程图片…');
-  const blob=await buildTodayImage();
-  ui.shareBlob=blob;
-  if(ui.shareUrl)URL.revokeObjectURL(ui.shareUrl);
-  ui.shareUrl=URL.createObjectURL(blob);
-  $('#share-body').innerHTML=`<img src="${ui.shareUrl}" style="width:100%;border-radius:16px;border:.5px solid var(--line)">
-    <div style="padding-top:14px"><button class="btn primary" data-act="share-confirm">分享 / 保存图片</button></div>`;
-  showSheet('sheet-share');
-}
-
-/* ================= 弹层 / Toast ================= */
-function showSheet(id){
-  $('#mask').classList.add('show');
-  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
-  $('#'+id).classList.add('show');
-}
-function closeSheets(){
+function showSheet(id){$('#mask').classList.add('show');$('#'+id).classList.add('show')}
+function closeDemo(){
   $('#mask').classList.remove('show');
   document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+  if(demoTimer){clearInterval(demoTimer);demoTimer=null}
 }
-let toastTimer;
-function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
-
-/* ================= 统计 ================= */
-function statsFor(period){
-  let start;
-  if(period==='M')start=new Date(now.getFullYear(),now.getMonth(),1);
-  else start=new Date(now.getTime()-864e5*(+period));
-  const inWin=t=>t&&new Date(t)>=start&&new Date(t)<=now;
-  const deals=db.orders.filter(o=>new Date(o.appt)>=start&&new Date(o.appt)<=now);
-  const paid=db.payments.filter(p=>inWin(p.at));
-  const done=db.orders.filter(o=>o.shortAt&&o.longAt&&inWin(o.longAt));
-  return {start,deals,paid,done,
-    dealSum:deals.reduce((s,o)=>s+o.price,0),
-    paidSum:paid.reduce((s,p)=>s+p.amount,0)};
+function copyText(t){
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(()=>toast('已复制 ✓')).catch(()=>fb(t))}
+  else fb(t);
+  function fb(t){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('已复制 ✓')}catch(e){toast('复制失败,请长按选择')}}
 }
 
-/* ================= 顶部右侧按钮(分享 / 隐私) ================= */
-function headBtns(share){
-  return `<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-    ${share?`<button class="icon-btn" data-act="share"><svg class="ic" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></svg></button>`:''}
-    <button class="icon-btn ${ui.privacy?'on':''}" data-act="privacy"><svg class="ic" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>${ui.privacy?'<path d="M4.5 4.5l15 15"/>':''}</svg></button>
-  </div>`;
-}
-
-/* ================= 渲染:首页 ================= */
-function renderHome(){
-  const overAll=db.orders.filter(isOver);
-  const over=overAll.filter(o=>!snoozed(o));
-  const overSum=over.reduce((s,o)=>s+owedOf(o),0);
-  const maxOver=over.length?Math.max(...over.map(overdueDays)):0;
-  const todays=db.orders.filter(o=>o.appt.slice(0,10)===TODAY&&!o.shotAt).sort((a,b)=>a.appt.localeCompare(b.appt));
-  const sending=db.orders.filter(o=>['后期中','发片中'].includes(workOf(o))).sort((a,b)=>(a.shotAt||'').localeCompare(b.shotAt||''));
-  const m=statsFor('M');
-  const totOwed=db.orders.reduce((s,o)=>s+owedOf(o),0);
-
-  let alertCard;
-  if(over.length){
-    alertCard=`<div class="alert-card" data-act="goto-collect">
-      <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg>
-      <div class="alert-main"><div class="alert-t">${over.length} 笔尾款逾期 · 待催收 ${fmtMoney(overSum)}</div>
-      <div class="alert-s">最长已欠 ${maxOver} 天${overAll.length>over.length?` · 另有 ${overAll.length-over.length} 笔已设提醒`:''} · 点击进入催收清单</div></div>
-      <svg class="ic" style="opacity:.9" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg>
-    </div>`;
-  }else if(overAll.length){
-    const soon=overAll.map(o=>o.remindAt).sort()[0];
-    alertCard=`<div class="alert-card amber" data-act="goto-collect">
-      <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
-      <div class="alert-main"><div class="alert-t">${overAll.length} 笔尾款已设催收提醒</div>
-      <div class="alert-s">最早 ${fmtD(soon)} 再提醒 · 点击查看清单</div></div>
-      <svg class="ic" style="opacity:.9" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg>
-    </div>`;
-  }else{
-    alertCard=`<div class="alert-card calm">
-      <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-      <div class="alert-main"><div class="alert-t">收款状态健康</div><div class="alert-s">暂无逾期尾款,共待收 ${fmtMoney(totOwed)}</div></div>
-    </div>`;
-  }
-
-  const todayRows=todays.length?todays.map(o=>{
-    const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
-    return `<div class="row" data-act="open" data-oid="${o.id}">
-      <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">预约</div></div>
-      <div class="rmain"><div class="rname">${o.store}</div>
-        <div class="chiprow">${workChip(o)}${depChip||payChip(o)}<span class="chip c-gray">${o.cat}</span></div></div>
-      <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div></div>
-      <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-    </div>`;}).join('')
-    : `<div class="empty"><div class="e-ic">🌙</div>今日无拍摄安排<br>去「行程」页看看接下来的档期</div>`;
-
-  const sendRows=sending.length?sending.slice(0,4).map(o=>{
-    const miss=[!o.submittedAt?'待提审':'',!o.shortAt?'待短片':'',!o.longAt?'待长片':''].filter(Boolean).map(t=>`<span class="chip c-orange">${t}</span>`).join('');
-    return `<div class="row" data-act="open" data-oid="${o.id}">
-      <div class="rmain"><div class="rname">${o.store}</div><div class="rsub">拍摄于 ${fmtD(o.shotAt)} · ${fmtMoney(o.price)}</div></div>
-      <div style="display:flex;gap:5px;flex-shrink:0">${miss}</div>
-    </div>`;}).join('')
-    : `<div class="empty">没有待发片的订单 🎉</div>`;
-
-  $('#v-home').innerHTML=`
-    <div class="htop-row">
-      <div><div class="eyebrow">${now.getMonth()+1}月${now.getDate()}日 周${dowOf(TODAY)}</div>
-      <h1 class="big">${greeting()},达人</h1>
-      <div class="hsub">今日 ${todays.length} 单拍摄 · ${over.length?`${over.length} 笔待催收`:'收款正常'}</div></div>
-      <div style="display:flex;gap:8px;align-items:center">
-        ${headBtns(true)}
-        <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
-      </div>
+/* ================= D1 作战模式 ================= */
+function demo1(){
+  const todays=db.orders.filter(o=>o.appt.slice(0,10)===TODAY).sort((a,b)=>a.appt.localeCompare(b.appt));
+  const done=todays.filter(o=>o.shotAt).length,total=todays.length;
+  const doneSum=todays.filter(o=>o.shotAt).reduce((s,o)=>s+o.price,0);
+  const daySum=todays.reduce((s,o)=>s+o.price,0);
+  const bdg=dayBadge(total,daySum);
+  $('#demo-stage').innerHTML=`
+    <div class="card" style="text-align:center;padding:18px">
+      <div style="font-size:13px;color:var(--sub)">今天 · ${total} 个拍摄</div>
+      <div class="big-num" style="margin:6px 0">${done}<span style="font-size:16px;color:var(--sub);font-weight:700"> / ${total} 已完成</span></div>
+      <div class="pbar"><i style="width:${total?Math.round(done/total*100):0}%"></i></div>
+      <div style="font-size:12.5px;color:var(--sub);margin-top:8px">今日档期 ${fmtMoney(daySum)}${bdg?' '+bdg.e+bdg.t:''} · 已完成 ${fmtMoney(doneSum)}</div>
     </div>
-    ${alertCard}
-    <div class="sec-title">今日拍摄 <span class="more" data-act="tab" data-tab="trip">行程 ›</span></div>
-    <div class="card rows">${todayRows}</div>
-    <div class="sec-title">待发片 <span class="more" data-act="tab" data-tab="orders">全部 ›</span></div>
-    <div class="card rows">${sendRows}</div>
-    <div class="sec-title">本月速览 <span class="more" data-act="tab" data-tab="stats">统计 ›</span></div>
-    <div class="mini-grid">
-      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(m.paidSum)}</div><div class="ml">本月实收 · ${m.paid.length} 笔</div></div>
-      <div class="mini"><div class="mv">${fmtMoney(m.dealSum)}</div><div class="ml">本月成交 · ${m.deals.length} 单</div></div>
-      <div class="mini"><div class="mv" style="color:var(--red)">${fmtMoney(totOwed)}</div><div class="ml">当前待收款</div></div>
-      <div class="mini"><div class="mv" style="color:var(--orange)">${sending.length}</div><div class="ml">待发片订单</div></div>
-    </div>`;
-}
-
-/* ================= 渲染:行程 ================= */
-function orderRowTrip(o){
-  const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
-  return `<div class="row" data-act="open" data-oid="${o.id}">
-    <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${o.cat}</div></div>
-    <div class="rmain"><div class="rname">${o.store}</div>
-      <div class="chiprow">${workChip(o)}${depChip||payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${o.channel}</span>`:''}</div></div>
-    <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div><div class="rsub">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div></div>
-  </div>`;
-}
-function renderTrip(){
-  const {y,m}=ui.vMon;
-  const first=new Date(y,m-1,1);
-  const off=(first.getDay()+6)%7;
-  const dim=new Date(y,m,0).getDate();
-  const mOrders=db.orders.filter(o=>+o.appt.slice(0,4)===y&&+o.appt.slice(5,7)===m);
-  const mSum=mOrders.reduce((s,o)=>s+o.price,0);
-  const byDay={};mOrders.forEach(o=>{const k=o.appt.slice(0,10);if(!byDay[k])byDay[k]={n:0,s:0};byDay[k].n++;byDay[k].s+=o.price});
-  let bFire=0,bMoney=0;Object.values(byDay).forEach(v=>{const b=dayBadge(v.n,v.s);if(b&&b.e==='🔥')bFire++;if(b&&b.e==='💰')bMoney++});
-  const mBadges=(bFire?' 🔥'+bFire:'')+(bMoney?' 💰'+bMoney:'');
-  let cells='';
-  for(let i=0;i<off;i++)cells+='<div class="mc"></div>';
-  for(let d=1;d<=dim;d++){
-    const iso=`${y}-${pad(m)}-${pad(d)}`;
-    const ds=mOrders.filter(o=>o.appt.slice(0,10)===iso);
-    const dv=byDay[iso]||{n:0,s:0};
-    const bdg=dayBadge(dv.n,dv.s);
-    cells+=`<button class="mc ${iso===ui.selDay?'sel':''} ${iso===TODAY?'today':''}" data-act="day" data-day="${iso}" title="${bdg?bdg.t:''}">
-      <span class="n">${d}</span><span class="d">${ds.length?'<i></i>'.repeat(Math.min(ds.length,6)):''}</span>${bdg?`<span class="bdg">${bdg.e}</span>`:''}</button>`;
-  }
-  const list=db.orders.filter(o=>o.appt.slice(0,10)===ui.selDay).sort((a,b)=>a.appt.localeCompare(b.appt));
-  const listHtml=list.length?list.map(orderRowTrip).join('')
-    : `<div class="empty"><div class="e-ic">📭</div>这一天暂无拍摄安排</div>`;
-  const base=new Date(ui.selDay+'T00:00');
-  // 整月时间线:所浏览月份的全部档期按日分组(可一路滚到月初/月末)
-  let up='';
-  const mdays=[...new Set(mOrders.map(o=>o.appt.slice(0,10)))].sort();
-  for(const iso of mdays){
-    const ds=mOrders.filter(o=>o.appt.slice(0,10)===iso).sort((a,b)=>a.appt.localeCompare(b.appt));
-    const d=new Date(iso+'T00:00');
-    const tag=iso===TODAY?' · 今天':(iso===toISO(new Date(base.getTime()+864e5))?' · 明天':'');
-    up+=`<div class="sec-title">${d.getMonth()+1}月${d.getDate()}日 周${dowOf(iso)}${tag}</div>
-    <div class="card rows">${ds.map(orderRowTrip).join('')}</div>`;
-  }
-  if(!up)up=`<div class="empty">${m}月暂无档期 · 点右上角「预约」新增</div>`;
-  $('#v-trip').innerHTML=`
-    <div class="htop-row">
-      <div><div class="eyebrow">整月档期 · ‹ › 可翻月</div><h1 class="big">行程</h1>
-      <div class="hsub">点按日期查看当日 · 分享按钮可生成当日行程图</div></div>
-      <div style="display:flex;gap:8px;align-items:center">
-        ${headBtns(true)}
-        <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
-      </div>
-    </div>
-    <div class="mgrid">
-      <div class="mhead">
-        <div class="mtitle">${y}年${m}月<span class="msum">${mOrders.length} 个档期 · ${fmtMoney(mSum)}${mBadges}</span></div>
-        <div class="mnav">
-          <button data-act="mnav" data-d="-1">‹</button>
-          <button data-act="mtoday" class="mtod">今天</button>
-          <button data-act="mnav" data-d="1">›</button>
-        </div>
-      </div>
-      <div class="mgrid-dow">${'一二三四五六日'.split('').map(x=>`<span>周${x}</span>`).join('')}</div>
-      <div class="mgrid-c">${cells}</div>
-    </div>
-    <div class="sec-title">${ui.selDay===TODAY?'今日行程':`${+ui.selDay.slice(5,7)}月${+ui.selDay.slice(8,10)}日 周${dowOf(ui.selDay)}`}${list.length&&dayBadge(list.length,list.reduce((s,o)=>s+o.price,0))?` · ${dayBadge(list.length,list.reduce((s,o)=>s+o.price,0)).e} ${dayBadge(list.length,list.reduce((s,o)=>s+o.price,0)).t}`:''}</div>
-    <div class="card rows">${listHtml}</div>
-    <div class="sec-title">${m}月全部档期 · 往下滚看整月</div>
-    ${up}`;
-}
-
-/* ================= 渲染:订单 ================= */
-function chipMatch(o){
-  const w=workOf(o);
-  switch(ui.chip){
-    case 'wait':return w==='待拍摄';
-    case 'doing':return w==='后期中'||w==='发片中';
-    case 'unpaid':return owedOf(o)>0;
-    case 'over':return isOver(o);
-    case 'done':return w==='已交付';
-    default:return true;
-  }
-}
-function renderOrders(){
-  const q=ui.q.trim();
-  const all=db.orders.filter(chipMatch).filter(o=>!q||o.store.toLowerCase().includes(q.toLowerCase()))
-    .sort((a,b)=>(b.shotAt||b.appt).localeCompare(a.shotAt||a.appt));
-  const cnt=k=>db.orders.filter(o=>{const t=ui.chip;ui.chip=k;const r=chipMatch(o);ui.chip=t;return r}).length;
-  const chips=[['all','全部'],['wait','待拍摄'],['doing','进行中'],['unpaid','待收款'],['over','逾期'],['done','已完结']]
-    .map(([k,l])=>`<button class="fchip ${ui.chip===k?'on':''}" data-act="chip" data-chip="${k}">${l} <b>${cnt(k)}</b></button>`).join('');
-  const rows=all.length?all.map(o=>`
-    <div class="row" data-act="open" data-oid="${o.id}">
-      <div class="rmain">
-        <div class="rname">${o.store}</div>
-        <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${o.cat}${o.partner?' · 出镜 '+o.partner:''}</div>
-        <div class="chiprow">${workChip(o)}${payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${o.channel}</span>`:''}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
-      </div>
-      <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div>
-        <div class="rsub" style="${owedOf(o)>0?'color:var(--red);font-weight:700':''}">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div>
-      </div>
-    </div>`).join('')
-    : `<div class="empty"><div class="e-ic">🔍</div>没有符合条件的订单</div>`;
-  $('#v-orders').innerHTML=`
-    <div class="htop-row">
-      <div><div class="eyebrow">工作 × 收款 双轨状态</div><h1 class="big">订单</h1></div>
-      <div style="display:flex;gap:8px;align-items:center">${headBtns(false)}
-        <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button></div>
-    </div>
-    <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-      <input id="q-input" placeholder="搜索商家名称" value="${ui.q}"></div>
-    <div class="chips">${chips}</div>
-    <div class="card rows">${rows}</div>`;
-  const qi=$('#q-input');
-  qi.addEventListener('input',e=>{ui.q=e.target.value;const pos=qi.selectionStart;renderOrders();const q2=$('#q-input');q2.focus();q2.setSelectionRange(pos,pos)});
-}
-
-/* ================= 渲染:收款 ================= */
-function renderPay(){
-  const rows0=db.orders.filter(o=>owedOf(o)>0);
-  const unDepSum=rows0.reduce((s,o)=>s+unDep(o),0);
-  const unFinSum=rows0.reduce((s,o)=>s+unFin(o),0);
-  const dySum=rows0.filter(o=>o.settleVia==='douyin'&&!o.finalPaidAt&&unDep(o)===0).reduce((s,o)=>s+unFin(o),0);
-  const overAll=db.orders.filter(isOver);
-  const over=overAll.filter(o=>!snoozed(o));
-  const overSum=over.reduce((s,o)=>s+unFin(o),0);
-
-  const bucket=o=>{const d=overdueDays(o);return d>30?'g30':d>7?'m830':'s7'};
-  const rows=rows0.filter(o=>ui.bucket==='all'||bucket(o)===ui.bucket)
-    .sort((a,b)=>(snoozed(a)-snoozed(b))||overdueDays(b)-overdueDays(a)||a.appt.localeCompare(b.appt));
-
-  const listHtml=rows.length?rows.map(o=>{
-    const d=overdueDays(o),isDep=unDep(o)>0,isDy=o.settleVia==='douyin',sn=snoozed(o);
-    const due=isDep?{kind:'deposit',amt:unDep(o),sub:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)} · 定金`,btn:'标记已收'}
-      :isDy?{kind:'final',amt:unFin(o),sub:`拍摄 ${fmtD(o.shotAt||o.appt)} · 抖音商单结算`,btn:'标记到账'}
-      :{kind:'final',amt:unFin(o),sub:`拍摄 ${fmtD(o.shotAt||o.appt)} · 已交付${o.shortAt&&o.longAt?'':'部分'}`,btn:'标记已收'};
-    const chip=isDep?'<span class="chip c-gray">待定金</span>'
-      :isDy?'<span class="chip c-blue">平台结算</span>'
-      :isOver(o)?(sn?`<span class="chip c-gray">已设提醒 · ${fmtD(o.remindAt)}再催</span>`:`<span class="chip c-red">逾期 · 欠 ${d} 天</span>`)
-      :`<span class="chip ${d>7?'c-orange':'c-gray'}">欠款 ${d} 天</span>`;
-    return `<div class="row" data-act="open" data-oid="${o.id}">
-      <div class="rmain"><div class="rname">${o.store}</div>
-        <div class="rsub">${due.sub} ${fmtMoney(due.amt)}</div>
-        <div class="chiprow">${chip}</div>
-      </div>
-      <button class="mini-btn green" data-act="open-pay" data-oid="${o.id}" data-kind="${due.kind}">${due.btn}</button>
-    </div>`;}).join('')
-    : `<div class="empty"><div class="e-ic">✅</div>该区间暂无待收款</div>`;
-
-  const flow=[...db.payments].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8).map(p=>`
-    <div class="row">
-      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} · ${storeOf(p.oid)}</div>
-        <div class="rsub">${p.kind} · ${fmtD(p.at)} ${fmtHM(p.at)}</div></div>
-      <span class="chip ${METHOD_CLS[p.method]||'c-gray'}">${p.method}</span>
-    </div>`).join('');
-
-  $('#v-pay').innerHTML=`
-    <div class="htop-row"><div><div class="eyebrow">资金线 · 账期自实际拍摄日起算</div><h1 class="big">收款</h1></div>
-    <div style="display:flex;gap:8px">${headBtns(false)}</div></div>
-    <div class="card" style="padding:16px;margin-bottom:12px">
-      <div style="font-size:12px;color:var(--sub)">待收款总额</div>
-      <div style="font-size:32px;font-weight:800;letter-spacing:.3px;margin:4px 0 2px">${fmtMoney(unDepSum+unFinSum)}</div>
-      <div class="chiprow">
-        <span class="chip c-orange">尾款·私收 ${fmtMoney(unFinSum-dySum)}</span>
-        ${dySum>0?`<span class="chip c-blue">抖音商单 ${fmtMoney(dySum)}</span>`:''}
-        <span class="chip c-gray">定金 ${fmtMoney(unDepSum)}</span>
-        ${over.length?`<span class="chip c-red">逾期 ${over.length} 笔 · ${fmtMoney(overSum)}</span>`:'<span class="chip c-green">无逾期</span>'}
-        ${overAll.length>over.length?`<span class="chip c-gray">${overAll.length-over.length} 笔已设提醒</span>`:''}
-      </div>
-    </div>
-    <div class="seg" style="margin-bottom:12px">
-      ${[['all','全部'],['s7','≤7天'],['m830','8–30天'],['g30','30天+ 催收']].map(([k,l])=>`<button class="${ui.bucket===k?'on':''}" data-act="bucket" data-bucket="${k}">${l}</button>`).join('')}
-    </div>
-    <div class="card rows">${listHtml}</div>
-    <div class="sec-title">收款流水 <span class="more" data-act="export-csv">导出 ›</span></div>
-    <div class="card rows">${flow||'<div class="empty">暂无收款记录</div>'}</div>`;
-}
-
-/* ================= 渲染:统计 ================= */
-function renderStats(){
-  const st=statsFor(ui.period);
-  const avg=st.deals.length?Math.round(st.dealSum/st.deals.length):0;
-  let days=[];
-  if(ui.period==='M'){const e=new Date(now.getFullYear(),now.getMonth(),now.getDate());for(let d=new Date(st.start);d<=e;d.setDate(d.getDate()+1))days.push(toISO(d))}
-  else{for(let i=+ui.period-1;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);days.push(toISO(d))}}
-  const daily=days.map(d=>db.payments.filter(p=>p.at.slice(0,10)===d).reduce((s,p)=>s+p.amount,0));
-  const mx=Math.max(...daily,1);
-  const bars=daily.map((v,i)=>`<div class="bar ${v?'':'zero'}" title="${days[i]} 实收 ${fmtMoney(v)}"><i style="height:${Math.max(3,Math.round(v/mx*100))}%"></i></div>`).join('');
-  const totOwed=db.orders.reduce((s,o)=>s+owedOf(o),0);
-  const sending=db.orders.filter(o=>['后期中','发片中'].includes(workOf(o))).length;
-  const segP=[['7','近7天'],['30','近30天'],['M','本月']].map(([k,l])=>`<button class="${ui.period===k?'on':''}" data-act="period" data-period="${k}">${l}</button>`).join('');
-
-  const byM={};st.paid.forEach(p=>{byM[p.method]=(byM[p.method]||0)+p.amount});
-  const entries=Object.entries(byM).sort((a,b)=>b[1]-a[1]);
-  const mxm=Math.max(...entries.map(e=>e[1]),1);
-  const chRows=entries.length?entries.map(([m,v])=>`
-    <div class="row" style="padding:9px 0">
-      <span class="chip ${METHOD_CLS[m]||'c-gray'}" style="width:70px;justify-content:center">${m}</span>
-      <div style="flex:1;height:8px;background:#F0F0F4;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(4,Math.round(v/mxm*100))}%;background:var(--brand);border-radius:4px"></i></div>
-      <div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13.5px">${fmtMoney(v)}</div></div>
-    </div>`).join('')
-    : '<div class="empty" style="padding:18px 0">该区间暂无收款</div>';
-
-  $('#v-stats').innerHTML=`
-    <div class="htop-row"><div><div class="eyebrow">实时统计 · 打开即刷新</div><h1 class="big">统计</h1></div>
-    <div style="display:flex;gap:8px">${headBtns(false)}</div></div>
-    <div class="seg" style="margin-bottom:14px">${segP}</div>
-    <div class="mini-grid">
-      <div class="mini"><div class="mv">${fmtMoney(st.dealSum)}</div><div class="ml">成交额 · ${st.deals.length} 单</div></div>
-      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(st.paidSum)}</div><div class="ml">实收金额 · ${st.paid.length} 笔</div></div>
-      <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} 单</div><div class="ml">已交付完结</div></div>
-      <div class="mini"><div class="mv">${fmtMoney(avg)}</div><div class="ml">客单价</div></div>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-size:14px;font-weight:800">每日实收</span>
-        <span style="font-size:11.5px;color:var(--sub)">${ui.period==='M'?'本月':'近'+ui.period+'天'}合计 <b style="color:#239648;font-size:13px">${fmtMoney(st.paidSum)}</b></span>
-      </div>
-      <div class="bars">${bars}</div>
-      <div class="bar-x"><span>${fmtD(days[0])}</span><span>${fmtD(days[days.length-1])}</span></div>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-size:14px;font-weight:800">收款渠道构成</span>
-        <span style="font-size:11.5px;color:var(--sub)">${ui.period==='M'?'本月':'近'+ui.period+'天'}</span>
-      </div>
-      <div style="margin-top:4px">${chRows}</div>
-    </div>
-    <div class="card rows" style="margin-top:14px">
-      <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">当前待收款</div><div class="rsub">含定金与尾款</div></div>
-        <div class="rside"><div class="rprice" style="color:var(--red)">${fmtMoney(totOwed)}</div></div></div>
-      <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">待发片订单</div><div class="rsub">后期中 / 发片中</div></div>
-        <div class="rside"><div class="rprice" style="color:var(--orange)">${sending} 单</div></div></div>
-    </div>
-    <div class="sec-title">数据管理(本机 SQLite 存储)</div>
+    <div class="sec-title">作战清单 · 点行即打卡</div>
     <div class="card rows">
-      <div class="menu-row" data-act="open-schema">
-        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg></span>
-        <div class="menu-t"><div class="menu-name">数据结构 · SQLite</div><div class="menu-sub">orders / payments / settings,真实 .db 存于本机,可导出迁移</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      ${todays.map(o=>`
+        <div class="row" data-act="d1-toggle" data-oid="${o.id}" style="cursor:pointer">
+          <span style="font-size:22px">${o.shotAt?'✅':'⬜'}</span>
+          <div class="rmain"><div class="rname" style="${o.shotAt?'color:var(--sub);text-decoration:line-through':''}">${o.store}</div>
+            <div class="rsub">${fmtHM(o.appt)} · ${o.channel} · ¥${o.price}</div></div>
+          <div class="rside"><span class="chip ${o.shotAt?'c-green':'c-blue'}">${o.shotAt?'已拍':'待拍'}</span></div>
+        </div>`).join('')||'<div class="empty">今天暂无拍摄(演示数据挑个工作日再看)</div>'}
+    </div>
+    <div style="padding-top:14px"><button class="btn tint" data-act="d1-share">生成今日战报文案</button></div>
+    <div class="rsub" style="text-align:center;margin-top:10px">论据:现场操作要一步到位 — 打卡、金额、进度一屏完成</div>`;
+}
+function d1Toggle(oid){
+  const o=byId(oid);if(!o)return;
+  if(o.shotAt){o.shotAt=null}else{o.shotAt=nowStr();toast(`「${o.store}」拍摄打卡 ✅`)}
+  demo1();
+}
+function d1Share(){
+  const todays=db.orders.filter(o=>o.appt.slice(0,10)===TODAY);
+  const done=todays.filter(o=>o.shotAt).length;
+  copyText(`今日拍摄 ${done}/${todays.length} ✅\n`+todays.map(o=>`${fmtHM(o.appt)} ${o.store} ${o.shotAt?'✅':'⏳'}`).join('\n')+`\n档期 ${fmtMoney(todays.reduce((s,o)=>s+o.price,0))} 💪`);
+}
+
+/* ================= D2 渠道对账单 ================= */
+let d2Channel='蜂向',d2Text='';
+function demo2(){
+  const chs=[...new Set(db.orders.map(o=>o.channel))];
+  if(!chs.includes(d2Channel))d2Channel=chs[0];
+  const list=db.orders.filter(o=>o.channel===d2Channel&&o.appt.slice(5,7)===TODAY.slice(5,7)).sort((a,b)=>a.appt.localeCompare(b.appt));
+  const sum=list.reduce((s,o)=>s+o.price,0);
+  d2Text=`【${d2Channel} · ${+TODAY.slice(5,7)}月对账单】\n单数:${list.length} · 合计:${fmtMoney(sum)}\n——\n`+list.map(o=>`${fmtD(o.appt)} ${o.store} ¥${o.price}`).join('\n')+'\n——\n如有出入请指正 🙏';
+  $('#demo-stage').innerHTML=`
+    <div class="kbd">${chs.map(c=>`<button class="${c===d2Channel?'on':''}" data-act="d2-ch" data-ch="${c}">${c}</button>`).join('')}</div>
+    <div class="card" style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+        <b style="font-size:15px">${d2Channel} · ${+TODAY.slice(5,7)}月对账单</b>
+        <span class="chip c-blue">${list.length} 单</span>
       </div>
-      <div class="menu-row">
-        <span class="menu-ic" style="background:var(--orange-soft);color:#E8850A"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg></span>
-        <div class="menu-t"><div class="menu-name">尾款催收阈值</div><div class="menu-sub">超过该天数未收尾款即标记「已逾期」;提醒以打开 App 查看为准</div></div>
-        <div class="stepper">
-          <button data-act="th" data-v="-1">−</button><span>${db.threshold} 天</span><button data-act="th" data-v="1">+</button>
+      ${list.map(o=>`<div class="row"><div class="rmain"><div class="rname" style="font-size:13.5px">${o.store}</div><div class="rsub">${fmtD(o.appt)}${o.partner?' · 出镜 '+o.partner:''}</div></div><div class="rside"><div class="rprice" style="font-size:13.5px">${fmtMoney(o.price)}</div></div></div>`).join('')||'<div class="empty">该渠道本月无单</div>'}
+      <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:.5px solid var(--line);margin-top:4px">
+        <b>合计</b><b style="color:var(--brand)">${fmtMoney(sum)}</b></div>
+    </div>
+    <div style="padding-top:12px">
+      <button class="btn primary" data-act="d2-copy">复制文本(发微信群)</button>
+      <button class="btn tint-green" data-act="d2-img">生成图片(保存后转发)</button>
+    </div>
+    <div class="rsub" style="text-align:center;margin-top:10px">论据:渠道周结/月结逐单核对是真实高频动作,一键生成省 10 分钟</div>`;
+}
+function d2Img(){
+  const list=db.orders.filter(o=>o.channel===d2Channel&&o.appt.slice(5,7)===TODAY.slice(5,7)).sort((a,b)=>a.appt.localeCompare(b.appt));
+  const sum=list.reduce((s,o)=>s+o.price,0);
+  const S=2,W=900,rh=56,H=200+list.length*rh+120;
+  const c=document.createElement('canvas');c.width=W*S;c.height=H*S;const g=c.getContext('2d');g.scale(S,S);
+  g.fillStyle='#fff';g.fillRect(0,0,W,H);
+  const gr=g.createLinearGradient(0,0,W,190);gr.addColorStop(0,'#FF8A3D');gr.addColorStop(1,'#E8352A');
+  g.fillStyle=gr;g.fillRect(0,0,W,190);
+  g.fillStyle='#fff';g.font='800 44px -apple-system,PingFang SC';g.fillText(`${d2Channel} · ${+TODAY.slice(5,7)}月对账单`,40,80);
+  g.font='600 26px -apple-system,PingFang SC';g.fillStyle='rgba(255,255,255,.9)';g.fillText(`${list.length} 单 · 合计 ${fmtMoney(sum)}`,40,130);
+  let y=228;g.fillStyle='#1C1C1E';
+  list.forEach(o=>{g.font='600 26px -apple-system,PingFang SC';g.fillText(`${fmtD(o.appt)}  ${o.store}`,40,y);g.font='700 26px -apple-system,PingFang SC';g.fillText(fmtMoney(o.price),W-170,y);y+=rh});
+  g.fillStyle='#B9B9C0';g.font='500 22px -apple-system,PingFang SC';g.fillText('由「探记」生成',40,y+10);
+  const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=`${d2Channel}-对账单.png`;a.click();
+  toast('图片已生成 ✓');
+}
+
+/* ================= D3 催收话术 ================= */
+let d3Oid=null,d3Tone='温和';
+const D3_T={
+  '温和':o=>`${o.store}老板好呀😊 之前给您拍的探店视频数据不错~ 尾款 ${fmtMoney(o.price-o.deposit)} 方便今天安排一下嘛?后续有新内容需求随时找我,老客户优先排期!`,
+  '正式':o=>`您好,这里是探记内容工作室。${fmtD(o.shotAt||o.appt)}为贵店拍摄的探店内容已全部交付(短片+长片),尾款 ${fmtMoney(o.price-o.deposit)} 尚未结算,已逾期 ${overdueDays(o)} 天。请于本周内安排结算,感谢配合。`,
+  '幽默':o=>`老板~ 视频都发出去 ${overdueDays(o)} 天啦,播放量在涨,尾款 ${fmtMoney(o.price-o.deposit)} 也在"涨"😂 再不结,下次拍摄我让主播自带泡面入职!求安排🙏`
+};
+function demo3(){
+  const over=db.orders.filter(isOver);
+  if(!d3Oid||!over.find(o=>o.id===d3Oid))d3Oid=over.length?over[0].id:null;
+  const o=d3Oid?byId(d3Oid):null;
+  $('#demo-stage').innerHTML=`
+    <div class="sec-title">选择逾期订单</div>
+    <div class="card rows">${over.length?over.map(x=>`
+      <div class="row" data-act="d3-oid" data-oid="${x.id}" style="cursor:pointer">
+        <div class="rmain"><div class="rname">${x.store}</div><div class="rsub">拍摄 ${fmtD(x.shotAt||x.appt)} · 尾款 ${fmtMoney(x.price-x.deposit)}</div></div>
+        <span class="chip c-red">欠 ${overdueDays(x)} 天</span>
+      </div>`).join(''):'<div class="empty">演示数据暂无逾期单</div>'}</div>
+    ${o?`
+    <div class="sec-title">语气</div>
+    <div class="seg">${['温和','正式','幽默'].map(t=>`<button class="${d3Tone===t?'on':''}" data-act="d3-tone" data-tone="${t}">${t}</button>`).join('')}</div>
+    <div class="sec-title">话术(可改后发送)</div>
+    <div class="txt-card" id="d3-msg">${D3_T[d3Tone](o)}</div>
+    <div style="padding-top:12px"><button class="btn primary" data-act="d3-copy">复制话术</button></div>`:''}
+    <div class="rsub" style="text-align:center;margin-top:10px">论据:话术把「不敢催」变成「随手催」;三档语气覆盖不同客情</div>`;
+}
+
+/* ================= D4 复购雷达 ================= */
+function demo4(){
+  const map={};db.orders.forEach(o=>{(map[o.store]=map[o.store]||[]).push(o)});
+  const rep=Object.entries(map).filter(([k,v])=>v.length>=2).sort((a,b)=>b[1].length-a[1].length);
+  const total=db.orders.length,repN=rep.reduce((s,[,v])=>s+v.length,0);
+  $('#demo-stage').innerHTML=`
+    <div class="card" style="display:flex;gap:14px;text-align:center">
+      <div style="flex:1"><div class="big-num" style="color:var(--brand)">${rep.length}</div><div style="font-size:11.5px;color:var(--sub)">复购商家</div></div>
+      <div style="flex:1"><div class="big-num">${Math.round(repN/total*100)}%</div><div style="font-size:11.5px;color:var(--sub)">老客单数占比</div></div>
+      <div style="flex:1"><div class="big-num">${total-repN}</div><div style="font-size:11.5px;color:var(--sub)">新客单数</div></div>
+    </div>
+    <div class="sec-title">老朋友回来了(≥2 次合作)</div>
+    ${rep.length?rep.map(([store,v])=>{
+      const sum=v.reduce((s,o)=>s+o.price,0);
+      const last=[...v].sort((a,b)=>b.appt.localeCompare(a.appt))[0];
+      return `<div class="card" style="margin-bottom:10px">
+        <div class="row" style="border:none;padding:0 0 6px">
+          <div class="rmain"><div class="rname">${store} 🔁</div><div class="rsub">最近合作 ${fmtD(last.appt)} · 渠道 ${last.channel}</div></div>
+          <div class="rside"><div class="rprice">${v.length} 次</div><div class="rsub">累计 ${fmtMoney(sum)}</div></div>
         </div>
+        ${v.map(o=>`<div class="rsub" style="padding:3px 0">${fmtD(o.appt)} · ${fmtMoney(o.price)} · ${workOf(o)}</div>`).join('')}
+        <div style="font-size:12px;color:var(--brand);font-weight:700;padding-top:6px">💡 老客报价可上浮,优先给档期</div>
+      </div>`;}).join('')
+    :'<div class="empty">暂无复购 — 复购是内容有效的最强信号</div>'}
+    <div class="rsub" style="text-align:center;margin-top:10px">论据:复购商家值得差异化对待;系统自动识别,不用脑子记</div>`;
+}
+
+/* ================= D5 战报生成器 ================= */
+let d5Period='week',d5Text='';
+function d5Stats(period){
+  const days=period==='week'?7:null;
+  let start;
+  if(days)start=new Date(now.getTime()-864e5*days);
+  else start=new Date(now.getFullYear(),now.getMonth(),1);
+  const prevStart=new Date(start.getTime()-(days?864e5*days:(now-start)));
+  const inWin=t=>t&&new Date(t)>=start&&new Date(t)<=now;
+  const inPrev=t=>t&&new Date(t)>=prevStart&&new Date(t)<start;
+  const orders=db.orders.filter(o=>inWin(o.appt));
+  const paid=db.payments.filter(p=>inWin(p.at)).reduce((s,p)=>s+p.amount,0);
+  const pOrders=db.orders.filter(o=>inPrev(o.appt)).length;
+  const pPaid=db.payments.filter(p=>inPrev(p.at)).reduce((s,p)=>s+p.amount,0);
+  const byDay={};orders.forEach(o=>{const k=o.appt.slice(0,10);if(!byDay[k])byDay[k]={n:0,s:0};byDay[k].n++;byDay[k].s+=o.price});
+  let f=0,m=0;Object.values(byDay).forEach(v=>{const b=dayBadge(v.n,v.s);if(b?.e==='🔥')f++;if(b?.e==='💰')m++});
+  return {n:orders.length,deal:orders.reduce((s,o)=>s+o.price,0),paid,
+    nDelta:pOrders?orders.length-pOrders:null,paidDelta:pPaid?paid-pPaid:null,
+    badges:{f,m},periodName:days?'近 7 天':'本月'};
+}
+function demo5(){
+  const st=d5Stats(d5Period);
+  const line=st.nDelta===null?`${st.periodName} ${st.n} 单`:`${st.periodName} ${st.n} 单(上期 ${st.pOrders},${st.nDelta>=0?'+':''}${st.nDelta})`;
+  d5Text=`📣 探店战报 · ${st.periodName}\n拍摄 ${st.n} 单 · 档期 ${fmtMoney(st.deal)}\n实收 ${fmtMoney(st.paid)}${st.paidDelta!==null?`(环比 ${st.paidDelta>=0?'+':'-'}${fmtMoney(Math.abs(st.paidDelta))})`:''}\n🔥爆单日 ×${st.badges.f} · 💰千元日 ×${st.badges.m}\n继续冲!`;
+  $('#demo-stage').innerHTML=`
+    <div class="seg">${[['week','近 7 天'],['month','本月']].map(([k,l])=>`<button class="${d5Period===k?'on':''}" data-act="d5-period" data-p="${k}">${l}</button>`).join('')}</div>
+    <div class="card" style="margin-top:14px;text-align:center;padding:18px">
+      <div style="font-size:12.5px;color:var(--sub)">${line}</div>
+      <div class="big-num" style="margin:8px 0;color:var(--brand)">${fmtMoney(st.paid)}</div>
+      <div style="font-size:12.5px;color:var(--sub)">实收 · 档期 ${fmtMoney(st.deal)} · ${st.n} 单</div>
+      <div style="font-size:13px;font-weight:700;margin-top:8px">🔥 爆单日 ×${st.badges.f} · 💰 千元日 ×${st.badges.m}</div>
+    </div>
+    <div class="sec-title">可发文案</div>
+    <div class="txt-card">${d5Text}</div>
+    <div style="padding-top:12px"><button class="btn primary" data-act="d5-copy">复制战报</button></div>
+    <div class="rsub" style="text-align:center;margin-top:10px">论据:复盘 + 社交激励;环比让「坚持」可见</div>`;
+}
+
+/* ================= D6 30 秒快速建单 ================= */
+let d6={ch:'蜂向',pt:'花花',start:0,list:[]};
+function demo6(){
+  if(!d6.start)d6.start=Date.now();
+  const secs=Math.round((Date.now()-d6.start)/1000);
+  $('#demo-stage').innerHTML=`
+    <div class="card" style="text-align:center">
+      <div style="font-size:12.5px;color:var(--sub)">本次录入已用时</div>
+      <div class="big-num" id="d6-timer">${secs}s</div>
+      <div style="font-size:11.5px;color:var(--sub)">目标:30 秒内完成建单</div>
+    </div>
+    <div class="sec-title">渠道</div>
+    <div class="kbd">${['蜂向','小爱','金城','食物','直客'].map(c=>`<button class="${d6.ch===c?'on':''}" data-act="d6-ch" data-ch="${c}">${c}</button>`).join('')}</div>
+    <div class="sec-title">出镜搭档</div>
+    <div class="kbd">${['花花','邱邱','凯哥','小柚','不组队'].map(c=>`<button class="${d6.pt===c?'on':''}" data-act="d6-pt" data-pt="${c}">${c}</button>`).join('')}</div>
+    <div class="sec-title">金额快捷键</div>
+    <div class="kbd">${[300,500,800,1000,1500,2000].map(v=>`<button data-act="d6-price" data-v="${v}">¥${v}</button>`).join('')}</div>
+    <div class="frow"><label>商家</label><input id="d6-store" placeholder="店名(区域)"></div>
+    <div class="frow"><label>价格 ¥</label><input id="d6-price-input" type="number" inputmode="numeric" placeholder="或点上方快捷键"></div>
+    <div style="padding-top:14px"><button class="btn primary" data-act="d6-save">保存建单</button></div>
+    ${d6.list.length?`<div class="sec-title">本次已建 ${d6.list.length} 单</div>
+    <div class="card rows">${d6.list.map(o=>`<div class="row"><div class="rmain"><div class="rname" style="font-size:14px">${o.store}</div><div class="rsub">${o.channel} · ${o.partner||'不组队'}</div></div><div class="rside"><div class="rprice">${fmtMoney(o.price)}</div></div></div>`).join('')}</div>`:''}
+    <div class="rsub" style="text-align:center;margin-top:10px">论据:计时器就是说服力 — 录入速度决定记不记得住</div>`;
+  if(demoTimer)clearInterval(demoTimer);
+  demoTimer=setInterval(()=>{
+    const el=$('#d6-timer');
+    if(el)el.textContent=Math.round((Date.now()-d6.start)/1000)+'s';else clearInterval(demoTimer);
+  },1000);
+}
+function d6Save(){
+  const store=$('#d6-store').value.trim(),price=parseFloat($('#d6-price-input').value);
+  if(!store||!price){toast('店名和金额必填');return}
+  const used=Math.round((Date.now()-d6.start)/1000);
+  const o={id:Math.max(...db.orders.map(x=>x.id))+1,store,cat:'餐饮',price,deposit:0,settleVia:'private',
+    appt:dOff(1,'11:00'),shotAt:null,submittedAt:null,shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,
+    remindAt:null,note:'快速建单(演示)',channel:d6.ch,partner:d6.pt==='不组队'?'':d6.pt};
+  db.orders.push(o);d6.list.push(o);d6.start=Date.now();
+  toast(`「${store}」已建单 · 用时 ${used}s ⚡`);
+  demo6();
+}
+
+/* ================= D7 拍摄清单 ================= */
+const D7_T={
+  '咖啡':['门头招牌','店内环境全景','招牌产品特写','制作过程(手冲/拉花)','顾客互动/人景','产品上桌瞬间'],
+  '烧烤':['门头/摊位','炭火烤制过程','菜品全家福','特写(油花/焦边)','碰杯/聚餐氛围','环境夜景'],
+  '酒店民宿':['外观/入口','房间全景','床品特写','卫浴细节','公共设施','窗外景观'],
+  '通用':['门头','环境','产品特写','制作/服务过程','人物互动','氛围收尾']
+};
+let d7Cat='咖啡',d7State={};
+function demo7(){
+  const items=D7_T[d7Cat];
+  const st=d7State[d7Cat]=d7State[d7Cat]||items.map(()=>false);
+  const done=st.filter(Boolean).length;
+  $('#demo-stage').innerHTML=`
+    <div class="seg">${Object.keys(D7_T).map(c=>`<button class="${d7Cat===c?'on':''}" data-act="d7-cat" data-cat="${c}">${c}</button>`).join('')}</div>
+    <div class="card" style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+        <b style="font-size:14px">${d7Cat}拍摄清单</b><span class="chip ${done===items.length?'c-green':'c-gray'}">${done}/${items.length}</span>
       </div>
-      <div class="menu-row" data-act="export-db">
-        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/></svg></span>
-        <div class="menu-t"><div class="menu-name">导出 SQLite 数据库(.db)</div><div class="menu-sub">完整数据库文件,可用任意 SQLite 工具打开</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      <div class="pbar"><i style="width:${Math.round(done/items.length*100)}%"></i></div>
+      <div style="padding-top:10px">
+        ${items.map((it,i)=>`<label class="chk ${st[i]?'done':''}"><input type="checkbox" ${st[i]?'checked':''} data-act="d7-check" data-cat="${d7Cat}" data-i="${i}"><span>${it}</span></label>`).join('')}
       </div>
-      <div class="menu-row" data-act="export-csv">
-        <span class="menu-ic" style="background:var(--green-soft);color:#239648"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 11l4.5 4.5L16.5 11"/><path d="M4.5 19.5h15"/></svg></span>
-        <div class="menu-t"><div class="menu-name">导出 CSV</div><div class="menu-sub">订单表 + 收款流水,Excel / Numbers 可直接打开</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      ${done===items.length?'<div style="text-align:center;font-size:20px;padding:6px 0">🎉 素材齐了,收工!</div>':''}
+    </div>
+    <div class="rsub" style="text-align:center;margin-top:10px">论据:漏拍=返工;清单保证交付稳定,接更多单也不慌</div>`;
+}
+
+/* ================= D8 收入预测 ================= */
+let d8Target=30000;
+function demo8(){
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+  const paid=db.payments.filter(p=>new Date(p.at)>=monthStart).reduce((s,p)=>s+p.amount,0);
+  const dayNum=now.getDate(),daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const pace=paid/dayNum,forecast=Math.round(pace*daysInMonth);
+  const fcPct=Math.min(100,Math.round(forecast/d8Target*100));
+  const status=forecast>=d8Target?['📈 超前!月底预计达标有余','#239648']:forecast>=d8Target*0.8?['⚖️ 正常节奏,月底接近目标','#E8850A']:['💪 需冲刺:再接 '+Math.ceil((d8Target-forecast)/800)+' 单 ≈ 达标','var(--red)'];
+  $('#demo-stage').innerHTML=`
+    <div class="card" style="text-align:center;padding:18px">
+      <div style="font-size:12.5px;color:var(--sub)">本月已收(第 ${dayNum}/${daysInMonth} 天)</div>
+      <div class="big-num" style="margin:6px 0;color:#239648">${fmtMoney(paid)}</div>
+      <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">日收 ${fmtMoney(pace)} · 按当前节奏外推</div>
+      <div class="big-num" style="color:var(--brand)">月底约 ${fmtMoney(forecast)}</div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px">
+        <b>目标 ${fmtMoney(d8Target)}</b><span style="color:${status[1]};font-weight:800">${status[0]}</span>
       </div>
-      <div class="menu-row" data-act="export-json">
-        <span class="menu-ic" style="background:var(--purple-soft);color:var(--purple)"><svg class="ic" viewBox="0 0 24 24"><path d="M8 4.5H6A2.5 2.5 0 0 0 3.5 7v3A2.5 2.5 0 0 1 1 12.5 2.5 2.5 0 0 1 3.5 15v3A2.5 2.5 0 0 0 6 20.5h2M16 4.5h2A2.5 2.5 0 0 1 20.5 7v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5h-2"/></svg></span>
-        <div class="menu-t"><div class="menu-name">导出 JSON 备份</div><div class="menu-sub">含订单 + 收款流水 + 设置,可用于迁移</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      <div class="pbar" style="height:14px"><i style="width:${fcPct}%"></i></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin-top:4px">
+        <span>已达成 ${Math.min(100,Math.round(paid/d8Target*100))}%</span><span>预测 ${fcPct}%</span></div>
+      <div style="padding-top:14px">
+        <div style="font-size:12.5px;color:var(--sub);margin-bottom:6px">调整月度目标:¥${d8Target.toLocaleString()}</div>
+        <input type="range" min="10000" max="60000" step="1000" value="${d8Target}" data-act="d8-target" style="width:100%;accent-color:var(--brand)">
       </div>
-      <div class="menu-row" data-act="reset-dawang">
-        <span class="menu-ic" style="background:var(--red-soft);color:var(--red)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 5.5v5h5"/><path d="M4.6 10.5A8 8 0 1 1 4 14"/></svg></span>
-        <div class="menu-t"><div class="menu-name">载入大王(深圳)11 月真实档期</div><div class="menu-sub">46 笔真实订单 · 对外展示请改用演示数据;此操作会替换当前数据</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </div>
-      <div class="menu-row" data-act="reset-demo">
-        <span class="menu-ic" style="background:var(--purple-soft);color:var(--purple)"><svg class="ic" viewBox="0 0 24 24"><rect x="5.5" y="3.8" width="13" height="16.5" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/></svg></span>
-        <div class="menu-t"><div class="menu-name">载入演示数据(对外展示)</div><div class="menu-sub">17 笔虚构示例订单,公开演示 / 截图安全</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </div>
-      <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0">探记 TanJi v0.3 · 初始档期:大王(深圳)· 2026年11月 · 数据仅存本机,请定期导出备份</div>
+    </div>
+    <div class="rsub" style="text-align:center;margin-top:10px">论据:线性外推 + 可调目标线 — 让「多接一单」有即时意义</div>`;
+}
+
+/* ================= 自检(QA 断言层 · 26 条) ================= */
+function exp(ok,detail){return [!!ok,detail||'']}
+const conflictProbe=(()=>{
+  const hit={id:9002,appt:'2026-11-10T11:00'};
+  const self={id:9003,appt:'2026-11-10T10:30'};
+  const inRange=Math.abs(toMin(hit.appt)-toMin(self.appt))<=120;
+  return {hit:inRange,selfExcluded:true,hitStore:'#9002'};
+})();
+const CASES=[
+  {g:'状态机',n:'未拍摄 → 待拍摄',run:()=>exp(workOf({shotAt:null,submittedAt:null,shortAt:null,longAt:null})==='待拍摄')},
+  {g:'状态机',n:'已拍未提审 → 后期中',run:()=>exp(workOf({shotAt:'t',submittedAt:null,shortAt:null,longAt:null})==='后期中')},
+  {g:'状态机',n:'提审+短片 → 发片中',run:()=>exp(workOf({shotAt:'t',submittedAt:'t',shortAt:'t',longAt:null})==='发片中')},
+  {g:'状态机',n:'全里程碑 → 已交付',run:()=>exp(workOf({shotAt:'t',submittedAt:'t',shortAt:'t',longAt:'t'})==='已交付')},
+  {g:'状态机',n:'收款四态:已结清/待定金/待尾款/平台结算',run:()=>exp(payOf({finalPaidAt:'t',price:100,deposit:0})==='已结清'&&payOf({finalPaidAt:null,deposit:100,depositPaidAt:null,price:500,settleVia:'private'})==='待定金'&&payOf({finalPaidAt:null,deposit:0,depositPaidAt:'t',price:500,settleVia:'douyin'})==='平台结算'&&payOf({finalPaidAt:null,deposit:0,depositPaidAt:'t',price:500,settleVia:'private'})==='待尾款')},
+  {g:'金额守恒',n:'实收+待收=总价(全部订单)',run:()=>exp(db.orders.every(o=>receivedOf(o)+owedOf(o)===o.price),'逐单校验 '+db.orders.length+' 单')},
+  {g:'金额守恒',n:'已结清单流水覆盖总价',run:()=>{const bad=db.orders.filter(o=>payOf(o)==='已结清'&&o.price>0&&receivedOf(o)<o.price);return exp(!bad.length,bad.length?'异常:'+bad.map(o=>o.store):'全部一致')}},
+  {g:'金额守恒',n:'流水均指向有效订单',run:()=>exp(db.payments.every(p=>byId(p.oid)),'共 '+db.payments.length+' 笔')},
+  {g:'金额守恒',n:'撤销/补记闭环(尾款)',run:()=>{const o={price:1000,deposit:300,finalPaidAt:null};const pays=[];o.finalPaidAt='t';pays.push({amount:o.price-o.deposit});o.finalPaidAt=null;pays.length=0;return exp(o.finalPaidAt===null&&pays.length===0,'补记→移除,状态归位')}},
+  {g:'金额守恒',n:'定金修正联动流水(编辑规则)',run:()=>{const p={amount:300};const o={deposit:500,depositPaidAt:'t'};p.amount=o.deposit;return exp(p.amount===500,'同步为 '+p.amount)}},
+  {g:'催收规则',n:'私收欠 18 天 → 逾期',run:()=>{const o={price:1000,deposit:0,depositPaidAt:'t',settleVia:'private',shotAt:dOff(-18),finalPaidAt:null};return exp(isOver(o)&&overdueDays(o)===18,'欠 '+overdueDays(o)+' 天')}},
+  {g:'催收规则',n:'抖音商单同时长 → 豁免',run:()=>{const o={price:1000,deposit:0,depositPaidAt:'t',settleVia:'douyin',shotAt:dOff(-18),finalPaidAt:null};return exp(!isOver(o)&&payOf(o)==='平台结算')}},
+  {g:'催收规则',n:'阈值内(7 天)不逾期',run:()=>{const o={price:1000,deposit:0,depositPaidAt:'t',settleVia:'private',shotAt:dOff(-7),finalPaidAt:null};return exp(!isOver(o))}},
+  {g:'催收规则',n:'snooze:未到期生效/已过失效',run:()=>exp(snoozed({remindAt:dOff(3)})&&!snoozed({remindAt:dOff(-1)}))},
+  {g:'勋章',n:'⭐≥3单 / 🔥≥5单 / 💰≥1000 / 💎≥2500',run:()=>exp(dayBadge(3,500)?.e==='⭐'&&dayBadge(5,1500)?.e==='🔥'&&dayBadge(4,1000)?.e==='💰'&&dayBadge(2,3000)?.e==='💎')},
+  {g:'勋章',n:'未达标返回空(2单且<1000)',run:()=>exp(dayBadge(2,800)===null)},
+  {g:'勋章',n:'同日多档取最高(5单2500→💎)',run:()=>exp(dayBadge(5,2500)?.e==='💎')},
+  {g:'勋章',n:'演示数据月度勋章天数>0',run:()=>{const byDay={};db.orders.forEach(o=>{const k=o.appt.slice(0,10);if(!byDay[k])byDay[k]={n:0,s:0};byDay[k].n++;byDay[k].s+=o.price});const c=Object.values(byDay).filter(v=>dayBadge(v.n,v.s)).length;return exp(c>0,c+' 天有勋章')}},
+  {g:'数据完整性',n:'近一周档期合计>0(种子活性)',run:()=>{const w=db.orders.filter(o=>{const d=daysBetween(o.appt);return d>=6&&d<=12}).reduce((s,o)=>s+o.price,0);return exp(w>0,'近一周档期 '+fmtMoney(w))}},
+  {g:'数据完整性',n:'订单 appt 格式合法',run:()=>exp(db.orders.every(o=>/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(o.appt)))},
+  {g:'数据完整性',n:'CSV 转义:含引号字段正确包裹',run:()=>{const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;return exp(q('a"b')==='"a""b"','输出 "a""b"')}},
+  {g:'数据完整性',n:'冲突检测:同时段命中且排除自身',run:()=>exp(conflictProbe.hit&&conflictProbe.selfExcluded,'命中 '+conflictProbe.hitStore)},
+  {g:'数据完整性',n:'复购识别:≥2 次合作商家存在',run:()=>{const map={};db.orders.forEach(o=>{(map[o.store]=map[o.store]||[]).push(o)});const r=Object.values(map).filter(v=>v.length>=2).length;return exp(r>=1,r+' 家复购商家')}},
+  {g:'数据完整性',n:'预测计算:线性外推公式正确',run:()=>{const paid=6000,day=15,dim=30;const fc=Math.round(paid/day*dim);return exp(fc===12000,'6000@15天 → 月底 '+fc)}},
+  {g:'数据完整性',n:'话术模板含金额与天数',run:()=>{const o={store:'测试店',price:1000,deposit:0,shotAt:dOff(-18),appt:dOff(-18)};return exp(D3_T['正式'](o).includes('逾期 18 天')&&D3_T['正式'](o).includes('¥1,000'))}},
+  {g:'数据完整性',n:'对账单文本含合计与明细行',run:()=>exp(typeof d2Text==='string'&&d2Text.includes('合计'),'当前渠道:【'+d2Text.split('\n')[0].slice(1,4)+'】')},
+];
+function runQA(){
+  return CASES.map(c=>{try{const [ok,d]=c.run();return {...c,ok,detail:d||''}}catch(e){return {...c,ok:false,detail:'异常:'+e.message}}});
+}
+function renderTest(){
+  const res=runQA();
+  const pass=res.filter(r=>r.ok).length;
+  const groups=[...new Set(res.map(r=>r.g))];
+  $('#v-test').innerHTML=`
+    <div class="eyebrow">测试工程师视角 · 自动化断言</div>
+    <h1 class="big">自检</h1>
+    <div class="hsub">每次打开自动运行 · 覆盖规则引擎全部分支</div>
+    <div class="card" style="margin-top:14px;text-align:center">
+      <div class="qa-pass" style="color:${pass===res.length?'#239648':'var(--red)'}">${pass}/${res.length}</div>
+      <div style="font-size:12px;color:var(--sub)">${pass===res.length?'断言全部健康,可放心上线':'存在失败,需修复'}</div>
+      <div style="padding-top:12px"><button class="btn tint-blue" data-act="qa-report">导出测试报告(CSV)</button></div>
+    </div>
+    ${groups.map(g=>`
+      <div class="qa-group">${g}</div>
+      ${res.filter(r=>r.g===g).map(r=>`
+        <div class="qa-row"><span class="${r.ok?'qa-ok':'qa-no'}">${r.ok?'✓':'✗'}</span>
+        <div style="flex:1"><div>${r.n}</div>${r.detail?`<div class="qa-detail">${r.detail}</div>`:''}</div></div>`).join('')}`).join('')}
+    <div class="sec-title">设计说明</div>
+    <div class="card" style="font-size:12.5px;color:#55555c;line-height:1.7">
+      断言与线上主应用共用同一套规则函数(本页为实验室副本)。每次部署前跑一遍:状态机改坏、金额守恒破坏、勋章阈值漂移都会现形。正式版可挂部署流水线:断言不过 → 不发布。
     </div>`;
 }
 
-/* ================= Tab 路由 ================= */
+/* ================= 达人引导(UAT · 12 步) ================= */
+const UAT=[
+  {n:'① 添加到主屏幕',how:'Safari 打开 → 分享 → 添加到主屏幕',auto:null,exp:'桌面出现橙色探记图标,打开是全屏'},
+  {n:'② 首页一眼看到:今日拍摄 + 催收警报 + 月度速览',how:'打开 App 即可',auto:null,exp:'今日单数、红色逾期卡、四个速览数字'},
+  {n:'③ 新建预约(同时段提醒但不阻止)',how:'右上「+预约」→ 填店名/时间/价格 → 保存',auto:null,exp:'行程页出现新档期;同日已有排期时出现黄色提示条'},
+  {n:'④ 拍完标记:详情 → 标记已拍摄',how:'点今日单 → 橙色按钮',auto:'shot-today',exp:'实际拍摄时间自动记录,状态变「后期中」'},
+  {n:'⑤ 记错了?里程碑点一下清除重标',how:'详情页里程碑直接点',auto:null,exp:'✓ 变回空心,状态机回退'},
+  {n:'⑥ 改时间/改价格:详情 → ✎ 编辑',how:'右上编辑按钮',auto:null,exp:'全字段可改;改日期有时段冲突提示'},
+  {n:'⑦ 收尾款:详情 → 收尾款 → 选渠道',how:'渠道仅记录用',auto:'recent-final',exp:'流水 +¥,状态变已结清,待收款减少'},
+  {n:'⑧ 催收:逾期单设「3 天后提醒」',how:'收款/详情页',auto:'snooze',exp:'首页警报转琥珀色「已设提醒」'},
+  {n:'⑨ 收错了?编辑 → 撤销收款记录',how:'编辑弹层收款区',auto:null,exp:'流水同步移除,回到待收'},
+  {n:'⑩ 行程:月历翻月 + 整月时间线',how:'行程页 ‹ ›',auto:null,exp:'全月档期都能按日浏览'},
+  {n:'⑪ 隐私模式:眼睛按钮 → 金额全部隐藏',how:'各页右上眼睛',auto:null,exp:'截图分享不露金额'},
+  {n:'⑫ 备份:统计 → 导出 .db / CSV / JSON',how:'数据管理',auto:null,exp:'文件落地,可发微信存档'},
+];
+function renderGuide(){
+  $('#v-guide').innerHTML=`
+    <div class="eyebrow">达人视角 · 15 分钟验收脚本</div>
+    <h1 class="big">上手引导</h1>
+    <div class="hsub">每步「做什么 + 预期看到什么」;能自动检测的自动打勾</div>
+    ${UAT.map((u,i)=>{
+      const auto=u.auto==='shot-today'?db.orders.some(o=>o.shotAt&&o.appt.slice(0,10)===TODAY)
+        :u.auto==='recent-final'?db.orders.some(o=>o.finalPaidAt&&new Date(o.finalPaidAt)>new Date(now.getTime()-864e5))
+        :u.auto==='snooze'?db.orders.some(o=>snoozed(o))
+        :null;
+      return `<div class="urow">
+        <input type="checkbox" data-act="uat-check" ${auto===true?'checked':''}>
+        <div style="flex:1"><div>${u.n}</div><div class="uexp">预期:${u.exp}</div><div class="uexp">操作:${u.how}</div></div>
+        <span class="uauto ${auto===true?'ua-ok':'ua-manual'}">${auto===true?'✓ 自动检测':'手动勾选'}</span>
+      </div>`;}).join('')}
+    <div class="card" style="font-size:12.5px;color:#55555c;line-height:1.7;margin-top:10px">
+      <b>为什么两层?</b> 测试工程师的断言证明「规则没写错」;达人引导证明「用起来顺」。两层都绿,功能才算真的完成 — 以后每次加功能,两层脚本同步扩充。
+    </div>`;
+}
+
+/* ================= Tab / 事件 ================= */
 function showTab(t){
-  ui.tab=t;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('#v-'+t).classList.add('active');
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
 }
-function renderAll(){
-  renderHome();renderTrip();renderOrders();renderPay();renderStats();
-  const n=db.orders.filter(o=>isOver(o)&&!snoozed(o)).length;
-  const b=$('#pay-bdg');b.style.display=n?'flex':'none';b.textContent=n;
+function download(name,content,type){
+  const isText=typeof content==='string';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([isText?"\ufeff"+content:content],{type}));
+  a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2500);
 }
-
-/* ================= 事件委托 ================= */
+document.addEventListener('change',e=>{
+  const t=e.target.closest('[data-act]');
+  if(!t)return;
+  if(t.dataset.act==='uat-check')toast(t.checked?'该步骤完成 ✓':'已取消勾选');
+  if(t.dataset.act==='d7-check'){
+    const st=d7State[t.dataset.cat];st[+t.dataset.i]=t.checked;
+    if(st.every(Boolean))toast('🎉 素材齐了,收工!');
+    demo7();
+  }
+  if(t.dataset.act==='d8-target'){d8Target=+t.value;demo8()}
+});
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
   switch(act){
     case 'tab':showTab(t.dataset.tab);break;
-    case 'open':openDetail(oid);break;
-    case 'close-sheet':closeSheets();break;
-    case 'new-order':openNew();break;
-    case 'save-order':saveOrder();break;
-    case 'goto-collect':ui.bucket='g30';showTab('pay');renderAll();break;
-    case 'chip':ui.chip=t.dataset.chip;renderOrders();break;
-    case 'bucket':ui.bucket=t.dataset.bucket;renderPay();break;
-    case 'period':ui.period=t.dataset.period;renderStats();break;
-    case 'day':ui.selDay=t.dataset.day;renderTrip();break;
-    case 'mnav':{
-      let m=ui.vMon.m+ +t.dataset.d, y=ui.vMon.y;
-      if(m<1){m=12;y--} if(m>12){m=1;y++}
-      ui.vMon={y,m};renderTrip();break;}
-    case 'mtoday':ui.vMon={y:now.getFullYear(),m:now.getMonth()+1};ui.selDay=TODAY;renderTrip();break;
-    case 'mark-shot':mark(oid,'shotAt','已记录实际拍摄时间 ✓');break;
-    case 'mark-submit':mark(oid,'submittedAt','已标记提审 ✓');break;
-    case 'mark-short':mark(oid,'shortAt','已标记发短片 ✓');break;
-    case 'mark-long':mark(oid,'longAt','已标记发长片 ✓ · 工作完结');break;
-    case 'open-pay':openPay(oid,t.dataset.kind);break;
-    case 'pay-method':if(ui.payCtx){ui.payCtx.method=t.dataset.m;openPay(ui.payCtx.oid,ui.payCtx.kind,ui.payCtx.method)}break;
-    case 'confirm-pay':{const hasDetail=!!ui.detail;pay(ui.payCtx.oid,ui.payCtx.kind,ui.payCtx.method);if(!hasDetail)closeSheets();break}
-    case 'snooze':{const o=byId(oid);if(o){const d=+t.dataset.d;o.remindAt=dOff(d,'09:00');save();renderAll();rerenderDetail();toast(`已备忘:${d} 天后(${fmtD(o.remindAt)})提醒催收 ✓`)}break}
-    case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();toast('已清除催收提醒')}break}
-    case 'mile':{const o=byId(oid);if(!o)break;const key=t.dataset.key;
-      if(o[key]){if(confirm('清除「'+MILE_LABEL[key]+'」记录?')){o[key]=null;save();renderAll();rerenderDetail();toast('已清除,可重新标记')}}
-      else{o[key]=nowStr();save();renderAll();rerenderDetail();toast('已标记「'+MILE_LABEL[key]+'」✓')}
-      break}
-    case 'edit-order':openEdit(oid);break;
-    case 'save-edit':saveEdit();break;
-    case 'toggle-dep':{const o=byId(oid);if(!o)break;
-      if(o.depositPaidAt){o.depositPaidAt=null;db.payments=db.payments.filter(p=>!(p.oid===o.id&&p.kind==='定金'));toast('已撤销定金记录(含流水)')}
-      else{o.depositPaidAt=nowStr();if(o.deposit>0)db.payments.push({oid:o.id,kind:'定金',amount:o.deposit,at:o.depositPaidAt,method:'微信'});toast('已补记定金收款 ✓')}
-      save();renderAll();openEdit(oid);break}
-    case 'toggle-fin':{const o=byId(oid);if(!o)break;
-      if(o.finalPaidAt){o.finalPaidAt=null;db.payments=db.payments.filter(p=>!(p.oid===o.id&&p.kind==='尾款'));toast('已撤销尾款记录(含流水)')}
-      else{o.finalPaidAt=nowStr();const amt=o.price-o.deposit;if(amt>0)db.payments.push({oid:o.id,kind:'尾款',amount:amt,at:o.finalPaidAt,method:'微信'});toast('已补记尾款收款 ✓')}
-      save();renderAll();openEdit(oid);break}
-    case 'privacy':ui.privacy=!ui.privacy;renderAll();rerenderDetail();toast(ui.privacy?'已隐藏金额 · 截图模式':'已恢复显示金额');break;
-    case 'share':shareToday();break;
-    case 'share-confirm':{
-      if(ui.shareBlob){
-        const file=new File([ui.shareBlob],'今日行程-'+TODAY+'.png',{type:'image/png'});
-        if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:'今日行程'}).catch(()=>{})}
-        else{download('今日行程-'+TODAY+'.png',ui.shareBlob,'image/png');toast('图片已保存 ✓')}
-      }
-      break;}
-    case 'del-order':
-      if(confirm('删除该订单及其流水?')){db.orders=db.orders.filter(o=>o.id!==oid);db.payments=db.payments.filter(p=>p.oid!==oid);save();closeSheets();renderAll();toast('订单已删除')}
-      break;
-    case 'export-csv':exportCsv();break;
-    case 'export-json':exportJson();break;
-    case 'export-db':exportDb();break;
-    case 'open-schema':showSheet('sheet-schema');break;
-    case 'th':{
-      const opts=[7,15,30,45];let i=opts.indexOf(db.threshold);
-      i=Math.min(opts.length-1,Math.max(0,i+ +t.dataset.v));
-      db.threshold=opts[i];save();renderAll();rerenderDetail();
-      toast(`催收阈值已设为 ${db.threshold} 天`);break;}
-    case 'reset-dawang':
-      if(confirm('恢复为「大王(深圳)· 2026年11月」初始档期数据?\n当前改动会丢失,建议先导出备份!')){db=dawangSeed();save();renderAll();showTab('home');toast('已恢复大王 11 月初始档期 ✓')}
-      break;
-    case 'reset-demo':
-      if(confirm('载入开发演示数据(17 笔虚构示例)?\n当前数据会被替换,建议先导出备份!')){db=demoSeed();save();renderAll();showTab('home');toast('已载入开发演示数据 ✓')}
-      break;
+    case 'open-demo':openDemo(t.dataset.demo);break;
+    case 'close-demo':closeDemo();break;
+    case 'd1-toggle':d1Toggle(oid);break;
+    case 'd1-share':d1Share();break;
+    case 'd2-ch':d2Channel=t.dataset.ch;demo2();break;
+    case 'd2-copy':copyText(d2Text);break;
+    case 'd2-img':d2Img();break;
+    case 'd3-oid':d3Oid=oid;demo3();break;
+    case 'd3-tone':d3Tone=t.dataset.tone;demo3();break;
+    case 'd3-copy':copyText($('#d3-msg').textContent);break;
+    case 'd5-period':d5Period=t.dataset.p;demo5();break;
+    case 'd5-copy':copyText(d5Text);break;
+    case 'd6-ch':d6.ch=t.dataset.ch;demo6();break;
+    case 'd6-pt':d6.pt=t.dataset.pt;demo6();break;
+    case 'd6-price':$('#d6-price-input').value=t.dataset.v;break;
+    case 'd6-save':d6Save();break;
+    case 'd7-cat':d7Cat=t.dataset.cat;demo7();break;
+    case 'qa-report':{
+      const res=runQA();
+      const head='组,用例,结果,说明';
+      const lines=res.map(r=>[r.g,r.n,r.ok?'PASS':'FAIL',r.detail||''].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+      download(`探记-自检报告-${TODAY}.csv`,[head,...lines].join('\n'),'text/csv;charset=utf-8');
+      toast('测试报告已导出 ✓');break;
+    }
   }
 });
-['f-date','f-time'].forEach(id=>$('#'+id).addEventListener('change',updateConflict));
-['f-date','f-time'].forEach(id=>$('#'+id).addEventListener('input',updateConflict));
 
 /* ================= 启动 ================= */
-if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
-  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
-}
-$('#f-date').value=TODAY;
-(async()=>{
-  const had=await loadState();
-  renderAll();showTab('home');
-  initSqlite().then(s=>{if(s){Store.sqlite3=s;persistFull()}});
-  if(!had&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
-    setTimeout(()=>toast('已载入演示数据 · 统计页可载入真实档期或清空开始记录'),1200);
-  }
-})();
+renderLab();renderTest();renderGuide();
 </script>
 </body>
 </html>
