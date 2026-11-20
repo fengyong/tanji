@@ -529,6 +529,62 @@ const Store=(()=>{
   };
 })();
 
+/* ================= 本地通知(仅 iOS 原生生效) =================
+ * 催收刻意做轻:每天 09:00 一条汇总提醒(只说条数与最长天数,不带金额);
+ * 另支持单订单「1/3/7 天后提醒」一次性本地通知,对应 orders.remind_at 备忘字段。
+ * ================================================================= */
+const Notify={
+  native(){ return isNative&&CAP&&CAP.LocalNotifications },
+  async ensurePermission(){
+    const L=CAP.LocalNotifications;
+    let p=await L.checkPermissions();
+    if(p.display!=='granted') p=await L.requestPermissions();
+    return p.display==='granted';
+  },
+  async syncDaily(){ // 每日催收提醒:先清旧排程,再按当前逾期数据重排
+    if(!this.native()) return;
+    try{
+      const L=CAP.LocalNotifications;
+      const pend=await L.getPending();
+      const ours=(pend.notifications||[]).filter(n=>+n.id>=100000);
+      if(ours.length) await L.cancel({notifications:ours});
+      const over=db.orders.filter(isOver);
+      if(!over.length||db.notifyEnabled===false) return;
+      if(!await this.ensurePermission()) return;
+      const maxD=Math.max(...over.map(overdueDays));
+      await L.schedule({notifications:[{
+        id:999901,
+        title:'探记 · 尾款催收',
+        body:`${over.length} 笔尾款已逾期,最长 ${maxD} 天 —— 今日安排一次跟进`,
+        schedule:{on:{hour:9,minute:0},repeats:true,allowWhileIdle:true},
+      }]});
+    }catch(e){ console.warn('[TanJi] 催收提醒排程失败',e) }
+  },
+  async remindOnce(o,days){ // 单订单一次性提醒
+    if(!this.native()){ toast('提醒需在 iPhone App 内设置'); return }
+    try{
+      if(!await this.ensurePermission()){ toast('未获通知权限,请在系统设置中开启'); return }
+      const at=new Date(Date.now()+days*864e5);
+      o.remindAt=`${toISO(at)}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
+      save();
+      await CAP.LocalNotifications.schedule({notifications:[{
+        id:100000+o.id*100+days,
+        title:'探记 · 催收跟进',
+        body:`「${o.store}」尾款该跟进了(${days} 天前设置的提醒)`,
+        schedule:{at,allowWhileIdle:true},
+      }]});
+      rerenderDetail();
+      toast(`${days} 天后将提醒你跟进「${o.store}」`);
+    }catch(e){ console.warn('[TanJi] 单次提醒设置失败',e); toast('设置提醒失败') }
+  },
+  async toggle(){
+    db.notifyEnabled=(db.notifyEnabled===false); // 默认开启,false 为关闭
+    save(); renderAll();
+    if(db.notifyEnabled!==false) await this.syncDaily();
+    toast(db.notifyEnabled!==false?'已开启每日催收提醒(每天 09:00)':'已关闭每日催收提醒');
+  }
+};
+
 /* ================= 状态存取 ================= */
 let db=null;
 function save(){ Store.persist(db) } // 异步持久化,不阻塞 UI
@@ -840,6 +896,12 @@ function renderStats(){
           <button data-act="th" data-v="-1">−</button><span>${db.threshold} 天</span><button data-act="th" data-v="1">+</button>
         </div>
       </div>
+      ${isNative?`<div class="menu-row" data-act="notify-toggle">
+        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span>
+        <div class="menu-t"><div class="menu-name">逾期催收每日提醒</div><div class="menu-sub">每天 09:00 本地通知 · 只报条数与最长天数,不含金额</div></div>
+        <span class="tag-badge">${db.notifyEnabled===false?'已关闭':'已开启'}</span>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </div>`:''}
       <div class="menu-row" data-act="export-csv">
         <span class="menu-ic" style="background:var(--green-soft);color:#239648"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 11l4.5 4.5L16.5 11"/><path d="M4.5 19.5h15"/></svg></span>
         <div class="menu-t"><div class="menu-name">导出 CSV</div><div class="menu-sub">订单表,Excel / Numbers 可直接打开</div></div>
@@ -878,6 +940,20 @@ function openDetail(id){
   if(!o.finalPaidAt) payBtns.push(`<button class="btn ${isOver(o)?'primary':'green'}" data-act="pay-final" data-oid="${o.id}">收尾款 ${fmtMoney(unFin(o))}</button>`);
   if(!payBtns.length) payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">✓ 款项已全部结清</div>`);
 
+  const remindCard=(isOver(o)||o.remindAt)?`
+    <div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="rsub" style="font-weight:800;color:var(--ink)">⏰ 稍后提醒</div>
+        ${o.remindAt?`<span class="chip c-blue">已设 ${fmtDT(o.remindAt)}</span>`:''}
+      </div>
+      ${isOver(o)?`<div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn tint-blue" data-act="remind" data-oid="${o.id}" data-days="1">1 天后</button>
+        <button class="btn tint-blue" data-act="remind" data-oid="${o.id}" data-days="3">3 天后</button>
+        <button class="btn tint-blue" data-act="remind" data-oid="${o.id}" data-days="7">7 天后</button>
+      </div>
+      <div class="rsub" style="margin-top:8px">到期发一条本地通知,只提醒不打扰</div>`:''}
+    </div>`:'';
+
   $('#detail-body').innerHTML=`
     <div class="sheet-head" style="padding-left:0;padding-right:0">
       <div style="min-width:0">
@@ -908,6 +984,7 @@ function openDetail(id){
       <div class="ig"><div class="k">尾款 ${o.finalPaidAt?'· 已收 '+fmtD(o.finalPaidAt):''}</div><div class="v">${fmtMoney(o.price-o.deposit)}</div></div>
       <div class="ig"><div class="k">当前待收</div><div class="v" style="${owedOf(o)>0?'color:var(--red)':'color:#239648'}">${owedOf(o)>0?fmtMoney(owedOf(o)):'已结清'}</div></div>
     </div>
+    ${remindCard}
     ${o.note?`<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">📝 ${o.note}</div></div>`:''}
     <div style="padding-top:16px"><button class="btn danger-ghost" data-act="del-order" data-oid="${o.id}">删除订单</button></div>`;
   showSheet('sheet-detail');
@@ -927,7 +1004,17 @@ let toastTimer;
 function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
 
 /* ================= 导出 ================= */
+async function nativeShareFile(name,content){
+  const {Filesystem,Directory,Encoding,Share}=CAP;
+  const res=await Filesystem.writeFile({path:name,data:content,directory:Directory.Cache,encoding:Encoding.UTF8});
+  await Share.share({title:name,url:res.uri,dialogTitle:'分享导出'});
+}
 function download(name,content,type){
+  if(isNative&&CAP&&CAP.Filesystem&&CAP.Share){ // 原生:写临时文件 + 系统分享面板
+    nativeShareFile(name,content).then(()=>toast('已调起系统分享 ✓'))
+      .catch(e=>{console.error('导出失败',e);toast('导出失败:'+(e?.message||e))});
+    return;
+  }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(["\ufeff"+content],{type}));
   a.download=name;a.click();
@@ -1011,7 +1098,7 @@ function pay(id,kind){
   const t=nowStr();
   if(kind==='deposit'){o.depositPaidAt=t;db.payments.push({oid:id,kind:'定金',amount:o.deposit,at:t,method:'微信'})}
   else{o.finalPaidAt=t;db.payments.push({oid:id,kind:'尾款',amount:o.price-o.deposit,at:t,method:'微信'})}
-  save(); renderAll(); rerenderDetail(); toast(kind==='deposit'?`已收定金 ${fmtMoney(o.deposit)} ✓`:`已收尾款 ${fmtMoney(o.price-o.deposit)} ✓`);
+  save(); renderAll(); rerenderDetail(); Notify.syncDaily(); toast(kind==='deposit'?`已收定金 ${fmtMoney(o.deposit)} ✓`:`已收尾款 ${fmtMoney(o.price-o.deposit)} ✓`);
 }
 
 /* ================= Tab 路由 ================= */
@@ -1049,7 +1136,7 @@ document.addEventListener('click',e=>{
     case 'pay-deposit': pay(oid,'deposit'); break;
     case 'pay-final': pay(oid,'final'); break;
     case 'del-order':
-      if(confirm('删除该订单及其流水?')){db.orders=db.orders.filter(o=>o.id!==oid);db.payments=db.payments.filter(p=>p.oid!==oid);save();closeSheets();renderAll();toast('订单已删除')}
+      if(confirm('删除该订单及其流水?')){db.orders=db.orders.filter(o=>o.id!==oid);db.payments=db.payments.filter(p=>p.oid!==oid);save();closeSheets();renderAll();Notify.syncDaily();toast('订单已删除')}
       break;
     case 'export-csv': exportCsv(); break;
     case 'export-json': exportJson(); break;
@@ -1057,8 +1144,12 @@ document.addEventListener('click',e=>{
     case 'th':{
       const opts=[7,15,30,45]; let i=opts.indexOf(db.threshold);
       i=Math.min(opts.length-1,Math.max(0,i+ +t.dataset.v));
-      db.threshold=opts[i]; save(); renderAll(); rerenderDetail();
+      db.threshold=opts[i]; save(); renderAll(); rerenderDetail(); Notify.syncDaily();
       toast(`催收阈值已设为 ${db.threshold} 天`); break;}
+    case 'notify-toggle': Notify.toggle(); break;
+    case 'remind':{
+      const o=byId(oid); if(!o)break;
+      Notify.remindOnce(o,+t.dataset.days||3); break;}
     case 'reset':
       if(confirm('重置为演示数据?')){db=seed();save();renderAll();showTab('home');toast('已重置演示数据')}
       break;
@@ -1077,6 +1168,7 @@ document.addEventListener('click',e=>{
     db=seed();
   }
   renderAll(); showTab('home');
+  Notify.syncDaily(); // 原生:按当前逾期数据刷新每日催收提醒
 })();
 </script>
 </body>
