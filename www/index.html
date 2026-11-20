@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>探店手账 · iOS 交互原型 v0.1</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  :root{
+    --bg:#F2F2F7; --card:#FFFFFF; --ink:#1C1C1E; --sub:#8E8E93; --line:#E7E7EC;
+    --brand:#FF6A2B; --brand-soft:#FFF1E9;
+    --green:#34C759; --green-soft:#EAF9EE;
+    --orange:#FF9500; --orange-soft:#FFF5E6;
+    --red:#FF3B30;   --red-soft:#FFEBEA;
+    --blue:#007AFF;  --blue-soft:#EAF2FF;
+    --purple:#AF52DE;--purple-soft:#F4EBFC;
+    --r:16px;
+  }
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    background:linear-gradient(155deg,#ECEAF3 0%,#E4E8EF 100%);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:26px 16px;
+    color:var(--ink);user-select:none;
+  }
+  input,textarea{user-select:text}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:16px}
+  .caption{font-size:12.5px;color:#7d7f88;text-align:center;line-height:1.7;max-width:430px}
+  .caption b{color:#4c4e58}
+
+  /* ===== 手机外壳 ===== */
+  .phone{
+    width:393px;height:min(852px,calc(100vh - 96px));min-height:620px;
+    background:var(--bg);border-radius:52px;border:11px solid #101014;
+    box-shadow:0 34px 90px rgba(25,25,45,.38),0 4px 18px rgba(0,0,0,.18);
+    position:relative;overflow:hidden;overflow:clip;
+  }
+  @media (max-width:520px){
+    body{padding:0}
+    .phone{width:100vw;height:100vh;height:100dvh;border:none;border-radius:0;box-shadow:none}
+    .caption{display:none}
+  }
+  .island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:33px;background:#101014;border-radius:18px;z-index:60}
+  .statusbar{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 7px;z-index:55;font-size:15px;font-weight:600;color:#111;pointer-events:none}
+  .sb-icons{display:flex;align-items:center;gap:5px}
+  .sb-icons svg{height:12px;width:auto;display:block}
+  .home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#16161a;opacity:.9;z-index:61;pointer-events:none}
+
+  /* ===== 视图 ===== */
+  .view{
+    position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+    padding:60px 16px 108px;display:none;overscroll-behavior:contain;scrollbar-width:none;
+  }
+  .view::-webkit-scrollbar{display:none}
+  .view.active{display:block}
+
+  /* 顶部大标题 */
+  .eyebrow{font-size:13px;font-weight:600;color:var(--sub);letter-spacing:.2px;margin-bottom:2px}
+  h1.big{font-size:31px;font-weight:800;letter-spacing:.2px;line-height:1.15}
+  .hsub{font-size:13px;color:var(--sub);margin-top:5px}
+  .htop-row{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+  .btn-pill{display:inline-flex;align-items:center;gap:4px;background:var(--brand);color:#fff;border:none;border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700;box-shadow:0 3px 10px rgba(255,106,43,.32)}
+  .btn-pill .ic{width:14px;height:14px}
+
+  .sec-title{font-size:13px;font-weight:700;color:var(--sub);margin:18px 2px 8px;display:flex;justify-content:space-between;align-items:center}
+  .sec-title .more{font-size:12px;font-weight:600;color:var(--brand)}
+
+  /* ===== 通用组件 ===== */
+  .card{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
+  .row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:.5px solid var(--line);min-width:0}
+  .row:last-child{border-bottom:none}
+  .rmain{flex:1;min-width:0}
+  .rname{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rsub{font-size:12px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rside{text-align:right;flex-shrink:0}
+  .rprice{font-size:15px;font-weight:800}
+  .row:active{background:#F7F7FA}
+  .rows{padding:2px 12px}
+
+  .chip{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .c-blue{background:var(--blue-soft);color:var(--blue)}
+  .c-purple{background:var(--purple-soft);color:var(--purple)}
+  .c-orange{background:var(--orange-soft);color:#E8850A}
+  .c-green{background:var(--green-soft);color:#239648}
+  .c-gray{background:#EFEFF3;color:#7a7a82}
+  .c-red{background:var(--red-soft);color:var(--red)}
+  .c-ink{background:#1C1C1E;color:#fff}
+  .chiprow{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+
+  /* 收款方式选择 */
+  .mchip{border:1.5px solid #E2E2E8;background:#fff;color:#3a3a40;font-size:13.5px;font-weight:700;padding:9px 16px;border-radius:20px;font-family:inherit}
+  .mchip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .mchip:active{opacity:.75}
+
+  .btn{display:flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:12px;padding:12px;font-size:14.5px;font-weight:700;width:100%}
+  .btn:active{opacity:.75;transform:scale(.985)}
+  .btn.primary{background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(255,106,43,.3)}
+  .btn.green{background:var(--green);color:#fff;box-shadow:0 4px 12px rgba(52,199,89,.3)}
+  .btn.tint{background:var(--brand-soft);color:var(--brand)}
+  .btn.tint-green{background:var(--green-soft);color:#239648}
+  .btn.tint-blue{background:var(--blue-soft);color:var(--blue)}
+  .btn.ghost{background:#F1F1F5;color:#3a3a40}
+  .btn.danger-ghost{background:var(--red-soft);color:var(--red)}
+  .btn+.btn{margin-top:10px}
+  .btn2{display:flex;gap:10px}.btn2 .btn{margin-top:0}
+  .mini-btn{border:none;border-radius:16px;padding:7px 12px;font-size:12.5px;font-weight:700;background:var(--brand-soft);color:var(--brand);flex-shrink:0}
+  .mini-btn:active{opacity:.7}
+  .mini-btn.green{background:var(--green-soft);color:#239648}
+
+  .ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+
+  /* 分段控制器 */
+  .seg{display:flex;background:#E2E2E8;border-radius:11px;padding:2.5px;gap:2px}
+  .seg button{flex:1;border:none;background:transparent;padding:6.5px 2px;font-size:12.5px;font-weight:600;color:#6d6d75;border-radius:9px;font-family:inherit}
+  .seg button.on{background:#fff;color:#111;box-shadow:0 1.5px 4px rgba(0,0,0,.13);font-weight:700}
+
+  /* 筛选 chips */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .fchip{border:none;background:#fff;color:#5c5c64;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:18px;box-shadow:0 1px 2px rgba(0,0,0,.06);white-space:nowrap;font-family:inherit}
+  .fchip.on{background:var(--ink);color:#fff}
+  .fchip b{font-weight:800}
+
+  /* 搜索框 */
+  .search{display:flex;align-items:center;gap:7px;background:#E7E7ED;border-radius:11px;padding:8px 11px;margin:12px 0 10px}
+  .search input{border:none;background:transparent;outline:none;font-size:14px;flex:1;font-family:inherit;color:var(--ink)}
+  .search .ic{width:15px;height:15px;color:var(--sub)}
+
+  /* 催收警报卡 */
+  .alert-card{border-radius:var(--r);padding:14px;display:flex;align-items:center;gap:12px;color:#fff;background:linear-gradient(120deg,#FF5A45,#E8352A);box-shadow:0 6px 18px rgba(232,53,42,.3)}
+  .alert-card.calm{background:linear-gradient(120deg,#2ECD64,#1FAF52);box-shadow:0 6px 18px rgba(31,175,82,.28)}
+  .alert-card .ic{width:26px;height:26px;stroke-width:1.8}
+  .alert-main{flex:1;min-width:0}
+  .alert-t{font-size:15.5px;font-weight:800}
+  .alert-s{font-size:12px;opacity:.92;margin-top:2px}
+
+  /* 速览 mini 卡 */
+  .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .mini{background:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
+  .mini .mv{font-size:19px;font-weight:800;letter-spacing:.2px}
+  .mini .ml{font-size:11.5px;color:var(--sub);margin-top:2px}
+
+  /* 周条 */
+  .week{display:flex;background:#fff;border-radius:var(--r);padding:10px 6px;box-shadow:0 1px 2px rgba(20,20,40,.05);gap:2px}
+  .wd{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:transparent;padding:5px 0;border-radius:12px;font-family:inherit}
+  .wd-dow{font-size:10.5px;color:var(--sub);font-weight:600}
+  .wd-num{font-size:16.5px;font-weight:700;color:#3c3c43}
+  .wd-dots{display:flex;gap:2.5px;height:5px;align-items:center}
+  .wd-dots i{width:4.5px;height:4.5px;border-radius:50%;background:var(--brand);display:block}
+  .wd.sel{background:var(--ink)}
+  .wd.sel .wd-num{color:#fff}.wd.sel .wd-dow{color:rgba(255,255,255,.75)}
+  .wd.today .wd-num{color:var(--brand)}
+
+  /* 图表 */
+  .bars{display:flex;align-items:flex-end;gap:2px;height:118px;margin-top:12px}
+  .bar{flex:1;display:flex;align-items:flex-end;height:100%}
+  .bar i{display:block;width:100%;background:linear-gradient(180deg,#FF8B55,var(--brand));border-radius:3px 3px 1.5px 1.5px;min-height:2px}
+  .bar.zero i{background:#E4E4EA}
+  .bar-x{display:flex;justify-content:space-between;font-size:10px;color:var(--sub);margin-top:6px}
+  .chart-cap{font-size:12px;color:var(--sub);margin-top:10px;display:flex;justify-content:space-between}
+  .chart-cap b{color:var(--ink);font-size:14px}
+
+  /* 设置菜单 */
+  .menu-row{display:flex;align-items:center;gap:11px;padding:12px 2px;border-bottom:.5px solid var(--line)}
+  .menu-row:last-child{border-bottom:none}
+  .menu-ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .menu-ic .ic{width:16px;height:16px}
+  .menu-t{flex:1;min-width:0}
+  .menu-name{font-size:14.5px;font-weight:600}
+  .menu-sub{font-size:11.5px;color:var(--sub);margin-top:1.5px;line-height:1.4}
+  .stepper{display:flex;align-items:center;gap:2px;background:#F1F1F5;border-radius:9px;overflow:hidden}
+  .stepper button{border:none;background:#fff;width:32px;height:30px;font-size:17px;font-weight:700;color:#444;font-family:inherit}
+  .stepper span{min-width:52px;text-align:center;font-size:13px;font-weight:800}
+
+  /* 表单 */
+  .frow{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:.5px solid var(--line)}
+  .frow label{font-size:14px;font-weight:600;width:76px;flex-shrink:0}
+  .frow input,.frow select,.frow textarea{border:none;outline:none;font-size:15px;flex:1;font-family:inherit;background:transparent;color:var(--ink);text-align:right;min-width:0}
+  .frow textarea{text-align:left;resize:none;font-size:14px;line-height:1.5}
+  .frow input::placeholder,.frow textarea::placeholder{color:#B9B9C0}
+  .ferr{font-size:12px;color:var(--red);margin-top:8px;display:none}
+
+  /* 底部弹层 */
+  .mask{position:absolute;inset:0;background:rgba(15,15,25,.4);opacity:0;pointer-events:none;transition:opacity .28s;z-index:80}
+  .mask.show{opacity:1;pointer-events:auto}
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:26px 26px 0 0;
+    transform:translateY(106%);visibility:hidden;
+    transition:transform .34s cubic-bezier(.32,.72,.35,1),visibility 0s linear .34s;z-index:90;
+    max-height:86%;display:flex;flex-direction:column;
+  }
+  .sheet.show{transform:translateY(0);visibility:visible;transition:transform .34s cubic-bezier(.32,.72,.35,1)}
+  .grabber{width:40px;height:5px;border-radius:3px;background:#DDDDDf;margin:9px auto 2px;flex-shrink:0}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:6px 20px 8px;flex-shrink:0}
+  .sheet-title{font-size:17px;font-weight:800}
+  .sheet-close{border:none;background:#F1F1F5;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#7a7a82}
+  .sheet-close .ic{width:15px;height:15px}
+  .sheet-body{overflow-y:auto;padding:2px 20px 34px;scrollbar-width:none}
+  .sheet-body::-webkit-scrollbar{display:none}
+
+  /* 里程碑 */
+  .mile{display:flex;position:relative;margin:16px 2px 6px}
+  .mile::before{content:"";position:absolute;top:13px;left:14%;right:14%;height:2.5px;background:#E6E6EB;border-radius:2px}
+  .mstep{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative;z-index:1}
+  .mdot{width:28px;height:28px;border-radius:50%;background:#EDEDF2;color:#B6B6BE;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;border:2.5px solid #EDEDF2}
+  .mstep.done .mdot{background:var(--brand);border-color:var(--brand);color:#fff}
+  .mstep.now .mdot{border-color:var(--brand);color:var(--brand);background:#fff}
+  .mlab{font-size:11.5px;font-weight:700;color:#55555c}
+  .mtime{font-size:10px;color:var(--sub);height:13px}
+
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:12px;overflow:hidden;margin-top:12px}
+  .ig{background:#fff;padding:10px 12px}
+  .ig .k{font-size:11px;color:var(--sub)}
+  .ig .v{font-size:13.5px;font-weight:700;margin-top:2px}
+
+  .banner-red{background:var(--red-soft);color:var(--red);border-radius:12px;padding:10px 13px;font-size:12.5px;font-weight:600;line-height:1.5;margin-top:12px;display:flex;gap:8px;align-items:flex-start}
+  .banner-red .ic{width:16px;height:16px;margin-top:1px}
+
+  /* Tab 栏 */
+  .tabbar{
+    position:absolute;bottom:0;left:0;right:0;height:86px;padding:9px 8px 30px;display:flex;
+    background:rgba(250,250,252,.88);-webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);
+    border-top:.5px solid rgba(0,0,0,.12);z-index:50;
+  }
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:transparent;font-size:10px;font-weight:600;color:#98989f;font-family:inherit}
+  .tab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .tab.active{color:var(--brand)}
+  .tab .bdg{position:absolute;top:-4px;right:14px;min-width:16px;height:16px;border-radius:9px;background:var(--red);color:#fff;font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px}
+  .tab{position:relative}
+
+  /* Toast */
+  .toast{
+    position:absolute;top:64px;left:50%;transform:translate(-50%,-12px);z-index:120;
+    background:rgba(28,28,32,.94);color:#fff;font-size:13px;font-weight:600;padding:9px 18px;border-radius:22px;
+    opacity:0;pointer-events:none;transition:all .28s;max-width:82%;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  .empty{padding:34px 0;text-align:center;color:var(--sub);font-size:13px;line-height:1.8}
+  .empty .e-ic{font-size:30px;margin-bottom:6px}
+  .schema-pre{background:#1E1E24;color:#D9D9E3;font-family:"SF Mono",Menlo,monospace;font-size:11px;line-height:1.75;padding:14px;border-radius:12px;overflow-x:auto;white-space:pre}
+  .schema-pre .c{color:#8A8A95}
+  .tag-badge{font-size:10px;font-weight:800;padding:2.5px 7px;border-radius:6px;background:var(--blue-soft);color:var(--blue);flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="phone" id="phone">
+    <div class="island"></div>
+    <div class="statusbar">
+      <span>9:41</span>
+      <span class="sb-icons">
+        <svg viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#111"/><rect x="5" y="5" width="3" height="7" rx="1" fill="#111"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="#111"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#111" opacity=".35"/></svg>
+        <svg viewBox="0 0 17 12"><path d="M8.5 10.8l2.2-2.7a3.4 3.4 0 0 0-4.4 0l2.2 2.7z" fill="#111"/><path d="M3.6 5.4a7.3 7.3 0 0 1 9.8 0" stroke="#111" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M1.2 2.8a10.8 10.8 0 0 1 14.6 0" stroke="#111" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#111" opacity=".4" fill="none"/><rect x="2" y="2" width="17" height="9" rx="2" fill="#111"/><path d="M24.5 4.5v4a2.2 2.2 0 0 0 0-4z" fill="#111" opacity=".4"/></svg>
+      </span>
+    </div>
+
+    <section class="view" id="v-home"></section>
+    <section class="view" id="v-trip"></section>
+    <section class="view" id="v-orders"></section>
+    <section class="view" id="v-pay"></section>
+    <section class="view" id="v-stats"></section>
+
+    <nav class="tabbar" id="tabbar">
+      <button class="tab active" data-act="tab" data-tab="home">
+        <svg viewBox="0 0 24 24"><path d="M3.5 10.8 12 3.8l8.5 7v8.4a1.5 1.5 0 0 1-1.5 1.5h-4.5v-6h-5v6H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg>首页
+      </button>
+      <button class="tab" data-act="tab" data-tab="trip">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8.2 3v4M15.8 3v4"/></svg>行程
+      </button>
+      <button class="tab" data-act="tab" data-tab="orders">
+        <svg viewBox="0 0 24 24"><rect x="5.5" y="3.8" width="13" height="16.5" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/></svg>订单
+      </button>
+      <button class="tab" data-act="tab" data-tab="pay">
+        <svg viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><path d="M4 10h16M15.5 14.5h2"/></svg>收款<span class="bdg" id="pay-bdg" style="display:none">0</span>
+      </button>
+      <button class="tab" data-act="tab" data-tab="stats">
+        <svg viewBox="0 0 24 24"><path d="M5.5 20v-8M12 20V4.5M18.5 20v-5.5"/></svg>统计
+      </button>
+    </nav>
+
+    <div class="mask" id="mask" data-act="close-sheet"></div>
+    <div class="sheet" id="sheet-detail">
+      <div class="grabber"></div>
+      <div class="sheet-body" id="detail-body"></div>
+    </div>
+
+    <div class="sheet" id="sheet-new">
+      <div class="grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title">新建探店预约</span>
+        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet-body">
+        <div class="frow"><label>商家名称</label><input id="f-store" placeholder="如:澄川咖啡·滨江店"></div>
+        <div class="frow"><label>类型</label>
+          <select id="f-cat">
+            <option>咖啡</option><option>餐饮</option><option>茶饮</option><option>甜品</option>
+            <option>烘焙</option><option>美发</option><option>健身</option><option>民宿</option>
+            <option>零售</option><option>体验馆</option><option>其他</option>
+          </select>
+        </div>
+        <div class="frow"><label>预约日期</label><input id="f-date" type="date"></div>
+        <div class="frow"><label>预约时间</label><input id="f-time" type="time" value="10:00"></div>
+        <div class="frow"><label>总价(¥)</label><input id="f-price" type="number" inputmode="numeric" placeholder="如 1200"></div>
+        <div class="frow"><label>定金(¥)</label><input id="f-deposit" type="number" inputmode="numeric" placeholder="0 表示未约定定金"></div>
+        <div class="frow"><label>联系方式</label><input id="f-contact" placeholder="店长 / 电话"></div>
+        <div class="frow"><label>备注</label><textarea id="f-note" rows="2" placeholder="拍摄要点、机位、交付要求…"></textarea></div>
+        <div class="ferr" id="f-err">商家名称和总价为必填</div>
+        <div style="padding:16px 0 4px">
+          <button class="btn primary" data-act="save-order">保存预约</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet" id="sheet-schema">
+      <div class="grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title">本地数据结构(SQLite)</span>
+        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet-body">
+        <p style="font-size:12.5px;color:var(--sub);line-height:1.7;margin-bottom:12px">
+          iOS 真机版将数据以 SQLite 存储在 App 沙盒内,完全离线可用;下方即建表结构,导出 .db 后可用任意 SQLite 工具打开。
+        </p>
+        <pre class="schema-pre" id="schema-pre"></pre>
+        <div style="padding-top:14px">
+          <button class="btn tint-blue" data-act="export-csv">导出订单 CSV</button>
+          <button class="btn tint-green" data-act="export-json">导出全部数据 JSON(含收款流水)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="home-ind"></div>
+  </div>
+
+  <div class="caption">
+    <b>探店手账 · iOS 交互原型 v0.1</b>(可点击体验)<br>
+    新建预约 / 标记拍摄·提审·发短片·发长片 / 收定金·尾款 / 逾期催收分桶 / 7·30天·本月统计 / 导出 CSV·JSON — 数据存于浏览器本地
+  </div>
+</div>
+
+<script>
+/* ================= 工具 ================= */
+const $=s=>document.querySelector(s);
+const pad=n=>String(n).padStart(2,'0');
+const now=new Date();
+const TODAY=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+function dOff(days,hm='10:00'){const t=new Date(now);t.setDate(t.getDate()+days);return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}T${hm}`}
+function nowStr(){const n=new Date();return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}T${pad(n.getHours())}:${pad(n.getMinutes())}`}
+function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function fmtD(s){if(!s)return '—';const d=new Date(s);return `${d.getMonth()+1}-${pad(d.getDate())}`}
+function fmtHM(s){return s?s.slice(11,16):'—'}
+function fmtDT(s){return s?`${fmtD(s)} ${fmtHM(s)}`:'—'}
+function fmtMoney(n){return '¥'+Math.round(n).toLocaleString('zh-CN')}
+const DOW='一二三四五六日',dowOf=s=>DOW[(new Date(s).getDay()+6)%7];
+function daysBetween(fromStr){const f=new Date(fromStr);return Math.max(0,Math.floor((now-f)/864e5))}
+function greeting(){const h=now.getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
+
+/* ================= 种子数据(相对今天生成,保证原型永远"活着") ================= */
+function seed(){
+  const O=[
+    {id:1, store:'麓野日料·万象城店', cat:'餐饮', contact:'王店长 138****2043', price:1600, deposit:500,
+     appt:dOff(0,'14:00'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
+     depositPaidAt:dOff(-3,'11:20'), finalPaidAt:null, note:'重点拍寿司拼盘与环境氛围,竖屏 3 条'},
+    {id:2, store:'澄川咖啡·滨江店', cat:'咖啡', contact:'陈姐 139****8871', price:800, deposit:300,
+     appt:dOff(0,'09:30'), shotAt:dOff(0,'10:12'), submittedAt:null, shortAt:null, longAt:null,
+     depositPaidAt:dOff(-2,'15:00'), finalPaidAt:null, note:'上午已拍完,下午出片提审'},
+    {id:3, store:'南栖烘焙·大学城店', cat:'烘焙', contact:'林生 137****6602', price:900, deposit:300,
+     appt:dOff(1,'10:30'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
+     depositPaidAt:dOff(-1,'18:40'), finalPaidAt:null, note:'欧包特写为主'},
+    {id:4, store:'拾光汉服体验馆', cat:'体验馆', contact:'苏苏 189****3355', price:1500, deposit:0,
+     appt:dOff(2,'15:00'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
+     depositPaidAt:null, finalPaidAt:null, note:'待收定金;拍摄含妆造两个场景'},
+    {id:5, store:'山野咖啡·露台店', cat:'咖啡', contact:'阿哲 136****9027', price:1200, deposit:400,
+     appt:dOff(4,'13:00'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
+     depositPaidAt:dOff(-1,'12:10'), finalPaidAt:null, note:'露台自然光,下午三点后最佳'},
+    {id:6, store:'半糖甜品研究所', cat:'甜品', contact:'Vivi 135****4419', price:1000, deposit:300,
+     appt:dOff(6,'14:30'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
+     depositPaidAt:dOff(-4,'10:05'), finalPaidAt:null, note:''},
+    {id:7, store:'云端西餐厅·33楼', cat:'餐饮', contact:'周经理 138****7710', price:2200, deposit:600,
+     appt:dOff(9,'18:30'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
+     depositPaidAt:null, finalPaidAt:null, note:'夜景机位,需带补光;定金已催两次'},
+    {id:8, store:'山茶花奶茶·观前街店', cat:'茶饮', contact:'叶子 150****2288', price:1000, deposit:300,
+     appt:dOff(-1,'10:00'), shotAt:dOff(-1,'11:05'), submittedAt:dOff(-1,'16:40'), shortAt:null, longAt:null,
+     depositPaidAt:dOff(-3,'09:30'), finalPaidAt:null, note:''},
+    {id:9, store:'铁兽健身·私教工作室', cat:'健身', contact:'K哥 186****5566', price:1300, deposit:400,
+     appt:dOff(-3,'19:00'), shotAt:dOff(-3,'19:40'), submittedAt:dOff(-2,'10:00'), shortAt:dOff(-1,'12:00'), longAt:null,
+     depositPaidAt:dOff(-5,'14:00'), finalPaidAt:null, note:'长片等客户确认口播版本'},
+    {id:10, store:'循环洗衣·Central店', cat:'零售', contact:'何店长 131****0093', price:1400, deposit:400,
+     appt:dOff(-9,'15:00'), shotAt:dOff(-9,'15:35'), submittedAt:dOff(-8,'09:00'), shortAt:dOff(-6,'14:10'), longAt:null,
+     depositPaidAt:dOff(-10,'11:00'), finalPaidAt:null, note:''},
+    {id:11, store:'TONI 造型沙龙·湖畔店', cat:'美发', contact:'Tony 137****8123', price:1200, deposit:300,
+     appt:dOff(-18,'14:00'), shotAt:dOff(-18,'14:40'), submittedAt:dOff(-17,'10:30'), shortAt:dOff(-15,'16:00'), longAt:dOff(-14,'11:20'),
+     depositPaidAt:dOff(-19,'09:00'), finalPaidAt:null, note:'微信催过一次,回复"月底统一结"'},
+    {id:12, store:'栖里民宿·太湖店', cat:'民宿', contact:'洁姐 139****5160', price:1800, deposit:500, settleVia:'douyin',
+     appt:dOff(-34,'11:00'), shotAt:dOff(-34,'11:40'), submittedAt:dOff(-33,'15:00'), shortAt:dOff(-31,'10:00'), longAt:dOff(-30,'17:30'),
+     depositPaidAt:dOff(-35,'10:00'), finalPaidAt:null, note:'抖音商单;平台审核通过后结算,预计 T+7 到账'},
+    {id:13, store:'城市露营地·郊野公园', cat:'露营', contact:'大鹏 188****6678', price:1500, deposit:0,
+     appt:dOff(-41,'16:00'), shotAt:dOff(-41,'16:30'), submittedAt:dOff(-40,'12:00'), shortAt:dOff(-38,'15:00'), longAt:dOff(-36,'10:40'),
+     depositPaidAt:null, finalPaidAt:null, note:'全款尾款待结;多次微信未回,约了周五电话'},
+    {id:14, store:'老门东火锅·旗舰店', cat:'餐饮', contact:'刘总 133****2280', price:1600, deposit:500, finalMethod:'银行卡',
+     appt:dOff(-6,'17:30'), shotAt:dOff(-6,'18:10'), submittedAt:dOff(-5,'11:00'), shortAt:dOff(-4,'14:00'), longAt:dOff(-3,'16:20'),
+     depositPaidAt:dOff(-7,'10:30'), finalPaidAt:dOff(-2,'15:20'), note:'尾款对公转账'},
+    {id:15, store:'喜邻超市·社区店', cat:'零售', contact:'范店 158****3366', price:900, deposit:300, settleVia:'douyin', finalMethod:'抖音商单',
+     appt:dOff(-12,'10:00'), shotAt:dOff(-12,'10:35'), submittedAt:dOff(-11,'14:00'), shortAt:dOff(-10,'15:00'), longAt:dOff(-9,'11:00'),
+     depositPaidAt:dOff(-13,'16:00'), finalPaidAt:dOff(-8,'10:00'), note:''},
+    {id:16, store:'麦仓面包·奥体店', cat:'烘焙', contact:'Kiki 182****7745', price:800, deposit:200, finalMethod:'支付宝',
+     appt:dOff(-25,'09:30'), shotAt:dOff(-25,'10:10'), submittedAt:dOff(-24,'10:00'), shortAt:dOff(-22,'14:30'), longAt:dOff(-21,'10:00'),
+     depositPaidAt:dOff(-26,'15:00'), finalPaidAt:dOff(-18,'11:30'), note:''},
+    {id:17, store:'橘朵花艺工作室', cat:'零售', contact:'小橘 177****9012', price:1100, deposit:300,
+     appt:dOff(-4,'16:00'), shotAt:dOff(-4,'16:40'), submittedAt:dOff(-3,'12:00'), shortAt:dOff(-2,'13:00'), longAt:dOff(-1,'15:00'),
+     depositPaidAt:dOff(-6,'11:00'), finalPaidAt:dOff(0,'08:40'), note:'今早已收尾款'},
+  ];
+  const P=[];
+  O.forEach(o=>{
+    if(o.depositPaidAt&&o.deposit>0) P.push({oid:o.id,kind:'定金',amount:o.deposit,at:o.depositPaidAt,method:o.depMethod||'微信'});
+    if(o.finalPaidAt) P.push({oid:o.id,kind:'尾款',amount:o.price-o.deposit,at:o.finalPaidAt,method:o.finalMethod||(o.settleVia==='douyin'?'抖音商单':'微信')});
+  });
+  return {orders:O, payments:P, threshold:15};
+}
+
+/* ================= 状态存取 ================= */
+const LS='tanstore_v1';
+let db;
+try{ db=JSON.parse(localStorage.getItem(LS))||seed() }catch(e){ db=seed() }
+function save(){ try{ localStorage.setItem(LS,JSON.stringify(db)) }catch(e){} }
+const byId=id=>db.orders.find(o=>o.id===id);
+const storeOf=id=>db.orders.find(o=>o.id===id)?.store||'';
+
+/* ================= 派生逻辑(双轨状态机) ================= */
+function workOf(o){
+  if(!o.shotAt) return '待拍摄';
+  if(!o.submittedAt) return '后期中';
+  if(o.shortAt&&o.longAt) return '已交付';
+  return '发片中';
+}
+function unDep(o){ return (!o.depositPaidAt&&o.deposit>0)?o.deposit:0 }
+function unFin(o){ return o.finalPaidAt?0:(o.price-o.deposit) }
+function owedOf(o){ return unDep(o)+unFin(o) }
+function payOf(o){
+  if(o.finalPaidAt) return '已结清';
+  if(unDep(o)>0) return '待定金';
+  if(o.settleVia==='douyin') return '平台结算'; // 平台结算尾款不催收、不逾期
+  return '待尾款';
+}
+function overdueDays(o){
+  if(payOf(o)!=='待尾款') return 0;
+  return daysBetween(o.shotAt||o.appt);
+}
+function isOver(o){ return payOf(o)==='待尾款' && overdueDays(o)>=db.threshold }
+
+const WORK_CLS={'待拍摄':'c-blue','后期中':'c-purple','发片中':'c-orange','已交付':'c-green'};
+const PAY_CLS={'待定金':'c-gray','待尾款':'c-orange','平台结算':'c-blue','已逾期':'c-red','已结清':'c-green'};
+const METHODS=['微信','支付宝','银行卡','抖音商单','其他'];
+const METHOD_CLS={'微信':'c-green','支付宝':'c-blue','银行卡':'c-orange','抖音商单':'c-ink','其他':'c-gray'};
+function payChip(o){ const s=payOf(o); const label=s==='待尾款'&&isOver(o)?'已逾期':s; return `<span class="chip ${PAY_CLS[label]}">${label}</span>` }
+function workChip(o){ return `<span class="chip ${WORK_CLS[workOf(o)]}">${workOf(o)}</span>` }
+
+/* ================= UI 状态 ================= */
+const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null};
+
+/* ================= 渲染:首页 ================= */
+function statsFor(period){ // period: '7' | '30' | 'M'
+  let start;
+  if(period==='M') start=new Date(now.getFullYear(),now.getMonth(),1);
+  else start=new Date(now.getTime()-864e5*(+period));
+  const inWin=t=>t&&new Date(t)>=start&&new Date(t)<=now;
+  const deals=db.orders.filter(o=>new Date(o.appt)>=start&&new Date(o.appt)<=now);
+  const paid=db.payments.filter(p=>inWin(p.at));
+  const done=db.orders.filter(o=>o.shortAt&&o.longAt&&inWin(o.longAt));
+  return {start,deals,paid,done,
+    dealSum:deals.reduce((s,o)=>s+o.price,0),
+    paidSum:paid.reduce((s,p)=>s+p.amount,0)};
+}
+function renderHome(){
+  const over=db.orders.filter(isOver);
+  const overSum=over.reduce((s,o)=>s+owedOf(o),0);
+  const maxOver=over.length?Math.max(...over.map(overdueDays)):0;
+  const todays=db.orders.filter(o=>o.appt.slice(0,10)===TODAY&&!o.shotAt).sort((a,b)=>a.appt.localeCompare(b.appt));
+  const sending=db.orders.filter(o=>['后期中','发片中'].includes(workOf(o))).sort((a,b)=>(a.shotAt||'').localeCompare(b.shotAt||''));
+  const m=statsFor('M');
+  const totOwed=db.orders.reduce((s,o)=>s+owedOf(o),0);
+
+  const overCard= over.length
+    ? `<div class="alert-card" data-act="goto-collect">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg>
+        <div class="alert-main"><div class="alert-t">${over.length} 笔尾款逾期 · 待催收 ${fmtMoney(overSum)}</div>
+        <div class="alert-s">最长已欠 ${maxOver} 天 · 点击进入催收清单</div></div>
+        <svg class="ic" style="opacity:.9" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg>
+      </div>`
+    : `<div class="alert-card calm">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+        <div class="alert-main"><div class="alert-t">收款状态健康</div><div class="alert-s">暂无逾期尾款,共待收 ${fmtMoney(totOwed)}</div></div>
+      </div>`;
+
+  const todayRows= todays.length? todays.map(o=>`
+    <div class="row" data-act="open" data-oid="${o.id}">
+      <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">预约</div></div>
+      <div class="rmain"><div class="rname">${o.store}</div>
+        <div class="chiprow">${workChip(o)}${payChip(o)}<span class="chip c-gray">${o.cat}</span></div></div>
+      <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div>${unDep(o)>0?`<div class="rsub" style="color:var(--red)">待定金 ${fmtMoney(unDep(o))}</div>`:''}</div>
+      <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+    </div>`).join('')
+    : `<div class="empty"><div class="e-ic">🌙</div>今日无拍摄安排<br>去「行程」页看看接下来的档期</div>`;
+
+  const sendRows= sending.length? sending.slice(0,4).map(o=>{
+    const miss=[!o.submittedAt?'待提审':'',!o.shortAt?'待短片':'',!o.longAt?'待长片':''].filter(Boolean).map(t=>`<span class="chip c-orange">${t}</span>`).join('');
+    return `<div class="row" data-act="open" data-oid="${o.id}">
+      <div class="rmain"><div class="rname">${o.store}</div><div class="rsub">拍摄于 ${fmtD(o.shotAt)} · ${fmtMoney(o.price)}</div></div>
+      <div style="display:flex;gap:5px;flex-shrink:0">${miss}</div>
+    </div>`;}).join('')
+    : `<div class="empty">没有待发片的订单 🎉</div>`;
+
+  $('#v-home').innerHTML=`
+    <div class="htop-row">
+      <div><div class="eyebrow">${now.getMonth()+1}月${now.getDate()}日 周${dowOf(TODAY)}</div>
+      <h1 class="big">${greeting()},主理人</h1>
+      <div class="hsub">今日 ${todays.length} 单拍摄 · ${over.length?`${over.length} 笔待催收`:'收款正常'}</div></div>
+      <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
+    </div>
+    ${overCard}
+    <div class="sec-title">今日拍摄 <span class="more" data-act="tab" data-tab="trip">行程 ›</span></div>
+    <div class="card rows">${todayRows}</div>
+    <div class="sec-title">待发片 <span class="more" data-act="tab" data-tab="orders">全部 ›</span></div>
+    <div class="card rows">${sendRows}</div>
+    <div class="sec-title">本月速览 <span class="more" data-act="tab" data-tab="stats">统计 ›</span></div>
+    <div class="mini-grid">
+      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(m.paidSum)}</div><div class="ml">本月实收 · ${m.paid.length} 笔</div></div>
+      <div class="mini"><div class="mv">${fmtMoney(m.dealSum)}</div><div class="ml">本月成交 · ${m.deals.length} 单</div></div>
+      <div class="mini"><div class="mv" style="color:var(--red)">${fmtMoney(totOwed)}</div><div class="ml">当前待收款</div></div>
+      <div class="mini"><div class="mv" style="color:var(--orange)">${sending.length}</div><div class="ml">待发片订单</div></div>
+    </div>`;
+}
+
+/* ================= 渲染:行程 ================= */
+function orderRowTrip(o){
+  const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
+  return `<div class="row" data-act="open" data-oid="${o.id}">
+    <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${o.cat}</div></div>
+    <div class="rmain"><div class="rname">${o.store}</div>
+      <div class="chiprow">${workChip(o)}${depChip||payChip(o)}</div></div>
+    <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div><div class="rsub">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div></div>
+  </div>`;
+}
+function renderTrip(){
+  const mon=new Date(now); mon.setDate(mon.getDate()-((now.getDay()+6)%7));
+  let strip='';
+  for(let i=0;i<7;i++){
+    const d=new Date(mon); d.setDate(d.getDate()+i);
+    const iso=toISO(d);
+    const cnt=db.orders.filter(o=>o.appt.slice(0,10)===iso).length;
+    strip+=`<button class="wd ${iso===ui.selDay?'sel':''} ${iso===TODAY?'today':''}" data-act="day" data-day="${iso}">
+      <span class="wd-dow">周${DOW[i]}</span><span class="wd-num">${d.getDate()}</span>
+      <span class="wd-dots">${'<i></i>'.repeat(Math.min(cnt,3))}</span></button>`;
+  }
+  const list=db.orders.filter(o=>o.appt.slice(0,10)===ui.selDay).sort((a,b)=>a.appt.localeCompare(b.appt));
+  const listHtml= list.length? list.map(orderRowTrip).join('')
+    : `<div class="empty"><div class="e-ic">📭</div>这一天暂无拍摄安排</div>`;
+
+  const base=new Date(ui.selDay+'T00:00');
+  let up='';
+  for(let i=1;i<=14;i++){
+    const d=new Date(base); d.setDate(d.getDate()+i);
+    const iso=toISO(d);
+    const ds=db.orders.filter(o=>o.appt.slice(0,10)===iso).sort((a,b)=>a.appt.localeCompare(b.appt));
+    if(!ds.length) continue;
+    const tag=iso===toISO(new Date(base.getTime()+864e5))?' · 明天':'';
+    up+=`<div class="sec-title">${d.getMonth()+1}月${d.getDate()}日 周${dowOf(iso)}${tag}</div>
+    <div class="card rows">${ds.map(orderRowTrip).join('')}</div>`;
+  }
+  if(!up) up=`<div class="empty">未来 14 天暂无新预约,点右上角「+预约」新增</div>`;
+
+  $('#v-trip').innerHTML=`
+    <div class="htop-row">
+      <div><div class="eyebrow">${now.getFullYear()}年${now.getMonth()+1}月</div><h1 class="big">行程</h1>
+      <div class="hsub">本周 ${db.orders.filter(o=>{const t=new Date(o.appt);const m2=new Date(mon);const s=new Date(m2);s.setDate(s.getDate()+7);return t>=m2&&t<s}).length} 个档期 · 点按日期查看</div></div>
+      <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
+    </div>
+    <div class="week">${strip}</div>
+    <div class="sec-title">${ui.selDay===TODAY?'今日行程':`${+ui.selDay.slice(5,7)}月${+ui.selDay.slice(8,10)}日 周${dowOf(ui.selDay)}`}</div>
+    <div class="card rows">${listHtml}</div>
+    ${up}`;
+}
+
+/* ================= 渲染:订单 ================= */
+function chipMatch(o){
+  const w=workOf(o);
+  switch(ui.chip){
+    case 'wait': return w==='待拍摄';
+    case 'doing': return w==='后期中'||w==='发片中';
+    case 'unpaid': return owedOf(o)>0;
+    case 'over': return isOver(o);
+    case 'done': return w==='已交付';
+    default: return true;
+  }
+}
+function renderOrders(){
+  const q=ui.q.trim();
+  const all=db.orders.filter(chipMatch).filter(o=>!q||o.store.toLowerCase().includes(q.toLowerCase()))
+    .sort((a,b)=>(b.shotAt||b.appt).localeCompare(a.shotAt||a.appt));
+  const cnt=k=>db.orders.filter(o=>{const t=ui.chip;ui.chip=k;const r=chipMatch(o);ui.chip=t;return r}).length;
+  const chips=[['all','全部'],['wait','待拍摄'],['doing','进行中'],['unpaid','待收款'],['over','逾期'],['done','已完结']]
+    .map(([k,l])=>`<button class="fchip ${ui.chip===k?'on':''}" data-act="chip" data-chip="${k}">${l} <b>${cnt(k)}</b></button>`).join('');
+
+  const rows=all.length? all.map(o=>`
+    <div class="row" data-act="open" data-oid="${o.id}">
+      <div class="rmain">
+        <div class="rname">${o.store}</div>
+        <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${o.cat}</div>
+        <div class="chiprow">${workChip(o)}${payChip(o)}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}</div>
+      </div>
+      <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div>
+        <div class="rsub" style="${owedOf(o)>0?'color:var(--red);font-weight:700':''}">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div>
+      </div>
+    </div>`).join('')
+    : `<div class="empty"><div class="e-ic">🔍</div>没有符合条件的订单</div>`;
+
+  $('#v-orders').innerHTML=`
+    <div class="htop-row">
+      <div><div class="eyebrow">工作 × 收款 双轨状态</div><h1 class="big">订单</h1></div>
+      <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
+    </div>
+    <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="q-input" placeholder="搜索商家名称" value="${ui.q}"></div>
+    <div class="chips">${chips}</div>
+    <div class="card rows">${rows}</div>`;
+  const qi=$('#q-input');
+  qi.addEventListener('input',e=>{ui.q=e.target.value;const pos=qi.selectionStart;renderOrders();const q2=$('#q-input');q2.focus();q2.setSelectionRange(pos,pos)});
+}
+
+/* ================= 渲染:收款 ================= */
+function renderPay(){
+  const rows0=db.orders.filter(o=>owedOf(o)>0);
+  const unDepSum=rows0.reduce((s,o)=>s+unDep(o),0);
+  const unFinSum=rows0.reduce((s,o)=>s+unFin(o),0);
+  const over=db.orders.filter(isOver);
+  const overSum=over.reduce((s,o)=>s+unFin(o),0);
+
+  const bucket=o=>{const d=overdueDays(o);return d>30?'g30':d>7?'m830':'s7'};
+  const rows=rows0.filter(o=>ui.bucket==='all'||bucket(o)===ui.bucket)
+    .sort((a,b)=>overdueDays(b)-overdueDays(a)||a.appt.localeCompare(b.appt));
+
+  const listHtml= rows.length? rows.map(o=>{
+    const d=overdueDays(o), isDep=unDep(o)>0;
+    const due=isDep?{tag:'定金',amt:unDep(o),sub:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`,act:'pay-deposit'}
+                   :{tag:'尾款',amt:unFin(o),sub:`拍摄 ${fmtD(o.shotAt||o.appt)} · 已交付${o.shortAt&&o.longAt?'':'部分'}`,act:'pay-final'};
+    return `<div class="row" data-act="open" data-oid="${o.id}">
+      <div class="rmain"><div class="rname">${o.store}</div>
+        <div class="rsub">${due.sub} · ${due.tag} ${fmtMoney(due.amt)}</div>
+        <div class="chiprow">${isOver(o)?`<span class="chip c-red">逾期 · 欠 ${d} 天</span>`:(isDep?'<span class="chip c-gray">待定金</span>':`<span class="chip ${d>7?'c-orange':'c-gray'}">欠款 ${d} 天</span>`)}</div>
+      </div>
+      <button class="mini-btn green" data-act="${due.act}" data-oid="${o.id}">标记已收</button>
+    </div>`;}).join('')
+    : `<div class="empty"><div class="e-ic">✅</div>该区间暂无待收款</div>`;
+
+  const flow=[...db.payments].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8).map(p=>`
+    <div class="row">
+      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} · ${storeOf(p.oid)}</div>
+        <div class="rsub">${p.kind} · ${fmtD(p.at)} ${fmtHM(p.at)} · ${p.method}</div></div>
+      <span class="chip c-green">已收</span>
+    </div>`).join('');
+
+  $('#v-pay').innerHTML=`
+    <div class="htop-row"><div><div class="eyebrow">资金线 · 账期自实际拍摄日起算</div><h1 class="big">收款</h1></div></div>
+    <div class="card" style="padding:16px;margin-bottom:12px">
+      <div style="font-size:12px;color:var(--sub)">待收款总额</div>
+      <div style="font-size:32px;font-weight:800;letter-spacing:.3px;margin:4px 0 2px">${fmtMoney(unDepSum+unFinSum)}</div>
+      <div class="chiprow">
+        <span class="chip c-orange">尾款 ${fmtMoney(unFinSum)}</span>
+        <span class="chip c-gray">定金 ${fmtMoney(unDepSum)}</span>
+        ${over.length?`<span class="chip c-red">逾期 ${over.length} 笔 · ${fmtMoney(overSum)}</span>`:'<span class="chip c-green">无逾期</span>'}
+      </div>
+    </div>
+    <div class="seg" style="margin-bottom:12px">
+      ${[['all','全部'],['s7','≤7天'],['m830','8–30天'],['g30','30天+ 催收']].map(([k,l])=>`<button class="${ui.bucket===k?'on':''}" data-act="bucket" data-bucket="${k}">${l}</button>`).join('')}
+    </div>
+    <div class="card rows">${listHtml}</div>
+    <div class="sec-title">收款流水 <span class="more" data-act="export-csv">导出 ›</span></div>
+    <div class="card rows">${flow||'<div class="empty">暂无收款记录</div>'}</div>`;
+}
+
+/* ================= 渲染:统计 ================= */
+function renderStats(){
+  const st=statsFor(ui.period);
+  const avg=st.deals.length?Math.round(st.dealSum/st.deals.length):0;
+  // 每日实收柱状图
+  let days=[];
+  if(ui.period==='M'){const e=new Date(now.getFullYear(),now.getMonth(),now.getDate());for(let d=new Date(st.start);d<=e;d.setDate(d.getDate()+1))days.push(toISO(d))}
+  else{for(let i=+ui.period-1;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);days.push(toISO(d))}}
+  const daily=days.map(d=>db.payments.filter(p=>p.at.slice(0,10)===d).reduce((s,p)=>s+p.amount,0));
+  const mx=Math.max(...daily,1);
+  const bars=daily.map((v,i)=>`<div class="bar ${v?'':'zero'}" title="${days[i]} 实收 ${fmtMoney(v)}"><i style="height:${Math.max(3,Math.round(v/mx*100))}%"></i></div>`).join('');
+  const totOwed=db.orders.reduce((s,o)=>s+owedOf(o),0);
+  const sending=db.orders.filter(o=>['后期中','发片中'].includes(workOf(o))).length;
+  const segP=[['7','近7天'],['30','近30天'],['M','本月']].map(([k,l])=>`<button class="${ui.period===k?'on':''}" data-act="period" data-period="${k}">${l}</button>`).join('');
+
+  $('#v-stats').innerHTML=`
+    <div class="htop-row"><div><div class="eyebrow">实时统计 · 打开即刷新</div><h1 class="big">统计</h1></div></div>
+    <div class="seg" style="margin-bottom:14px">${segP}</div>
+    <div class="mini-grid">
+      <div class="mini"><div class="mv">${fmtMoney(st.dealSum)}</div><div class="ml">成交额 · ${st.deals.length} 单</div></div>
+      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(st.paidSum)}</div><div class="ml">实收金额 · ${st.paid.length} 笔</div></div>
+      <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} 单</div><div class="ml">已交付完结</div></div>
+      <div class="mini"><div class="mv">¥${avg.toLocaleString()}</div><div class="ml">客单价</div></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:14px;font-weight:800">每日实收</span>
+        <span style="font-size:11.5px;color:var(--sub)">${ui.period==='M'?'本月':'近'+ui.period+'天'}合计 <b style="color:#239648;font-size:13px">${fmtMoney(st.paidSum)}</b></span>
+      </div>
+      <div class="bars">${bars}</div>
+      <div class="bar-x"><span>${fmtD(days[0])}</span><span>${fmtD(days[days.length-1])}</span></div>
+    </div>
+    <div class="card rows" style="margin-top:14px">
+      <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">当前待收款</div><div class="rsub">含定金与尾款</div></div>
+        <div class="rside"><div class="rprice" style="color:var(--red)">${fmtMoney(totOwed)}</div></div></div>
+      <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">待发片订单</div><div class="rsub">后期中 / 发片中</div></div>
+        <div class="rside"><div class="rprice" style="color:var(--orange)">${sending} 单</div></div></div>
+    </div>
+    <div class="sec-title">数据管理(SQLite 本机存储)</div>
+    <div class="card rows">
+      <div class="menu-row" data-act="open-schema">
+        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg></span>
+        <div class="menu-t"><div class="menu-name">数据结构 · SQLite</div><div class="menu-sub">orders / payments / settings 三张表,可导出 .db</div></div>
+        <span class="tag-badge">真机能力</span>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </div>
+      <div class="menu-row">
+        <span class="menu-ic" style="background:var(--orange-soft);color:#E8850A"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg></span>
+        <div class="menu-t"><div class="menu-name">尾款催收阈值</div><div class="menu-sub">超过该天数未收尾款即标记「已逾期」并进入催收清单</div></div>
+        <div class="stepper">
+          <button data-act="th" data-v="-1">−</button><span>${db.threshold} 天</span><button data-act="th" data-v="1">+</button>
+        </div>
+      </div>
+      <div class="menu-row" data-act="export-csv">
+        <span class="menu-ic" style="background:var(--green-soft);color:#239648"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 11l4.5 4.5L16.5 11"/><path d="M4.5 19.5h15"/></svg></span>
+        <div class="menu-t"><div class="menu-name">导出 CSV</div><div class="menu-sub">订单表,Excel / Numbers 可直接打开</div></div>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </div>
+      <div class="menu-row" data-act="export-json">
+        <span class="menu-ic" style="background:var(--purple-soft);color:var(--purple)"><svg class="ic" viewBox="0 0 24 24"><path d="M8 4.5H6A2.5 2.5 0 0 0 3.5 7v3A2.5 2.5 0 0 1 1 12.5 2.5 2.5 0 0 1 3.5 15v3A2.5 2.5 0 0 0 6 20.5h2M16 4.5h2A2.5 2.5 0 0 1 20.5 7v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5h-2"/></svg></span>
+        <div class="menu-t"><div class="menu-name">导出 JSON 备份</div><div class="menu-sub">含订单 + 收款流水 + 设置,可用于迁移</div></div>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </div>
+      <div class="menu-row" data-act="reset">
+        <span class="menu-ic" style="background:var(--red-soft);color:var(--red)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 5.5v5h5"/><path d="M4.6 10.5A8 8 0 1 1 4 14"/></svg></span>
+        <div class="menu-t"><div class="menu-name">重置演示数据</div><div class="menu-sub">恢复到初始示例订单</div></div>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </div>
+    </div>`;
+}
+
+/* ================= 详情弹层 ================= */
+function mileStep(label,time,done,nowFlag){
+  return `<div class="mstep ${done?'done':''} ${!done&&nowFlag?'now':''}">
+    <div class="mdot">${done?'✓':(nowFlag?'·':'')}</div>
+    <div class="mlab">${label}</div><div class="mtime">${done?fmtDT(time).replace(' ','\n'):''}</div></div>`;
+}
+function openDetail(id){
+  ui.detail=id; const o=byId(id); if(!o)return;
+  const w=workOf(o),p=payOf(o),od=overdueDays(o);
+  const steps=[
+    ['拍摄',o.shotAt],['提审',o.submittedAt],['发短片',o.shortAt],['发长片',o.longAt]
+  ];
+  const nextIdx=steps.findIndex(s=>!s[1]);
+  const mile=steps.map((s,i)=>mileStep(s[0],s[1],!!s[1],i===nextIdx)).join('');
+
+  const payBtns=[];
+  if(unDep(o)>0) payBtns.push(`<button class="btn tint-blue" data-act="pay-deposit" data-oid="${o.id}">收定金 ${fmtMoney(unDep(o))}</button>`);
+  if(!o.finalPaidAt) payBtns.push(`<button class="btn ${isOver(o)?'primary':'green'}" data-act="pay-final" data-oid="${o.id}">收尾款 ${fmtMoney(unFin(o))}</button>`);
+  if(!payBtns.length) payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">✓ 款项已全部结清</div>`);
+
+  $('#detail-body').innerHTML=`
+    <div class="sheet-head" style="padding-left:0;padding-right:0">
+      <div style="min-width:0">
+        <div class="sheet-title" style="font-size:19px">${o.store}</div>
+        <div class="hsub" style="margin-top:3px">${o.cat}${o.contact?' · '+o.contact:''}</div>
+      </div>
+      <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${isOver(o)?`<span class="chip c-red">欠款 ${od} 天</span>`:''}</div>
+    ${isOver(o)?`<div class="banner-red"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
+      <span>尾款自拍摄日(${fmtD(o.shotAt||o.appt)})起已欠 <b>${od} 天</b>,超过 ${db.threshold} 天催收阈值,建议今天电话跟进。</span></div>`:''}
+    <div class="mile">${mile}</div>
+    <div style="margin-top:10px">
+      ${!o.shotAt?`<button class="btn primary" data-act="mark-shot" data-oid="${o.id}">标记已拍摄(记录实际拍摄时间)</button>`
+       :!o.submittedAt?`<button class="btn primary" data-act="mark-submit" data-oid="${o.id}">标记已提审</button>`
+       :`<div class="btn2">
+          <button class="btn ${o.shortAt?'ghost':'tint'}" data-act="mark-short" data-oid="${o.id}">${o.shortAt?'短片已发 ✓':'标记发短片'}</button>
+          <button class="btn ${o.longAt?'ghost':'tint'}" data-act="mark-long" data-oid="${o.id}">${o.longAt?'长片已发 ✓':'标记发长片'}</button>
+        </div>`}
+    </div>
+    <div class="sec-title" style="margin-top:16px">收款</div>
+    ${payBtns.join('')}
+    <div class="info-grid">
+      <div class="ig"><div class="k">预约时间</div><div class="v">${fmtD(o.appt)} ${fmtHM(o.appt)}</div></div>
+      <div class="ig"><div class="k">实际拍摄</div><div class="v">${fmtDT(o.shotAt)}</div></div>
+      <div class="ig"><div class="k">总价</div><div class="v">${fmtMoney(o.price)}</div></div>
+      <div class="ig"><div class="k">定金 ${o.depositPaidAt?'· 已收 '+fmtD(o.depositPaidAt):''}</div><div class="v">${fmtMoney(o.deposit)}</div></div>
+      <div class="ig"><div class="k">尾款 ${o.finalPaidAt?'· 已收 '+fmtD(o.finalPaidAt):''}</div><div class="v">${fmtMoney(o.price-o.deposit)}</div></div>
+      <div class="ig"><div class="k">当前待收</div><div class="v" style="${owedOf(o)>0?'color:var(--red)':'color:#239648'}">${owedOf(o)>0?fmtMoney(owedOf(o)):'已结清'}</div></div>
+    </div>
+    ${o.note?`<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">📝 ${o.note}</div></div>`:''}
+    <div style="padding-top:16px"><button class="btn danger-ghost" data-act="del-order" data-oid="${o.id}">删除订单</button></div>`;
+  showSheet('sheet-detail');
+}
+
+/* ================= 弹层 / Toast ================= */
+function showSheet(id){
+  $('#mask').classList.add('show');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+  $('#'+id).classList.add('show');
+}
+function closeSheets(){
+  $('#mask').classList.remove('show');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+}
+let toastTimer;
+function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
+
+/* ================= 导出 ================= */
+function download(name,content,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(["\ufeff"+content],{type}));
+  a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function exportCsv(){
+  const head=['ID','商家','类型','联系方式','总价','定金','预约时间','实际拍摄','提审时间','短片发出','长片发出','工作状态','收款状态','待收金额','欠款天数','备注'];
+  const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.note].map(q).join(','));
+  download(`探店手账-订单-${TODAY}.csv`,[head.map(q).join(','),...lines].join('\n'),'text/csv;charset=utf-8');
+  toast('已导出订单 CSV ✓');
+}
+function exportJson(){
+  download(`探店手账-备份-${TODAY}.json`,JSON.stringify({exportedAt:nowStr(),collectThresholdDays:db.threshold,orders:db.orders,payments:db.payments},null,2),'application/json');
+  toast('已导出 JSON 备份 ✓');
+}
+const SCHEMA=`<span class="c">-- 探店手账 · 本机 SQLite 结构</span>
+CREATE TABLE orders (
+  id             INTEGER PRIMARY KEY,
+  store          TEXT NOT NULL,  <span class="c">-- 商家名称</span>
+  category       TEXT,           <span class="c">-- 店铺类型</span>
+  contact        TEXT,           <span class="c">-- 联系人/电话</span>
+  price          REAL NOT NULL,  <span class="c">-- 成交总价</span>
+  deposit        REAL DEFAULT 0, <span class="c">-- 定金</span>
+  appt_at        TEXT,           <span class="c">-- 预约时间</span>
+  shot_at        TEXT,           <span class="c">-- 实际拍摄时间</span>
+  submitted_at   TEXT,           <span class="c">-- 提审时间</span>
+  short_sent_at  TEXT,           <span class="c">-- 短片发出</span>
+  long_sent_at   TEXT,           <span class="c">-- 长片发出</span>
+  deposit_paid_at TEXT,          <span class="c">-- 定金到账时间</span>
+  final_paid_at  TEXT,           <span class="c">-- 尾款到账时间</span>
+  note           TEXT,
+  created_at     TEXT, updated_at TEXT
+);
+CREATE TABLE payments (
+  id       INTEGER PRIMARY KEY,
+  order_id INTEGER REFERENCES orders(id),
+  kind     TEXT,   <span class="c">-- deposit / final / extra</span>
+  amount   REAL, paid_at TEXT, method TEXT, note TEXT
+);
+CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
+<span class="c">-- collect_threshold_days = 15 (尾款催收阈值)</span>
+
+<span class="c">-- 常用查询:长期未付款</span>
+SELECT store, price - deposit AS due,
+       julianday('now') - julianday(shot_at) AS days
+FROM orders
+WHERE final_paid_at IS NULL AND shot_at IS NOT NULL
+ORDER BY days DESC;`;
+$('#schema-pre').innerHTML=SCHEMA;
+
+/* ================= 新建订单 ================= */
+function openNew(){
+  $('#f-store').value='';$('#f-price').value='';$('#f-deposit').value='';
+  $('#f-contact').value='';$('#f-note').value='';
+  $('#f-date').value=TODAY;$('#f-time').value='10:00';$('#f-err').style.display='none';
+  showSheet('sheet-new');
+}
+function saveOrder(){
+  const store=$('#f-store').value.trim(), price=parseFloat($('#f-price').value);
+  if(!store||!price){$('#f-err').style.display='block';return}
+  const deposit=parseFloat($('#f-deposit').value)||0;
+  const date=$('#f-date').value||TODAY, time=$('#f-time').value||'10:00';
+  const o={id:Math.max(...db.orders.map(x=>x.id))+1, store, cat:$('#f-cat').value,
+    contact:$('#f-contact').value.trim(), price, deposit,
+    appt:`${date}T${time}`, shotAt:null, submittedAt:null, shortAt:null, longAt:null,
+    depositPaidAt:null, finalPaidAt:null, note:$('#f-note').value.trim()};
+  db.orders.push(o); save();
+  closeSheets(); ui.selDay=date; showTab('trip'); renderAll();
+  toast(`已添加预约:${store} ✓`);
+}
+
+/* ================= 状态操作 ================= */
+function rerenderDetail(){ if(ui.detail) openDetail(ui.detail) }
+function mark(id,key,label){
+  const o=byId(id); if(!o)return;
+  o[key]=nowStr(); save(); renderAll(); rerenderDetail(); toast(label);
+}
+function pay(id,kind){
+  const o=byId(id); if(!o)return;
+  const t=nowStr();
+  if(kind==='deposit'){o.depositPaidAt=t;db.payments.push({oid:id,kind:'定金',amount:o.deposit,at:t,method:'微信'})}
+  else{o.finalPaidAt=t;db.payments.push({oid:id,kind:'尾款',amount:o.price-o.deposit,at:t,method:'微信'})}
+  save(); renderAll(); rerenderDetail(); toast(kind==='deposit'?`已收定金 ${fmtMoney(o.deposit)} ✓`:`已收尾款 ${fmtMoney(o.price-o.deposit)} ✓`);
+}
+
+/* ================= Tab 路由 ================= */
+function showTab(t){
+  ui.tab=t;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $('#v-'+t).classList.add('active');
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+}
+function renderAll(){
+  renderHome();renderTrip();renderOrders();renderPay();renderStats();
+  const n=db.orders.filter(isOver).length;
+  const b=$('#pay-bdg'); b.style.display=n?'flex':'none'; b.textContent=n;
+}
+
+/* ================= 事件委托 ================= */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-act]'); if(!t)return;
+  const act=t.dataset.act, oid=+t.dataset.oid||0;
+  switch(act){
+    case 'tab': showTab(t.dataset.tab); break;
+    case 'open': openDetail(oid); break;
+    case 'close-sheet': closeSheets(); break;
+    case 'new-order': openNew(); break;
+    case 'save-order': saveOrder(); break;
+    case 'goto-collect': ui.bucket='g30'; showTab('pay'); renderAll(); break;
+    case 'chip': ui.chip=t.dataset.chip; renderOrders(); break;
+    case 'bucket': ui.bucket=t.dataset.bucket; renderPay(); break;
+    case 'period': ui.period=t.dataset.period; renderStats(); break;
+    case 'day': ui.selDay=t.dataset.day; renderTrip(); break;
+    case 'mark-shot': mark(oid,'shotAt','已记录实际拍摄时间 ✓'); break;
+    case 'mark-submit': mark(oid,'submittedAt','已标记提审 ✓'); break;
+    case 'mark-short': mark(oid,'shortAt','已标记发短片 ✓'); break;
+    case 'mark-long': mark(oid,'longAt','已标记发长片 ✓ · 工作完结'); break;
+    case 'pay-deposit': pay(oid,'deposit'); break;
+    case 'pay-final': pay(oid,'final'); break;
+    case 'del-order':
+      if(confirm('删除该订单及其流水?')){db.orders=db.orders.filter(o=>o.id!==oid);db.payments=db.payments.filter(p=>p.oid!==oid);save();closeSheets();renderAll();toast('订单已删除')}
+      break;
+    case 'export-csv': exportCsv(); break;
+    case 'export-json': exportJson(); break;
+    case 'open-schema': showSheet('sheet-schema'); break;
+    case 'th':{
+      const opts=[7,15,30,45]; let i=opts.indexOf(db.threshold);
+      i=Math.min(opts.length-1,Math.max(0,i+ +t.dataset.v));
+      db.threshold=opts[i]; save(); renderAll(); rerenderDetail();
+      toast(`催收阈值已设为 ${db.threshold} 天`); break;}
+    case 'reset':
+      if(confirm('重置为演示数据?')){try{localStorage.removeItem(LS)}catch(e){};db=seed();renderAll();showTab('home');toast('已重置演示数据')}
+      break;
+  }
+});
+
+/* ================= 启动 ================= */
+$('#f-date').value=TODAY;
+renderAll(); showTab('home');
+</script>
+</body>
+</html>

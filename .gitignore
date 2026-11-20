@@ -4,3 +4,12 @@ node_modules/
 build/
 dist/
 *.log
+
+# Capacitor iOS:生成产物不入库
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/Pods/
+ios/App/output/
+ios/DerivedData/
+*.ipa
+*.dSYM.zip
