@@ -342,6 +342,7 @@
   </div>
 </div>
 
+<script src="cap-plugins.js"></script>
 <script>
 /* ================= 工具 ================= */
 const $=s=>document.querySelector(s);
@@ -422,11 +423,115 @@ function seed(){
   return {orders:O, payments:P, threshold:15};
 }
 
-/* ================= 状态存取 ================= */
+/* ================= 存储适配器(按平台切换持久化) =================
+ * Web/PWA:localStorage(不可写时自动退化为内存演示数据)
+ * iOS 原生(Capacitor):@capacitor-community/sqlite,本机 orders / payments / settings 三表
+ * 同一套 UI 与派生逻辑,仅数据落地方式不同。
+ * =================================================================== */
+const CAP=(typeof window!=='undefined'&&window.TanjiCap)||null;
+const isNative=!!(CAP&&CAP.Capacitor&&CAP.Capacitor.isNativePlatform&&CAP.Capacitor.isNativePlatform());
 const LS='tanstore_v1';
-let db;
-try{ db=JSON.parse(localStorage.getItem(LS))||seed() }catch(e){ db=seed() }
-function save(){ try{ localStorage.setItem(LS,JSON.stringify(db)) }catch(e){} }
+const DB_NAME='tanji';
+
+const Store=(()=>{
+  let conn=null;
+
+  /* --- Web:localStorage --- */
+  function webLoad(){
+    try{ const raw=localStorage.getItem(LS); if(raw) return JSON.parse(raw) }catch(e){}
+    return seed();
+  }
+  function webPersist(data){
+    try{ localStorage.setItem(LS,JSON.stringify(data)) }catch(e){}
+  }
+
+  /* --- 原生:Capacitor SQLite --- */
+  // JS 模型(camelCase)↔ 表结构(snake_case)字段映射
+  const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','note','remind_at','created_at','updated_at'];
+  function rowToOrder(r){
+    return {id:r.id, store:r.store, cat:r.category??'', contact:r.contact??'', price:r.price??0,
+      deposit:r.deposit??0, appt:r.appt_at??'', shotAt:r.shot_at??null, submittedAt:r.submitted_at??null,
+      shortAt:r.short_sent_at??null, longAt:r.long_sent_at??null, depositPaidAt:r.deposit_paid_at??null,
+      finalPaidAt:r.final_paid_at??null, settleVia:r.settle_via??undefined, note:r.note??'',
+      remindAt:r.remind_at??null, createdAt:r.created_at??null, updatedAt:r.updated_at??null};
+  }
+  function orderToValues(o,ts){
+    return [o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,
+      o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,
+      o.settleVia||null,o.note||null,o.remindAt||null,o.createdAt||ts,ts];
+  }
+  function rowToPayment(r){ return {oid:r.order_id,kind:r.kind??'',amount:r.amount??0,at:r.paid_at??'',method:r.method??''} }
+  function paymentToValues(p){ return [p.oid,p.kind,p.amount,p.at,p.method||null,p.note||null] }
+
+  async function nativePersist(data){
+    const ts=nowStr();
+    const set=[{statement:'DELETE FROM payments'},{statement:'DELETE FROM orders'}];
+    data.orders.forEach(o=>set.push({statement:`INSERT INTO orders (${ORD_COLS.join(',')}) VALUES (${ORD_COLS.map(()=>'?').join(',')})`,values:orderToValues(o,ts)}));
+    data.payments.forEach(p=>set.push({statement:'INSERT INTO payments (order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?)',values:paymentToValues(p)}));
+    set.push({statement:'INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)',values:['collect_threshold_days',String(data.threshold??15)]});
+    set.push({statement:'INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)',values:['notify_enabled',data.notifyEnabled===false?'off':'on']});
+    await conn.executeSet(set,true);
+  }
+  async function nativeLoad(){
+    const so=await conn.query('SELECT key,value FROM settings');
+    const s={}; (so.values||[]).forEach(r=>{ s[r.key]=r.value });
+    const fo=await conn.query('SELECT * FROM orders ORDER BY id');
+    const po=await conn.query('SELECT * FROM payments ORDER BY id');
+    let data={orders:(fo.values||[]).map(rowToOrder),payments:(po.values||[]).map(rowToPayment),
+      threshold:+(s.collect_threshold_days??15)||15};
+    if(s.notify_enabled==='off') data.notifyEnabled=false;
+    if(!data.orders.length){ data=seed(); await nativePersist(data); } // 首次安装:写入演示数据
+    return data;
+  }
+
+  return {
+    async init(){
+      if(!isNative) return 'web';
+      const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
+      conn=await sqlite.createConnection(DB_NAME,false,'no-encryption',1,false);
+      await conn.open();
+      await conn.execute(
+`CREATE TABLE IF NOT EXISTS orders (
+  id             INTEGER PRIMARY KEY,
+  store          TEXT NOT NULL,
+  category       TEXT,
+  contact        TEXT,
+  price          REAL NOT NULL,
+  deposit        REAL DEFAULT 0,
+  appt_at        TEXT,
+  shot_at        TEXT,
+  submitted_at   TEXT,
+  short_sent_at  TEXT,
+  long_sent_at   TEXT,
+  deposit_paid_at TEXT,
+  final_paid_at  TEXT,
+  settle_via     TEXT,
+  note           TEXT,
+  remind_at      TEXT,
+  created_at     TEXT, updated_at TEXT
+);CREATE TABLE IF NOT EXISTS payments (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER REFERENCES orders(id),
+  kind     TEXT,
+  amount   REAL,
+  paid_at  TEXT,
+  method   TEXT,
+  note     TEXT
+);CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);`,true);
+      return 'native';
+    },
+    async load(){ return isNative? nativeLoad() : webLoad() },
+    async persist(data){
+      if(isNative){ try{ await nativePersist(data) }catch(e){ console.error('SQLite 持久化失败',e); toast('本地保存失败:'+(e?.message||e)) } }
+      else webPersist(data);
+    },
+    mode(){ return isNative?'native:CapacitorSQLite':'web:localStorage' }
+  };
+})();
+
+/* ================= 状态存取 ================= */
+let db=null;
+function save(){ Store.persist(db) } // 异步持久化,不阻塞 UI
 const byId=id=>db.orders.find(o=>o.id===id);
 const storeOf=id=>db.orders.find(o=>o.id===id)?.store||'';
 
@@ -955,14 +1060,24 @@ document.addEventListener('click',e=>{
       db.threshold=opts[i]; save(); renderAll(); rerenderDetail();
       toast(`催收阈值已设为 ${db.threshold} 天`); break;}
     case 'reset':
-      if(confirm('重置为演示数据?')){try{localStorage.removeItem(LS)}catch(e){};db=seed();renderAll();showTab('home');toast('已重置演示数据')}
+      if(confirm('重置为演示数据?')){db=seed();save();renderAll();showTab('home');toast('已重置演示数据')}
       break;
   }
 });
 
 /* ================= 启动 ================= */
-$('#f-date').value=TODAY;
-renderAll(); showTab('home');
+(async function boot(){
+  $('#f-date').value=TODAY;
+  try{
+    await Store.init();
+    db=await Store.load();
+    console.log('[TanJi] 存储模式:',Store.mode(),'· 订单',db.orders.length,'笔');
+  }catch(e){
+    console.error('[TanJi] 存储初始化失败,降级为内存演示数据',e);
+    db=seed();
+  }
+  renderAll(); showTab('home');
+})();
 </script>
 </body>
 </html>
