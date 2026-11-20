@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>icon</title>
+<style>html,body{margin:0;padding:0;background:#f00}</style>
+</head>
+<body>
+<canvas id="c" width="512" height="512" style="display:block"></canvas>
+<script>
+const c=document.getElementById('c'),g=c.getContext('2d');
+const gr=g.createLinearGradient(0,0,512,512);
+gr.addColorStop(0,'#FF8A3D');gr.addColorStop(1,'#E8352A');
+g.fillStyle=gr;g.fillRect(0,0,512,512);
+// 高光弧线
+g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=10;
+g.beginPath();g.arc(256,300,190,Math.PI*1.05,Math.PI*1.95);g.stroke();
+// 主字
+g.fillStyle='#fff';g.textAlign='center';g.textBaseline='middle';
+g.font='800 190px -apple-system,BlinkMacSystemFont,PingFang SC,sans-serif';
+g.fillText('探记',256,232);
+g.font='700 64px -apple-system,BlinkMacSystemFont,PingFang SC,sans-serif';
+g.fillStyle='rgba(255,255,255,.9)';
+g.fillText('TanJi',256,382);
+g.font='600 26px -apple-system,PingFang SC,sans-serif';
+g.fillStyle='rgba(255,255,255,.65)';
+g.fillText('探店达人的行程与收款',256,442);
+</script>
+</body>
+</html>
