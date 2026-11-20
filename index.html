@@ -357,9 +357,9 @@
         <div class="frow"><label>商家名称</label><input id="f-store" placeholder="如:澄川咖啡·滨江店"></div>
         <div class="frow"><label>类型</label>
           <select id="f-cat">
-            <option>咖啡</option><option>餐饮</option><option>茶饮</option><option>甜品</option>
+            <option>餐饮</option><option>咖啡</option><option>烧烤</option><option>火锅</option><option>茶饮</option><option>甜品</option>
             <option>烘焙</option><option>美发</option><option>健身</option><option>民宿</option>
-            <option>零售</option><option>体验馆</option><option>其他</option>
+            <option>零售</option><option>体验馆</option><option>服饰</option><option>快餐</option><option>其他</option>
           </select>
         </div>
         <div class="frow"><label>结算方式</label>
@@ -833,10 +833,11 @@ function saveOrder(){
 function openEdit(oid){
   const o=byId(oid);if(!o)return;
   ui.editId=oid;
-  const cats=['咖啡','餐饮','茶饮','甜品','烘焙','美发','健身','民宿','零售','体验馆','服饰','快餐','其他'];
+  const cats=['咖啡','餐饮','烧烤','火锅','茶饮','甜品','烘焙','美发','健身','民宿','零售','体验馆','服饰','快餐','其他'];
+  const catOpts=[...new Set([o.cat||'其他',...cats])];
   $('#edit-body').innerHTML=`
     <div class="frow"><label>商家名称</label><input id="e-store" value="${(o.store||'').replace(/"/g,'&quot;')}"></div>
-    <div class="frow"><label>类型</label><select id="e-cat">${cats.map(c=>`<option ${c===o.cat?'selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="frow"><label>类型</label><select id="e-cat">${catOpts.map(c=>`<option ${c===o.cat?'selected':''}>${c}</option>`).join('')}</select></div>
     <div class="frow"><label>结算方式</label><select id="e-settle"><option value="private" ${o.settleVia!=='douyin'?'selected':''}>私收(微信/支付宝/银行卡)</option><option value="douyin" ${o.settleVia==='douyin'?'selected':''}>抖音商单(平台结算)</option></select></div>
     <div class="frow"><label>渠道</label><input id="e-channel" value="${o.channel||''}" placeholder="如:蜂向/小爱/金城/食物"></div>
     <div class="frow"><label>出镜</label><input id="e-partner" value="${o.partner||''}" placeholder="出镜搭档,单人拍摄可空"></div>
