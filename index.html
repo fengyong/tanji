@@ -710,12 +710,13 @@ const byId=id=>db.orders.find(o=>o.id===id);
 const storeOf=id=>{const o=byId(id);return o?o.store:''};
 
 /* ================= 单日勋章(激励) =================
- * ⭐ 忙碌日 ≥3 单 · 🔥 爆单 ≥6 单(点封顶 6)
- * 💰 千元日 ≥¥1,000 · 💎 王牌日 ≥¥3,000
- * 同日多枚只显示最高档:💎 > 🔥 > 💰 > ⭐ */
+ * ⭐ 忙碌日 ≥3 单 · 🔥 爆单 ≥5 单(点封顶 6)
+ * 💰 千元日 ≥¥1,000 · 💎 王牌日 ≥¥2,500
+ * 同日多枚只显示最高档:💎 > 🔥 > 💰 > ⭐
+ * 阈值按大王 11 月真实峰值(单日 5 单 / ¥2,630)校准,确保可达 */
 function dayBadge(n,sum){
-  if(sum>=3000)return {e:'💎',t:'王牌日'};
-  if(n>=6)return {e:'🔥',t:'爆单'};
+  if(sum>=2500)return {e:'💎',t:'王牌日'};
+  if(n>=5)return {e:'🔥',t:'爆单'};
   if(sum>=1000)return {e:'💰',t:'千元日'};
   if(n>=3)return {e:'⭐',t:'忙碌日'};
   return null;
