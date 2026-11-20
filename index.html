@@ -400,7 +400,7 @@ function d2Img(){
 let d3Oid=null,d3Tone='温和';
 const D3_T={
   '温和':o=>`${o.store}老板好呀😊 之前给您拍的探店视频数据不错~ 尾款 ${fmtMoney(o.price-o.deposit)} 方便今天安排一下嘛?后续有新内容需求随时找我,老客户优先排期!`,
-  '正式':o=>`您好,这里是探记内容工作室。${fmtD(o.shotAt||o.appt)}为贵店拍摄的探店内容已全部交付(短片+长片),尾款 ${fmtMoney(o.price-o.deposit)} 尚未结算,已逾期 ${overdueDays(o)} 天。请于本周内安排结算,感谢配合。`,
+  '正式':o=>`您好,这里是探记内容工作室。${fmtD(o.shotAt||o.appt)}为贵店「${o.store}」拍摄的探店内容已全部交付(短片+长片),尾款 ${fmtMoney(o.price-o.deposit)} 尚未结算,已逾期 ${overdueDays(o)} 天。请于本周内安排结算,感谢配合。`,
   '幽默':o=>`老板~ 视频都发出去 ${overdueDays(o)} 天啦,播放量在涨,尾款 ${fmtMoney(o.price-o.deposit)} 也在"涨"😂 再不结,下次拍摄我让主播自带泡面入职!求安排🙏`
 };
 function demo3(){
