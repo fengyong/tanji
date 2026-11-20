@@ -166,6 +166,26 @@
   .wd.sel .wd-num{color:#fff}.wd.sel .wd-dow{color:rgba(255,255,255,.75)}
   .wd.today .wd-num{color:var(--brand)}
 
+  /* 月历 */
+  .mgrid{background:#fff;border-radius:var(--r);padding:12px 10px 10px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:0 4px 10px}
+  .mtitle{font-size:16px;font-weight:800}
+  .mtitle .msum{font-size:11.5px;color:var(--sub);font-weight:600;margin-left:6px}
+  .mnav{display:flex;gap:6px;align-items:center}
+  .mnav button{min-width:32px;height:30px;padding:0 8px;border-radius:15px;background:#F1F1F5;border:none;font-size:15px;font-weight:700;color:#55555c;font-family:inherit}
+  .mnav button:active{opacity:.7}
+  .mnav .mtod{font-size:12px}
+  .mgrid-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:10.5px;color:var(--sub);text-align:center;padding:2px 0 6px;font-weight:600}
+  .mgrid-c{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .mc{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;font-family:inherit;padding:0;min-width:0}
+  .mc .n{font-size:13.5px;font-weight:700;color:#3c3c43;line-height:1}
+  .mc .d{display:flex;gap:2px;height:4px}
+  .mc .d i{width:3.5px;height:3.5px;border-radius:50%;background:var(--brand);display:block}
+  .mc.sel{background:var(--ink)}
+  .mc.sel .n{color:#fff}
+  .mc.today .n{color:var(--brand)}
+  .mc:active{background:#F1F1F5}
+
   /* 图表 */
   .bars{display:flex;align-items:flex-end;gap:2px;height:118px;margin-top:12px}
   .bar{flex:1;display:flex;align-items:flex-end;height:100%}
@@ -410,7 +430,7 @@ function daysBetween(fromStr){const f=new Date(fromStr);return Math.max(0,Math.f
 function greeting(){const h=now.getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
 
 /* ================= UI 状态(先于数据定义,fmtMoney 依赖) ================= */
-const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null};
+const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1}};
 
 /* ================= 种子数据(相对今天生成,首启后即为用户真实数据) ================= */
 function demoSeed(){
@@ -1065,15 +1085,19 @@ function orderRowTrip(o){
   </div>`;
 }
 function renderTrip(){
-  const mon=new Date(now);mon.setDate(mon.getDate()-((now.getDay()+6)%7));
-  let strip='';
-  for(let i=0;i<7;i++){
-    const d=new Date(mon);d.setDate(d.getDate()+i);
-    const iso=toISO(d);
-    const cnt=db.orders.filter(o=>o.appt.slice(0,10)===iso).length;
-    strip+=`<button class="wd ${iso===ui.selDay?'sel':''} ${iso===TODAY?'today':''}" data-act="day" data-day="${iso}">
-      <span class="wd-dow">周${DOW[i]}</span><span class="wd-num">${d.getDate()}</span>
-      <span class="wd-dots">${'<i></i>'.repeat(Math.min(cnt,3))}</span></button>`;
+  const {y,m}=ui.vMon;
+  const first=new Date(y,m-1,1);
+  const off=(first.getDay()+6)%7;
+  const dim=new Date(y,m,0).getDate();
+  const mOrders=db.orders.filter(o=>+o.appt.slice(0,4)===y&&+o.appt.slice(5,7)===m);
+  const mSum=mOrders.reduce((s,o)=>s+o.price,0);
+  let cells='';
+  for(let i=0;i<off;i++)cells+='<div class="mc"></div>';
+  for(let d=1;d<=dim;d++){
+    const iso=`${y}-${pad(m)}-${pad(d)}`;
+    const ds=mOrders.filter(o=>o.appt.slice(0,10)===iso);
+    cells+=`<button class="mc ${iso===ui.selDay?'sel':''} ${iso===TODAY?'today':''}" data-act="day" data-day="${iso}">
+      <span class="n">${d}</span><span class="d">${ds.length?'<i></i>'.repeat(Math.min(ds.length,3)):''}</span></button>`;
   }
   const list=db.orders.filter(o=>o.appt.slice(0,10)===ui.selDay).sort((a,b)=>a.appt.localeCompare(b.appt));
   const listHtml=list.length?list.map(orderRowTrip).join('')
@@ -1089,17 +1113,28 @@ function renderTrip(){
     up+=`<div class="sec-title">${d.getMonth()+1}月${d.getDate()}日 周${dowOf(iso)}${tag}</div>
     <div class="card rows">${ds.map(orderRowTrip).join('')}</div>`;
   }
-  if(!up)up=`<div class="empty">未来 14 天暂无新预约,点右上角「预约」新增</div>`;
+  if(!up)up=`<div class="empty">点按上方日历查看任意日期,或点右上角「预约」新增</div>`;
   $('#v-trip').innerHTML=`
     <div class="htop-row">
-      <div><div class="eyebrow">${now.getFullYear()}年${now.getMonth()+1}月</div><h1 class="big">行程</h1>
-      <div class="hsub">点按日期查看 · 分享按钮可生成当日行程图</div></div>
+      <div><div class="eyebrow">整月档期 · ‹ › 可翻月</div><h1 class="big">行程</h1>
+      <div class="hsub">点按日期查看当日 · 分享按钮可生成当日行程图</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         ${headBtns(true)}
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
       </div>
     </div>
-    <div class="week">${strip}</div>
+    <div class="mgrid">
+      <div class="mhead">
+        <div class="mtitle">${y}年${m}月<span class="msum">${mOrders.length} 个档期 · ${fmtMoney(mSum)}</span></div>
+        <div class="mnav">
+          <button data-act="mnav" data-d="-1">‹</button>
+          <button data-act="mtoday" class="mtod">今天</button>
+          <button data-act="mnav" data-d="1">›</button>
+        </div>
+      </div>
+      <div class="mgrid-dow">${'一二三四五六日'.split('').map(x=>`<span>周${x}</span>`).join('')}</div>
+      <div class="mgrid-c">${cells}</div>
+    </div>
     <div class="sec-title">${ui.selDay===TODAY?'今日行程':`${+ui.selDay.slice(5,7)}月${+ui.selDay.slice(8,10)}日 周${dowOf(ui.selDay)}`}</div>
     <div class="card rows">${listHtml}</div>
     ${up}`;
@@ -1338,6 +1373,11 @@ document.addEventListener('click',e=>{
     case 'bucket':ui.bucket=t.dataset.bucket;renderPay();break;
     case 'period':ui.period=t.dataset.period;renderStats();break;
     case 'day':ui.selDay=t.dataset.day;renderTrip();break;
+    case 'mnav':{
+      let m=ui.vMon.m+ +t.dataset.d, y=ui.vMon.y;
+      if(m<1){m=12;y--} if(m>12){m=1;y++}
+      ui.vMon={y,m};renderTrip();break;}
+    case 'mtoday':ui.vMon={y:now.getFullYear(),m:now.getMonth()+1};ui.selDay=TODAY;renderTrip();break;
     case 'mark-shot':mark(oid,'shotAt','已记录实际拍摄时间 ✓');break;
     case 'mark-submit':mark(oid,'submittedAt','已标记提审 ✓');break;
     case 'mark-short':mark(oid,'shortAt','已标记发短片 ✓');break;
