@@ -1,0 +1,6 @@
+.DS_Store
+.mimocode/
+node_modules/
+build/
+dist/
+*.log
