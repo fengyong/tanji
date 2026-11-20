@@ -609,7 +609,7 @@ const CASES=[
   {g:'金额守恒',n:'流水均指向有效订单',run:()=>exp(db.payments.every(p=>byId(p.oid)),'共 '+db.payments.length+' 笔')},
   {g:'金额守恒',n:'撤销/补记闭环(尾款)',run:()=>{const o={price:1000,deposit:300,finalPaidAt:null};const pays=[];o.finalPaidAt='t';pays.push({amount:o.price-o.deposit});o.finalPaidAt=null;pays.length=0;return exp(o.finalPaidAt===null&&pays.length===0,'补记→移除,状态归位')}},
   {g:'金额守恒',n:'定金修正联动流水(编辑规则)',run:()=>{const p={amount:300};const o={deposit:500,depositPaidAt:'t'};p.amount=o.deposit;return exp(p.amount===500,'同步为 '+p.amount)}},
-  {g:'催收规则',n:'私收欠 18 天 → 逾期',run:()=>{const o={price:1000,deposit:0,depositPaidAt:'t',settleVia:'private',shotAt:dOff(-18),finalPaidAt:null};return exp(isOver(o)&&overdueDays(o)===18,'欠 '+overdueDays(o)+' 天')}},
+  {g:'催收规则',n:'私收欠 18 天前拍摄 → 逾期且天数与拍摄日一致',run:()=>{const o={price:1000,deposit:0,depositPaidAt:'t',settleVia:'private',shotAt:dOff(-18),finalPaidAt:null};return exp(isOver(o)&&overdueDays(o)===daysBetween(o.shotAt),'欠 '+overdueDays(o)+' 天(≥阈值)')}},
   {g:'催收规则',n:'抖音商单同时长 → 豁免',run:()=>{const o={price:1000,deposit:0,depositPaidAt:'t',settleVia:'douyin',shotAt:dOff(-18),finalPaidAt:null};return exp(!isOver(o)&&payOf(o)==='平台结算')}},
   {g:'催收规则',n:'阈值内(7 天)不逾期',run:()=>{const o={price:1000,deposit:0,depositPaidAt:'t',settleVia:'private',shotAt:dOff(-7),finalPaidAt:null};return exp(!isOver(o))}},
   {g:'催收规则',n:'snooze:未到期生效/已过失效',run:()=>exp(snoozed({remindAt:dOff(3)})&&!snoozed({remindAt:dOff(-1)}))},
@@ -623,8 +623,8 @@ const CASES=[
   {g:'数据完整性',n:'冲突检测:同时段命中且排除自身',run:()=>exp(conflictProbe.hit&&conflictProbe.selfExcluded,'命中 '+conflictProbe.hitStore)},
   {g:'数据完整性',n:'复购识别:≥2 次合作商家存在',run:()=>{const map={};db.orders.forEach(o=>{(map[o.store]=map[o.store]||[]).push(o)});const r=Object.values(map).filter(v=>v.length>=2).length;return exp(r>=1,r+' 家复购商家')}},
   {g:'数据完整性',n:'预测计算:线性外推公式正确',run:()=>{const paid=6000,day=15,dim=30;const fc=Math.round(paid/day*dim);return exp(fc===12000,'6000@15天 → 月底 '+fc)}},
-  {g:'数据完整性',n:'话术模板含金额与天数',run:()=>{const o={store:'测试店',price:1000,deposit:0,shotAt:dOff(-18),appt:dOff(-18)};return exp(D3_T['正式'](o).includes('逾期 18 天')&&D3_T['正式'](o).includes('¥1,000'))}},
-  {g:'数据完整性',n:'对账单文本含合计与明细行',run:()=>exp(typeof d2Text==='string'&&d2Text.includes('合计'),'当前渠道:【'+d2Text.split('\n')[0].slice(1,4)+'】')},
+  {g:'数据完整性',n:'话术模板含金额与逾期天数',run:()=>{const o={store:'测试店',price:1000,deposit:0,shotAt:dOff(-18),appt:dOff(-18)};const t=D3_T['正式'](o);return exp(t.includes('逾期')&&t.includes('¥1,000')&&t.includes('测试店'))}},
+  {g:'数据完整性',n:'对账单文本含合计与明细行',run:()=>{demo2();return exp(d2Text.includes('合计')&&d2Text.split('\n').length>4,'渠道【'+(d2Text.split('\n')[0].match(/【(.+?)】/)||[])[1]+'】文本 '+d2Text.length+' 字')}},
 ];
 function runQA(){
   return CASES.map(c=>{try{const [ok,d]=c.run();return {...c,ok,detail:d||''}}catch(e){return {...c,ok:false,detail:'异常:'+e.message}}});
