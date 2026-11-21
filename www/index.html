@@ -10,6 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="探记"/>
 <meta name="theme-color" content="#F2F2F7"/>
+<script src="cap-plugins.js"></script>
+<script src="storage.js"></script>
 <script type="module">
   import sqlite3InitModule from './vendor/sqlite3.mjs';
   window.sqlite3InitModule=sqlite3InitModule;
@@ -69,12 +71,18 @@
   }
   .view::-webkit-scrollbar{display:none}
   .view.active{display:block}
+  #storage-status{position:absolute;bottom:92px;left:12px;right:12px;z-index:95;background:#FFF5E6;border:1px solid #FFC87A;border-radius:12px;padding:10px;font-size:12px;line-height:1.5;box-shadow:0 3px 12px #0001}
+  #storage-status[hidden]{display:none}
+  #storage-status button{margin:6px 8px 0 0;padding:5px 9px;border:0;border-radius:8px;background:white;color:#955400}
+  button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  input[readonly]{color:var(--sub);background:#F2F2F7}
 
   /* 顶部大标题 */
   .eyebrow{font-size:13px;font-weight:600;color:var(--sub);letter-spacing:.2px;margin-bottom:2px}
-  h1.big{font-size:31px;font-weight:800;letter-spacing:.2px;line-height:1.15}
+  h1.big{font-size:31px;font-weight:800;letter-spacing:.2px;line-height:1.15;white-space:nowrap}
   .hsub{font-size:13px;color:var(--sub);margin-top:5px}
-  .htop-row{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;gap:8px}
+  .htop-row{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;margin-bottom:14px;gap:8px}
+  .htop-row>div:last-child{margin-left:auto}
   .btn-pill{display:inline-flex;align-items:center;gap:4px;background:var(--brand);color:#fff;border:none;border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700;box-shadow:0 3px 10px rgba(255,106,43,.32);flex-shrink:0}
   .btn-pill .ic{width:14px;height:14px}
   .icon-btn{width:36px;height:36px;border-radius:18px;background:#fff;border:none;display:flex;align-items:center;justify-content:center;color:#55555c;box-shadow:0 1px 3px rgba(0,0,0,.1);flex-shrink:0}
@@ -165,6 +173,27 @@
   .wd.sel{background:var(--ink)}
   .wd.sel .wd-num{color:#fff}.wd.sel .wd-dow{color:rgba(255,255,255,.75)}
   .wd.today .wd-num{color:var(--brand)}
+
+  /* 月历 */
+  .mgrid{background:#fff;border-radius:var(--r);padding:12px 10px 10px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:0 4px 10px}
+  .mtitle{font-size:16px;font-weight:800}
+  .mtitle .msum{font-size:11.5px;color:var(--sub);font-weight:600;margin-left:6px}
+  .mnav{display:flex;gap:6px;align-items:center}
+  .mnav button{min-width:32px;height:30px;padding:0 8px;border-radius:15px;background:#F1F1F5;border:none;font-size:15px;font-weight:700;color:#55555c;font-family:inherit}
+  .mnav button:active{opacity:.7}
+  .mnav .mtod{font-size:12px}
+  .mgrid-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:10.5px;color:var(--sub);text-align:center;padding:2px 0 6px;font-weight:600}
+  .mgrid-c{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .mc{position:relative;aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;font-family:inherit;padding:0;min-width:0}
+  .mc .n{font-size:13.5px;font-weight:700;color:#3c3c43;line-height:1}
+  .mc .d{display:flex;gap:2px;height:4px;flex-wrap:wrap;justify-content:center;max-width:90%}
+  .mc .d i{width:3.5px;height:3.5px;border-radius:50%;background:var(--brand);display:block}
+  .mc .bdg{position:absolute;top:1px;right:2px;font-size:10px;line-height:1;pointer-events:none}
+  .mc.sel{background:var(--ink)}
+  .mc.sel .n{color:#fff}
+  .mc.today .n{color:var(--brand)}
+  .mc:active{background:#F1F1F5}
 
   /* 图表 */
   .bars{display:flex;align-items:flex-end;gap:2px;height:118px;margin-top:12px}
@@ -301,6 +330,13 @@
       </button>
     </nav>
 
+    <div id="storage-status" role="status" hidden><span></span><div><button data-act="retry-storage">重试保存 / 读取</button><button data-act="export-json">导出备份</button><button data-act="export-checkpoint">导出替换前备份</button></div></div>
+    <input id="import-file" type="file" accept=".json,application/json" hidden>
+    <div class="sheet" id="sheet-import">
+      <div class="grabber"></div>
+      <div class="sheet-head"><span class="sheet-title">恢复 JSON 备份</span><button class="sheet-close" data-act="close-sheet" aria-label="取消导入">×</button></div>
+      <div class="sheet-body"><p id="import-summary" style="line-height:1.8;overflow-wrap:anywhere"></p><button class="btn primary" data-act="confirm-import" style="margin-top:16px">确认替换并恢复</button></div>
+    </div>
     <div class="mask" id="mask" data-act="close-sheet"></div>
 
     <div class="sheet" id="sheet-detail">
@@ -336,9 +372,9 @@
         <div class="frow"><label>商家名称</label><input id="f-store" placeholder="如:澄川咖啡·滨江店"></div>
         <div class="frow"><label>类型</label>
           <select id="f-cat">
-            <option>咖啡</option><option>餐饮</option><option>茶饮</option><option>甜品</option>
+            <option>餐饮</option><option>咖啡</option><option>烧烤</option><option>火锅</option><option>茶饮</option><option>甜品</option>
             <option>烘焙</option><option>美发</option><option>健身</option><option>民宿</option>
-            <option>零售</option><option>体验馆</option><option>其他</option>
+            <option>零售</option><option>体验馆</option><option>服饰</option><option>快餐</option><option>其他</option>
           </select>
         </div>
         <div class="frow"><label>结算方式</label>
@@ -347,10 +383,12 @@
             <option value="douyin">抖音商单(平台结算)</option>
           </select>
         </div>
+        <div class="frow"><label>渠道</label><input id="f-channel" placeholder="如:蜂向/小爱/金城/食物,直客可空"></div>
+        <div class="frow"><label>出镜</label><input id="f-partner" placeholder="出镜搭档,如:花花;单人拍摄可空"></div>
         <div class="frow"><label>预约日期</label><input id="f-date" type="date"></div>
         <div class="frow"><label>预约时间</label><input id="f-time" type="time" value="10:00"></div>
-        <div class="frow"><label>总价(¥)</label><input id="f-price" type="number" inputmode="numeric" placeholder="如 1200"></div>
-        <div class="frow"><label>定金(¥)</label><input id="f-deposit" type="number" inputmode="numeric" placeholder="0 表示未约定定金"></div>
+        <div class="frow"><label>总价(¥)</label><input id="f-price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="如 1200"></div>
+        <div class="frow"><label>定金(¥)</label><input id="f-deposit" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0 表示未约定定金"></div>
         <div class="frow"><label>联系方式</label><input id="f-contact" placeholder="店长 / 电话"></div>
         <div class="frow"><label>备注</label><textarea id="f-note" rows="2" placeholder="拍摄要点、机位、交付要求…"></textarea></div>
         <div class="banner-amber" id="f-conflict"></div>
@@ -359,6 +397,15 @@
           <button class="btn primary" data-act="save-order">保存预约</button>
         </div>
       </div>
+    </div>
+
+    <div class="sheet" id="sheet-edit">
+      <div class="grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title">编辑订单</span>
+        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet-body" id="edit-body"></div>
     </div>
 
     <div class="sheet" id="sheet-schema">
@@ -385,34 +432,46 @@
   </div>
 
   <div class="caption">
-    <b>探记 TanJi · v0.2</b>(探店达人的行程与收款)<br>
+    <b>探记 TanJi · v0.4</b>(探店达人的行程与收款)<br>
     新建预约 / 时段冲突提醒 / 标记拍摄·提审·发片 / 收定金·尾款(记录渠道) / 1·3·7 天催收备忘 / 隐私模式 / 今日行程分享图 / 本机 SQLite 存储 + 导出 — 添加到主屏幕可当独立 App 用
   </div>
 </div>
 
-<script src="cap-plugins.js"></script>
 <script>
 /* ================= 工具 ================= */
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
-const now=new Date();
-const TODAY=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
-function dOff(days,hm='10:00'){const t=new Date(now);t.setDate(t.getDate()+days);return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}T${hm}`}
+let now=new Date();
+let TODAY=toISO(now);
+function refreshClock(){
+  const previous=TODAY;now=new Date();TODAY=toISO(now);
+  if(previous!==TODAY&&ui.selDay===previous){ui.selDay=TODAY;ui.vMon={y:now.getFullYear(),m:now.getMonth()+1}}
+}
+function dOff(days,hm='10:00'){const t=new Date();t.setDate(t.getDate()+days);return `${toISO(t)}T${hm}`}
+function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function validDateTime(value){
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?$/.test(value))return false;
+  const d=new Date(value);
+  return Number.isFinite(d.getTime())&&toISO(d)===value.slice(0,10)&&`${pad(d.getHours())}:${pad(d.getMinutes())}`===value.slice(11,16);
+}
 function nowStr(){const n=new Date();return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}T${pad(n.getHours())}:${pad(n.getMinutes())}`}
 function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function fmtD(s){if(!s)return '—';const d=new Date(s);return `${d.getMonth()+1}-${pad(d.getDate())}`}
 function fmtHM(s){return s?s.slice(11,16):'—'}
 function fmtDT(s){return s?`${fmtD(s)} ${fmtHM(s)}`:'—'}
-function fmtMoney(n){return ui.privacy?'¥✱✱✱':'¥'+Math.round(n).toLocaleString('zh-CN')}
-const DOW='一二三四五六日',dowOf=s=>DOW[(new Date(s).getDay()+6)%7];
-function daysBetween(fromStr){const f=new Date(fromStr);return Math.max(0,Math.floor((now-f)/864e5))}
-function greeting(){const h=now.getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
+function fmtMoney(n){return ui.privacy?'¥✱✱✱':'¥'+n.toLocaleString('zh-CN',{maximumFractionDigits:2})}
+const DOW='一二三四五六日',dowOf=s=>DOW[(new Date(s.length===10?s+'T00:00':s).getDay()+6)%7];
+function daysBetween(fromStr){
+  const f=new Date(fromStr),t=new Date();
+  return Math.max(0,Math.round((Date.UTC(t.getFullYear(),t.getMonth(),t.getDate())-Date.UTC(f.getFullYear(),f.getMonth(),f.getDate()))/864e5));
+}
+function greeting(){const h=new Date().getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
 
 /* ================= UI 状态(先于数据定义,fmtMoney 依赖) ================= */
-const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null};
+const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1}};
 
-/* ================= 种子数据(相对今天生成,首启后即为用户真实数据) ================= */
-function seed(){
+/* ================= 独立演示数据 ================= */
+function demoSeed(){
   const O=[
     {id:1, store:'麓野日料·万象城店', cat:'餐饮', contact:'王店长 138****2043', price:1600, deposit:500, settleVia:'private',
      appt:dOff(0,'14:00'), shotAt:null, submittedAt:null, shortAt:null, longAt:null,
@@ -474,58 +533,8 @@ function seed(){
   return {orders:O, payments:P, threshold:15};
 }
 
-/* ================= 持久化(平台自适应) =================
- * Web/PWA:IndexedDB(真实 SQLite .db 字节) + localStorage 双保险
- * iOS 原生(Capacitor):@capacitor-community/sqlite,App 沙盒内 orders/payments/settings 三表
- * 两侧表结构一致(nativeOpen 的 CREATE TABLE 与 buildSqliteBytes 同构),
- * Web 导出的 .db 与原生库可直接互换打开。
- * =================================================================== */
-let db=seed();
-const CAP=(typeof window!=='undefined'&&window.TanjiCap)||null;
-const isNative=!!(CAP&&CAP.Capacitor&&CAP.Capacitor.isNativePlatform&&CAP.Capacitor.isNativePlatform());
-const Store={sqlite3:null,conn:null};
-const idb={_db:null,
-  open(){return new Promise(res=>{if(this._db)return res(this._db);try{
-    const r=indexedDB.open('tanji',1);
-    r.onupgradeneeded=()=>r.result.createObjectStore('kv');
-    r.onsuccess=()=>{this._db=r.result;res(this._db)};
-    r.onerror=()=>res(null);
-  }catch(e){res(null)}})},
-  get(k){return this.open().then(d=>new Promise(res=>{if(!d)return res(null);try{
-    const t=d.transaction('kv').objectStore('kv').get(k);t.onsuccess=()=>res(t.result||null);t.onerror=()=>res(null);
-  }catch(e){res(null)}}))},
-  set(k,v){return this.open().then(d=>new Promise(res=>{if(!d)return res();try{
-    const t=d.transaction('kv','readwrite').objectStore('kv').put(v,k);t.onsuccess=()=>res();t.onerror=()=>res();
-  }catch(e){res()}}))}
-};
-let persistTimer=null;
-function save(){
-  if(isNative){clearTimeout(persistTimer);persistTimer=setTimeout(nativePersist,300);return}
-  try{localStorage.setItem('tanji_v2',JSON.stringify({threshold:db.threshold,orders:db.orders,payments:db.payments}))}catch(e){}
-  clearTimeout(persistTimer);persistTimer=setTimeout(persistFull,400);
-}
-async function persistFull(){
-  if(isNative)return; // 原生走 nativePersist(SQLite)
-  const payload={v:2,savedAt:nowStr(),threshold:db.threshold,orders:db.orders,payments:db.payments};
-  await idb.set('json',payload);
-  const bytes=buildSqliteBytes();
-  if(bytes)await idb.set('sqlite',bytes);
-}
-async function loadState(){
-  if(isNative)return nativeLoad();
-  const j=await idb.get('json');
-  if(j&&Array.isArray(j.orders)&&j.orders.length){
-    db={orders:j.orders,payments:j.payments||[],threshold:j.threshold||15};return true;
-  }
-  try{
-    const ls=JSON.parse(localStorage.getItem('tanji_v2')||localStorage.getItem('tanstore_v1')||'null');
-    if(ls&&Array.isArray(ls.orders)&&ls.orders.length){
-      db={orders:ls.orders,payments:ls.payments||[],threshold:ls.threshold||15};return true;
-    }
-  }catch(e){}
-  return false;
-}
-function buildSqliteBytes(){
+/* ================= 持久化:IndexedDB(真实 SQLite .db 字节) + localStorage 双保险 ================= */
+function buildSqliteBytes(state=db){
   if(!Store.sqlite3)return null;
   try{
     const s=Store.sqlite3;
@@ -535,26 +544,27 @@ function buildSqliteBytes(){
       price REAL NOT NULL, deposit REAL DEFAULT 0,
       appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
       deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+      channel TEXT, partner TEXT,
       note TEXT, created_at TEXT, updated_at TEXT);
     CREATE TABLE IF NOT EXISTS payments(
       id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
       paid_at TEXT, method TEXT, note TEXT);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
-    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-    db.orders.forEach(o=>{
+    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    state.orders.forEach(o=>{
       so.bind([o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
-               o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.note||null,null,null]);
+               o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.channel||null,o.partner||null,o.note||null,null,null]);
       so.step();so.reset();
     });
     so.finalize();
     const sp=d.prepare('INSERT INTO payments (order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?)');
-    db.payments.forEach(p=>{
+    state.payments.forEach(p=>{
       sp.bind([p.oid,p.kind,p.amount,p.at,p.method,p.note||null]);sp.step();sp.reset();
     });
     sp.finalize();
     const ss=d.prepare('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)');
-    ss.bind(['collect_threshold_days',String(db.threshold)]);ss.step();ss.reset();
-    ss.bind(['app_version','0.2']);ss.step();ss.reset();
+    ss.bind(['collect_threshold_days',String(state.threshold)]);ss.step();ss.reset();
+    ss.bind(['app_version','0.4']);ss.step();ss.reset();
     ss.bind(['exported_at',nowStr()]);ss.step();ss.reset();
     ss.finalize();
     const bytes=s.capi.sqlite3_js_db_export(d.pointer);
@@ -571,129 +581,6 @@ async function initSqlite(){
   }catch(e){return null}
 }
 
-/* --- 原生:Capacitor SQLite(SQLiteDBConnection 行对象 ↔ camelCase 模型) --- */
-const NATIVE_DB='tanji';
-const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','note','created_at','updated_at'];
-async function nativeOpen(){
-  if(Store.conn)return Store.conn;
-  const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
-  const conn=await sqlite.createConnection(NATIVE_DB,false,'no-encryption',1,false);
-  await conn.open();
-  await conn.execute(
-`CREATE TABLE IF NOT EXISTS orders(
-  id INTEGER PRIMARY KEY, store TEXT NOT NULL, category TEXT, contact TEXT,
-  price REAL NOT NULL, deposit REAL DEFAULT 0,
-  appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
-  deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
-  note TEXT, created_at TEXT, updated_at TEXT);
-CREATE TABLE IF NOT EXISTS payments(
-  id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
-  paid_at TEXT, method TEXT, note TEXT);
-CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`,true);
-  Store.conn=conn;
-  return conn;
-}
-function rowToOrder(r){
-  return {id:r.id,store:r.store,cat:r.category??'',contact:r.contact??'',price:r.price??0,deposit:r.deposit??0,
-    appt:r.appt_at??'',shotAt:r.shot_at??null,submittedAt:r.submitted_at??null,shortAt:r.short_sent_at??null,
-    longAt:r.long_sent_at??null,depositPaidAt:r.deposit_paid_at??null,finalPaidAt:r.final_paid_at??null,
-    settleVia:r.settle_via||'private',remindAt:r.remind_at??null,note:r.note??''};
-}
-function rowToPayment(r){return {oid:r.order_id,kind:r.kind??'',amount:r.amount??0,at:r.paid_at??'',method:r.method??''}}
-async function nativePersist(){
-  if(!isNative||!db)return;
-  try{
-    const conn=await nativeOpen(),ts=nowStr();
-    const set=[{statement:'DELETE FROM payments'},{statement:'DELETE FROM orders'}];
-    db.orders.forEach(o=>set.push({statement:`INSERT INTO orders (${ORD_COLS.join(',')}) VALUES (${ORD_COLS.map(()=>'?').join(',')})`,values:[o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.note||null,ts,ts]}));
-    db.payments.forEach(p=>set.push({statement:'INSERT INTO payments (order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?)',values:[p.oid,p.kind,p.amount,p.at,p.method||null,p.note||null]}));
-    set.push({statement:'INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)',values:['collect_threshold_days',String(db.threshold??15)]});
-    set.push({statement:'INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)',values:['notify_enabled',db.notifyEnabled===false?'off':'on']});
-    set.push({statement:'INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)',values:['app_version','0.2-native']});
-    await conn.executeSet(set,true);
-  }catch(e){console.error('[TanJi] SQLite 持久化失败',e);toast('本地保存失败,请重试')}
-}
-async function nativeLoad(){
-  const conn=await nativeOpen();
-  const so=await conn.query('SELECT key,value FROM settings');
-  const s={};(so.values||[]).forEach(r=>{s[r.key]=r.value});
-  const fo=await conn.query('SELECT * FROM orders ORDER BY id');
-  const po=await conn.query('SELECT * FROM payments ORDER BY id');
-  const orders=(fo.values||[]).map(rowToOrder),payments=(po.values||[]).map(rowToPayment);
-  if(!orders.length){db=seed();await nativePersist();return true} // 首次安装:写入示例数据
-  db={orders,payments,threshold:+(s.collect_threshold_days??15)||15};
-  if(s.notify_enabled==='off')db.notifyEnabled=false;
-  return true;
-}
-
-/* ================= 本地通知(仅 iOS 原生生效) =================
- * 催收刻意做轻:每天 09:00 一条汇总提醒(只报条数与最长天数,不含金额);
- * v0.2 的「1/3/7 天催收备忘」(snooze)在原生环境升级为真·本地通知。
- * 通知 id 约定:每日汇总 = 1;单订单提醒 = 100000 + orderId*100 + 天数。
- * ================================================================= */
-const Notify={
-  native(){return isNative&&CAP&&CAP.LocalNotifications},
-  async ensurePermission(){
-    const L=CAP.LocalNotifications;
-    let p=await L.checkPermissions();
-    if(p.display!=='granted')p=await L.requestPermissions();
-    return p.display==='granted';
-  },
-  async syncDaily(){ // 每日催收提醒:清掉旧的每日排程,按当前逾期数据重排(不动单订单提醒)
-    if(!this.native())return;
-    try{
-      const L=CAP.LocalNotifications;
-      const pend=await L.getPending();
-      const oldDaily=(pend.notifications||[]).filter(n=>+n.id===1);
-      if(oldDaily.length)await L.cancel({notifications:oldDaily});
-      const over=db.orders.filter(o=>isOver(o)&&!snoozed(o));
-      if(!over.length||db.notifyEnabled===false)return;
-      if(!await this.ensurePermission())return;
-      const maxD=Math.max(...over.map(overdueDays));
-      await L.schedule({notifications:[{
-        id:1,
-        title:'探记 · 尾款催收',
-        body:`${over.length} 笔尾款已逾期,最长 ${maxD} 天 —— 今日安排一次跟进`,
-        schedule:{on:{hour:9,minute:0},repeats:true,allowWhileIdle:true},
-      }]});
-    }catch(e){console.warn('[TanJi] 催收提醒排程失败',e)}
-  },
-  async scheduleSnooze(o,d){ // snooze 备忘 → 原生一次性通知,时刻与 remindAt 一致(09:00)
-    if(!this.native())return;
-    try{
-      if(!await this.ensurePermission())return;
-      const L=CAP.LocalNotifications;
-      const pend=await L.getPending();
-      // 取消该订单的旧单次提醒:id 形如 100000+oid*100+d
-      const mine=(pend.notifications||[]).filter(n=>{const v=+n.id-100000;return v>=0&&Math.floor(v/100)===o.id&&v%100!==0});
-      if(mine.length)await L.cancel({notifications:mine});
-      const at=new Date(o.remindAt);
-      if(isNaN(at))return;
-      await L.schedule({notifications:[{
-        id:100000+o.id*100+d,
-        title:'探记 · 催收跟进',
-        body:`「${o.store}」尾款该跟进了(${d} 天前设置的提醒)`,
-        schedule:{at,allowWhileIdle:true},
-      }]});
-    }catch(e){console.warn('[TanJi] 单次提醒排程失败',e)}
-  },
-  async cancelAll(){
-    if(!this.native())return;
-    try{
-      const L=CAP.LocalNotifications,pend=await L.getPending();
-      const ours=(pend.notifications||[]).filter(n=>+n.id===1||+n.id>=100000);
-      if(ours.length)await L.cancel({notifications:ours});
-    }catch(e){}
-  },
-  async toggle(){
-    db.notifyEnabled=(db.notifyEnabled===false); // 默认开启,false 为关闭
-    save();renderAll();
-    if(db.notifyEnabled!==false)await this.syncDaily();
-    else await this.cancelAll();
-    toast(db.notifyEnabled!==false?'已开启每日催收提醒(每天 09:00)':'已关闭每日催收提醒');
-  }
-};
-
 /* ================= 派生逻辑(双轨状态机) ================= */
 function workOf(o){
   if(!o.shotAt)return '待拍摄';
@@ -701,40 +588,76 @@ function workOf(o){
   if(o.shortAt&&o.longAt)return '已交付';
   return '发片中';
 }
-function unDep(o){return (!o.depositPaidAt&&o.deposit>0)?o.deposit:0}
-function unFin(o){return o.finalPaidAt?0:(o.price-o.deposit)}
-function owedOf(o){return unDep(o)+unFin(o)}
+function moneyCents(value,blankZero=false){
+  if(typeof value!=='number'&&typeof value!=='string')return null;
+  const text=String(value).trim();
+  if(!text)return blankZero?0:null;
+  if(!/^\d+(?:\.\d{1,2})?$/.test(text))return null;
+  const [whole,fraction='']=text.split('.');
+  const cents=Number(whole)*100+Number(fraction.padEnd(2,'0'));
+  return Number.isSafeInteger(cents)&&cents>=0?cents:null;
+}
+function orderMoney(o){
+  const price=moneyCents(o.price),deposit=moneyCents(o.deposit);
+  return price!==null&&deposit!==null&&deposit<=price?{price,deposit,final:price-deposit}:null;
+}
+function paymentSpec(kind){
+  if(kind==='deposit')return {field:'depositPaidAt',label:'定金'};
+  if(kind==='final')return {field:'finalPaidAt',label:'尾款'};
+  return null;
+}
+function hasReceipt(o,kind){
+  const spec=paymentSpec(kind);
+  return !!(spec&&(o[spec.field]||db.payments.some(p=>p.oid===o.id&&(p.kind===spec.label||p.kind===kind))));
+}
+function hasAnyReceipt(o){return !!(o.depositPaidAt||o.finalPaidAt||db.payments.some(p=>p.oid===o.id))}
+function unDep(o){const m=orderMoney(o);return m&&!hasReceipt(o,'deposit')?m.deposit/100:0}
+function unFin(o){const m=orderMoney(o);return m&&!hasReceipt(o,'final')?m.final/100:0}
+function owedOf(o){return Math.round((unDep(o)+unFin(o))*100)/100}
 function payOf(o){
-  if(o.finalPaidAt)return '已结清';
   if(unDep(o)>0)return '待定金';
+  if(unFin(o)<=0)return '已结清';
   if(o.settleVia==='douyin')return '平台结算'; // 平台结算尾款不催收、不逾期
   return '待尾款';
 }
 function overdueDays(o){
-  if(payOf(o)!=='待尾款')return 0;
-  return daysBetween(o.shotAt||o.appt);
+  if(o.settleVia==='douyin'||unFin(o)<=0||!validDateTime(o.shotAt))return 0;
+  return daysBetween(o.shotAt);
 }
 function snoozed(o){return !!(o.remindAt&&o.remindAt>nowStr())}
-function isOver(o){return payOf(o)==='待尾款'&&overdueDays(o)>=db.threshold}
+function isOver(o){return o.settleVia!=='douyin'&&unFin(o)>0&&validDateTime(o.shotAt)&&overdueDays(o)>=db.threshold}
 
 const WORK_CLS={'待拍摄':'c-blue','后期中':'c-purple','发片中':'c-orange','已交付':'c-green'};
 const PAY_CLS={'待定金':'c-gray','待尾款':'c-orange','平台结算':'c-blue','已逾期':'c-red','已结清':'c-green'};
 const METHODS=['微信','支付宝','银行卡','抖音商单','其他'];
 const METHOD_CLS={'微信':'c-green','支付宝':'c-blue','银行卡':'c-orange','抖音商单':'c-ink','其他':'c-gray'};
-function payChip(o){const s=payOf(o);const label=s==='待尾款'&&isOver(o)?'已逾期':s;return `<span class="chip ${PAY_CLS[label]}">${label}</span>`}
+function payChip(o){const s=payOf(o);const label=isOver(o)?'已逾期':s;return `<span class="chip ${PAY_CLS[label]}">${label}</span>`}
 function workChip(o){return `<span class="chip ${WORK_CLS[workOf(o)]}">${workOf(o)}</span>`}
 const byId=id=>db.orders.find(o=>o.id===id);
 const storeOf=id=>{const o=byId(id);return o?o.store:''};
 
+/* ================= 单日勋章(激励) =================
+ * ⭐ 忙碌日 ≥3 单 · 🔥 爆单 ≥5 单(点封顶 6)
+ * 💰 千元日 ≥¥1,000 · 💎 王牌日 ≥¥2,500
+ * 同日多枚只显示最高档:💎 > 🔥 > 💰 > ⭐
+ * 阈值按大王 11 月真实峰值(单日 5 单 / ¥2,630)校准,确保可达 */
+function dayBadge(n,sum){
+  if(sum>=2500)return {e:'💎',t:'王牌日'};
+  if(n>=5)return {e:'🔥',t:'爆单'};
+  if(sum>=1000)return {e:'💰',t:'千元日'};
+  if(n>=3)return {e:'⭐',t:'忙碌日'};
+  return null;
+}
+
 /* ================= 导出 ================= */
-function blobToBase64(blob){ // 二进制 → base64(供 Filesystem 写 PNG/.db)
+function blobToBase64(blob){
   return new Promise((res,rej)=>{
     const fr=new FileReader();
     fr.onload=()=>res(String(fr.result).split(',')[1]||'');
     fr.onerror=rej;fr.readAsDataURL(blob);
   });
 }
-async function nativeShareFile(name,content){ // 原生:写 Cache 临时文件 + 系统分享面板
+async function nativeShareFile(name,content){
   const {Filesystem,Directory,Encoding,Share}=CAP;
   const opts={path:name,directory:Directory.Cache};
   if(typeof content==='string'){opts.data=content;opts.encoding=Encoding.UTF8}
@@ -743,9 +666,9 @@ async function nativeShareFile(name,content){ // 原生:写 Cache 临时文件 +
   await Share.share({title:name,url:res.uri,dialogTitle:'分享导出'});
 }
 function download(name,content,type){
-  if(isNative&&CAP&&CAP.Filesystem&&CAP.Share){ // 原生:CSV/JSON/.db/PNG 全部走系统分享
+  if(isNative&&CAP&&CAP.Filesystem&&CAP.Share){ // 原生:全部导出走系统分享面板
     nativeShareFile(name,content).then(()=>toast('已调起系统分享 ✓'))
-      .catch(e=>{console.error('导出失败',e);toast('导出失败:'+(e?.message||e))});
+      .catch(e=>{console.error('导出失败',e);toast('导出失败:'+(e&&e.message||e))});
     return;
   }
   const isText=typeof content==='string';
@@ -754,18 +677,18 @@ function download(name,content,type){
   a.href=URL.createObjectURL(blob);a.download=name;a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),2500);
 }
-function q(v){return `"${String(v??'').replace(/"/g,'""')}"`}
+function q(v){const text=String(v??'');return `"${(typeof v==='string'&&/^[\s]*[=+@-]/.test(text)?"'"+text:text).replace(/"/g,'""')}"`}
 function exportCsv(){
-  const head=['ID','商家','类型','结算方式','联系方式','总价','定金','预约时间','实际拍摄','提审时间','短片发出','长片发出','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
-  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',o.note].map(q).join(','));
+  const head=['ID','商家','类型','结算方式','渠道','出镜搭档','联系方式','总价','定金','预约时间','实际拍摄','提审时间','短片发出','长片发出','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
+  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.channel||'',o.partner||'',o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',o.note].map(q).join(','));
   const phead=['序号','订单ID','商家','类型','金额','到账时间','收款方式'];
   const plines=db.payments.map((p,i)=>[i+1,p.oid,storeOf(p.oid),p.kind,p.amount,p.at,p.method].map(q).join(','));
   download(`探记-导出-${TODAY}.csv`,[head.map(q).join(','),...lines,'','',phead.map(q).join(','),...plines].join('\n'),'text/csv;charset=utf-8');
   toast('已导出 CSV(订单 + 流水)✓');
 }
 function exportJson(){
-  download(`探记-备份-${TODAY}.json`,JSON.stringify({app:'探记 TanJi',version:'0.2',exportedAt:nowStr(),collectThresholdDays:db.threshold,orders:db.orders,payments:db.payments},null,2),'application/json');
-  toast('已导出 JSON 备份 ✓');
+  download(`探记-${Store.mode==='work'?'工作':'演示'}备份-${toISO(new Date())}.json`,JSON.stringify(backupDocument(),null,2),'application/json');
+  toast('已导出 JSON 备份');
 }
 function exportDb(){
   const bytes=buildSqliteBytes();
@@ -791,6 +714,8 @@ CREATE TABLE orders (
   settle_via     TEXT DEFAULT 'private',
                  <span class="c">-- 结算方式:private 私收 / douyin 抖音商单(平台结算,不催收)</span>
   remind_at      TEXT,           <span class="c">-- 催收备忘:下次提醒时间(1/3/7 天)</span>
+  channel        TEXT,           <span class="c">-- 渠道/机构:蜂向、小爱、金城、食物、直客…</span>
+  partner        TEXT,           <span class="c">-- 出镜搭档:花花、邱邱…(空=不组队/未记)</span>
   note           TEXT,
   created_at     TEXT, updated_at TEXT
 );
@@ -814,153 +739,263 @@ $('#schema-pre').innerHTML=SCHEMA;
 
 /* ================= 新建预约(含时段冲突提醒,不禁止) ================= */
 function toMin(appt){return +appt.slice(11,13)*60 + +appt.slice(14,16)}
+function conflictFor(date,time,excludeId){
+  if(!date)return '';
+  const same=db.orders.filter(o=>validDateTime(o.appt)&&o.appt.slice(0,10)===date&&o.id!==excludeId);
+  if(!same.length)return '';
+  const t=toMin(date+'T'+time);
+  const overlap=same.filter(o=>Math.abs(toMin(o.appt)-t)<=120);
+  if(overlap.length)return `<b>该时段已有排期:</b>${overlap.map(o=>`「${esc(o.store)}」${esc(fmtHM(o.appt))}`).join('、')}。不影响保存——可找人代拍或错峰。`;
+  return `当天已有 ${same.length} 个排期:${same.map(o=>`${esc(o.store)} ${esc(fmtHM(o.appt))}`).join('、')}`;
+}
 function updateConflict(){
   const el=$('#f-conflict');
   const date=$('#f-date').value,time=$('#f-time').value||'10:00';
-  if(!date){el.style.display='none';return}
-  const same=db.orders.filter(o=>o.appt.slice(0,10)===date);
-  if(!same.length){el.style.display='none';return}
-  const t=toMin(date+'T'+time);
-  const overlap=same.filter(o=>Math.abs(toMin(o.appt)-t)<=120);
-  if(overlap.length){
-    el.innerHTML=`<b>⚠️ 该时段已有排期:</b>${overlap.map(o=>`「${o.store}」${fmtHM(o.appt)}`).join('、')}。不影响保存——可找人代拍或错峰。`;
-  }else{
-    el.innerHTML=`当天已有 ${same.length} 个排期:${same.map(o=>`${o.store} ${fmtHM(o.appt)}`).join('、')}`;
-  }
-  el.style.display='block';
+  const msg=conflictFor(date,time,0);
+  if(msg){el.innerHTML=msg;el.style.display='block'}else el.style.display='none';
 }
 function openNew(){
   $('#f-store').value='';$('#f-price').value='';$('#f-deposit').value='';
   $('#f-contact').value='';$('#f-note').value='';$('#f-settle').value='private';
+  $('#f-channel').value='';$('#f-partner').value='';
   $('#f-date').value=TODAY;$('#f-time').value='10:00';$('#f-err').style.display='none';
   updateConflict();
   showSheet('sheet-new');
 }
 function saveOrder(){
-  const store=$('#f-store').value.trim(),price=parseFloat($('#f-price').value);
-  if(!store||!price){$('#f-err').style.display='block';return}
-  const deposit=parseFloat($('#f-deposit').value)||0;
-  const date=$('#f-date').value||TODAY,time=$('#f-time').value||'10:00';
-  const o={id:Math.max(...db.orders.map(x=>x.id))+1,store,cat:$('#f-cat').value,
-    contact:$('#f-contact').value.trim(),price,deposit,settleVia:$('#f-settle').value,
-    appt:`${date}T${time}`,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
+  const fail=message=>{const el=$('#f-err');el.textContent=message;el.style.display='block'};
+  const store=$('#f-store').value.trim();
+  const priceCents=moneyCents($('#f-price').value),depositCents=moneyCents($('#f-deposit').value,true);
+  if(!store){fail('请填写商家名称');return}
+  if(priceCents===null||depositCents===null||depositCents>priceCents){fail('总价和定金须为有效非负金额，最多两位小数，定金不能超过总价');return}
+  const date=$('#f-date').value||TODAY,time=$('#f-time').value||'10:00',appt=`${date}T${time}`;
+  const settleVia=$('#f-settle').value;
+  if(!validDateTime(appt)){fail('请填写有效的预约日期和时间');return}
+  if(!['private','douyin'].includes(settleVia)){fail('请选择有效的结算方式');return}
+  const maxId=db.orders.reduce((max,x)=>Number.isSafeInteger(x.id)&&x.id>0?Math.max(max,x.id):NaN,0);
+  const id=maxId+1;
+  if(!Number.isSafeInteger(id)||id<1){fail('订单编号超出安全范围或已有异常编号，无法新建');return}
+  const o={id,store,cat:$('#f-cat').value,
+    contact:$('#f-contact').value.trim(),price:priceCents/100,deposit:depositCents/100,settleVia,
+    channel:$('#f-channel').value.trim()||'直客',partner:$('#f-partner').value.trim(),
+    appt,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
     depositPaidAt:null,finalPaidAt:null,remindAt:null,note:$('#f-note').value.trim()};
   db.orders.push(o);save();
-  closeSheets();ui.selDay=date;showTab('trip');renderAll();
-  toast(`已添加预约:${store} ✓`);
+  closeSheets();ui.selDay=date;ui.vMon={y:+date.slice(0,4),m:+date.slice(5,7)};showTab('trip');renderAll();
+  toast(`已添加预约:${store}`);
+}
+
+/* ================= 编辑订单(全环节可改) ================= */
+const EDIT_FIELDS=['e-store','e-cat','e-settle','e-channel','e-partner','e-date','e-time','e-price','e-deposit','e-contact','e-note'];
+function editDraft(){return JSON.stringify(EDIT_FIELDS.map(id=>$('#'+id).value))}
+function renderEditReceipts(o){
+  const locked=hasAnyReceipt(o);
+  $('#e-price').readOnly=locked;$('#e-deposit').readOnly=locked;
+  $('#e-money-help').textContent=locked?'已有收款记录或已收标记，不能修改总价和定金；请先撤销错误收款再改。':'金额最多两位小数，定金不能超过总价；支持 0 元无定金。';
+  $('#e-payments').innerHTML=['deposit','final'].map(kind=>{
+    const spec=paymentSpec(kind),received=hasReceipt(o,kind),due=kind==='deposit'?unDep(o):unFin(o);
+    if(!received&&due<=0)return '';
+    return `<button class="btn ${received?'ghost':kind==='deposit'?'tint-blue':'tint-green'}" data-act="${kind==='deposit'?'toggle-dep':'toggle-fin'}" data-oid="${esc(o.id)}">${received?'撤销'+spec.label+'记录':'补记'+spec.label+'已收'}</button>`;
+  }).join('')||'<div class="rsub">没有待收款项或可撤销的收款记录</div>';
+}
+function toggleReceipt(oid,kind){
+  const o=byId(oid),spec=paymentSpec(kind);
+  if(!o||!spec||ui.editId!==oid)return;
+  if(hasReceipt(o,kind)){
+    if(!confirm('撤销'+spec.label+'记录并删除对应流水？仅用于纠正错误收款，不表示退款。'))return;
+    o[spec.field]=null;
+    db.payments=db.payments.filter(p=>!(p.oid===oid&&(p.kind===spec.label||p.kind===kind)));
+    save();renderAll();toast('已撤销'+spec.label+'记录(含流水)');
+  }else{
+    if(editDraft()!==ui.editSnapshot){toast('有未保存的修改，请先保存，再补记收款');return}
+    if(!pay(oid,kind,o.settleVia==='douyin'?'抖音商单':'微信'))return;
+  }
+  renderEditReceipts(o);
+}
+function openEdit(oid){
+  const o=byId(oid);if(!o)return;
+  ui.editId=oid;ui.payCtx=null;
+  const cats=['咖啡','餐饮','烧烤','火锅','茶饮','甜品','烘焙','美发','健身','民宿','零售','体验馆','服饰','快餐','其他'];
+  const catOpts=[...new Set([o.cat||'其他',...cats])];
+  $('#edit-body').innerHTML=`
+    <div class="frow"><label>商家名称</label><input id="e-store" value="${esc(o.store||'')}"></div>
+    <div class="frow"><label>类型</label><select id="e-cat">${catOpts.map(c=>`<option ${c===o.cat?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+    <div class="frow"><label>结算方式</label><select id="e-settle"><option value="private" ${o.settleVia!=='douyin'?'selected':''}>私收(微信/支付宝/银行卡)</option><option value="douyin" ${o.settleVia==='douyin'?'selected':''}>抖音商单(平台结算)</option></select></div>
+    <div class="frow"><label>渠道</label><input id="e-channel" value="${esc(o.channel||'')}" placeholder="如:蜂向/小爱/金城/食物"></div>
+    <div class="frow"><label>出镜</label><input id="e-partner" value="${esc(o.partner||'')}" placeholder="出镜搭档,单人拍摄可空"></div>
+    <div class="frow"><label>预约日期</label><input id="e-date" type="date" value="${esc((o.appt||'').slice(0,10))}"></div>
+    <div class="frow"><label>预约时间</label><input id="e-time" type="time" value="${esc((o.appt||'').slice(11,16))}"></div>
+    <div class="frow"><label>总价(¥)</label><input id="e-price" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(o.price)}"></div>
+    <div class="frow"><label>定金(¥)</label><input id="e-deposit" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(o.deposit)}"></div>
+    <div class="rsub" id="e-money-help" style="margin:6px 0;line-height:1.5"></div>
+    <div class="frow"><label>联系方式</label><input id="e-contact" value="${esc(o.contact||'')}"></div>
+    <div class="frow"><label>备注</label><textarea id="e-note" rows="2">${esc(o.note||'')}</textarea></div>
+    <div class="banner-amber" id="e-conflict"></div>
+    <div class="sec-title">收款记录(可撤销 / 补记)</div>
+    <div class="btn2" id="e-payments"></div>
+    <div class="rsub" style="margin-top:6px;line-height:1.5">补记前请先保存修改；按已保存金额记一笔，平台单使用抖音商单，私收默认微信。撤销仅用于纠正错误收款，会同时移除对应流水。</div>
+    <div style="padding:16px 0 4px"><button class="btn primary" data-act="save-edit" data-oid="${esc(o.id)}">保存修改</button></div>`;
+  renderEditReceipts(o);ui.editSnapshot=editDraft();
+  updateEditConflict();
+  ['e-date','e-time'].forEach(id=>{
+    $('#'+id).addEventListener('change',updateEditConflict);
+    $('#'+id).addEventListener('input',updateEditConflict);
+  });
+  showSheet('sheet-edit');
+}
+function updateEditConflict(){
+  const el=$('#e-conflict');
+  const date=$('#e-date').value,time=$('#e-time').value||'10:00';
+  const msg=conflictFor(date,time,ui.editId);
+  if(msg){el.innerHTML=msg;el.style.display='block'}else el.style.display='none';
+}
+function saveEdit(){
+  const o=byId(ui.editId);if(!o)return;
+  const store=$('#e-store').value.trim();
+  const priceCents=moneyCents($('#e-price').value),depositCents=moneyCents($('#e-deposit').value,true);
+  if(!store){toast('请填写商家名称');return}
+  if(priceCents===null||depositCents===null||depositCents>priceCents){toast('总价和定金须为有效非负金额，最多两位小数，定金不能超过总价');return}
+  if(hasAnyReceipt(o)&&(priceCents!==moneyCents(o.price)||depositCents!==moneyCents(o.deposit))){toast('已有收款记录，请先撤销错误收款，再修改总价或定金');return}
+  const date=$('#e-date').value||TODAY,time=$('#e-time').value||'10:00',appt=`${date}T${time}`;
+  const settleVia=$('#e-settle').value;
+  if(!validDateTime(appt)){toast('请填写有效的预约日期和时间');return}
+  if(!['private','douyin'].includes(settleVia)){toast('请选择有效的结算方式');return}
+  o.store=store;o.cat=$('#e-cat').value;o.settleVia=settleVia;
+  o.channel=$('#e-channel').value.trim()||'直客';o.partner=$('#e-partner').value.trim();
+  o.appt=appt;o.price=priceCents/100;o.deposit=depositCents/100;
+  o.contact=$('#e-contact').value.trim();o.note=$('#e-note').value.trim();
+  const returnDetail=ui.detail===o.id?o.id:null;
+  save();closeSheets();renderAll();
+  if(returnDetail!==null)openDetail(returnDetail);
+  toast('已保存修改');
 }
 
 /* ================= 状态操作 ================= */
-function rerenderDetail(){if(ui.detail)openDetail(ui.detail)}
+function rerenderDetail(){if(ui.detail!=null&&ui.editId==null&&byId(ui.detail))openDetail(ui.detail)}
 function mark(id,key,label){
-  const o=byId(id);if(!o)return;
+  const o=byId(id);
+  if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key)||o[key])return false;
   o[key]=nowStr();save();renderAll();rerenderDetail();toast(label);
+  return true;
 }
 function pay(id,kind,method='微信'){
-  const o=byId(id);if(!o)return;
-  const t=nowStr();
-  if(kind==='deposit'){
-    o.depositPaidAt=t;
-    db.payments.push({oid:id,kind:'定金',amount:o.deposit,at:t,method});
-    toast(`已收定金 ${fmtMoney(o.deposit)} · ${method} ✓`);
-  }else{
-    o.finalPaidAt=t;
-    db.payments.push({oid:id,kind:'尾款',amount:o.price-o.deposit,at:t,method});
-    toast(`已收尾款 ${fmtMoney(o.price-o.deposit)} · ${method} ✓`);
-  }
-  save();renderAll();rerenderDetail();Notify.syncDaily();
+  const o=byId(id),spec=paymentSpec(kind);
+  if(!o||!spec||!METHODS.includes(method)){toast('收款订单、类型或方式无效');return false}
+  const m=orderMoney(o);
+  if(!m||m[kind]<=0){toast('没有有效的待收金额，不能记账');return false}
+  if(hasReceipt(o,kind)){toast('该笔款项已记录，请勿重复收款');return false}
+  const t=nowStr(),amount=m[kind]/100;
+  o[spec.field]=t;
+  db.payments.push({oid:id,kind:spec.label,amount,at:t,method});
+  save();renderAll();rerenderDetail();
+  toast(`已收${spec.label} ${fmtMoney(amount)} · ${method}`);
+  return true;
 }
 function openPay(oid,kind,keepMethod){
-  const o=byId(oid);if(!o)return;
-  const amt=kind==='deposit'?unDep(o):unFin(o);
-  const defM=o.settleVia==='douyin'?'抖音商单':'微信';
-  ui.payCtx={oid,kind,method:keepMethod||defM};
+  ui.payCtx=null;
+  const o=byId(oid),spec=paymentSpec(kind);
+  if(!o||!spec){toast('收款订单或类型无效');return}
+  const m=orderMoney(o);
+  if(!m||m[kind]<=0||hasReceipt(o,kind)){toast('该笔款项没有待收金额或已经记录');return}
+  const method=keepMethod===undefined?(o.settleVia==='douyin'?'抖音商单':'微信'):keepMethod;
+  if(!METHODS.includes(method)){toast('请选择有效的收款方式');return}
+  const amt=m[kind]/100;
+  ui.payCtx={oid,kind,method};
   $('#pay-body').innerHTML=`
     <div style="text-align:center;padding:6px 0 2px">
-      <div style="font-size:14px;font-weight:700">${o.store}</div>
-      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${fmtMoney(amt)}</div>
-      <div style="font-size:12px;color:var(--sub)">${kind==='deposit'?'定金':'尾款'} · ${o.settleVia==='douyin'?'约定抖音商单结算':'私收款项'} · 仅作入账记录</div>
+      <div style="font-size:14px;font-weight:700">${esc(o.store)}</div>
+      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${esc(fmtMoney(amt))}</div>
+      <div style="font-size:12px;color:var(--sub)">${spec.label} · ${o.settleVia==='douyin'?'约定抖音商单结算':'私收款项'} · 仅作入账记录</div>
     </div>
     <div class="sec-title" style="justify-content:center">收款方式(记录用)</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
-      ${METHODS.map(m=>`<button class="mchip ${ui.payCtx.method===m?'on':''}" data-act="pay-method" data-m="${m}">${m}</button>`).join('')}
+      ${METHODS.map(m=>`<button class="mchip ${ui.payCtx.method===m?'on':''}" data-act="pay-method" data-m="${esc(m)}">${esc(m)}</button>`).join('')}
     </div>
-    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">确认收款 ${fmtMoney(amt)}</button></div>`;
+    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">确认收款 ${esc(fmtMoney(amt))}</button></div>`;
   showSheet('sheet-pay');
 }
 
 /* ================= 详情弹层 ================= */
-function mileStep(label,time,done,nowFlag){
-  return `<div class="mstep ${done?'done':''} ${!done&&nowFlag?'now':''}">
+const MILE_LABEL={shotAt:'拍摄',submittedAt:'提审',shortAt:'发短片',longAt:'发长片'};
+function mileStep(oid,key,label,time,done,nowFlag){
+  return `<button class="mstep ${done?'done':''} ${!done&&nowFlag?'now':''}" data-act="mile" data-oid="${esc(oid)}" data-key="${esc(key)}" style="background:none;border:none;padding:0">
     <div class="mdot">${done?'✓':(nowFlag?'·':'')}</div>
-    <div class="mlab">${label}</div><div class="mtime">${done?fmtDT(time):''}</div></div>`;
+    <div class="mlab">${esc(label)}</div><div class="mtime">${done?esc(fmtDT(time)):(nowFlag?'点击标记':'')}</div></button>`;
 }
 function openDetail(id){
-  ui.detail=id;const o=byId(id);if(!o)return;
-  const od=overdueDays(o);
-  const steps=[['拍摄',o.shotAt],['提审',o.submittedAt],['发短片',o.shortAt],['发长片',o.longAt]];
+  const o=byId(id);if(!o){ui.detail=null;return}
+  ui.detail=id;ui.payCtx=null;ui.editId=null;
+  const od=overdueDays(o),money=orderMoney(o);
+  const steps=[['shotAt',o.shotAt],['submittedAt',o.submittedAt],['shortAt',o.shortAt],['longAt',o.longAt]];
   const nextIdx=steps.findIndex(s=>!s[1]);
-  const mile=steps.map((s,i)=>mileStep(s[0],s[1],!!s[1],i===nextIdx)).join('');
-  const received=db.payments.filter(p=>p.oid===o.id).reduce((s,p)=>s+p.amount,0);
+  const mile=steps.map((s,i)=>mileStep(o.id,s[0],MILE_LABEL[s[0]],s[1],!!s[1],i===nextIdx)).join('');
+  const received=db.payments.filter(p=>p.oid===o.id).reduce((s,p)=>s+(moneyCents(p.amount)||0),0)/100;
 
   const payBtns=[];
-  if(unDep(o)>0)payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${o.id}" data-kind="deposit">收定金 ${fmtMoney(unDep(o))}</button>`);
-  if(!o.finalPaidAt)payBtns.push(`<button class="btn ${isOver(o)?'primary':'green'}" data-act="open-pay" data-oid="${o.id}" data-kind="final">收尾款 ${fmtMoney(unFin(o))}</button>`);
-  if(!payBtns.length)payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">✓ 款项已全部结清</div>`);
+  if(unDep(o)>0)payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="deposit">收定金 ${esc(fmtMoney(unDep(o)))}</button>`);
+  if(unFin(o)>0)payBtns.push(`<button class="btn ${isOver(o)?'primary':'green'}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">收尾款 ${esc(fmtMoney(unFin(o)))}</button>`);
+  if(!payBtns.length)payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">款项已全部结清</div>`);
 
   let snoozeHtml='';
   if(payOf(o)==='待尾款'){
     snoozeHtml=`<div class="sec-title" style="margin-top:16px">催收备忘(打开 App 时查看)</div>
       <div class="btn2">
-        <button class="btn ghost" data-act="snooze" data-oid="${o.id}" data-d="1">1天后提醒</button>
-        <button class="btn ghost" data-act="snooze" data-oid="${o.id}" data-d="3">3天后提醒</button>
-        <button class="btn ghost" data-act="snooze" data-oid="${o.id}" data-d="7">7天后提醒</button>
+        <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="1">1天后提醒</button>
+        <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="3">3天后提醒</button>
+        <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="7">7天后提醒</button>
       </div>
-      ${o.remindAt?`<div class="rsub" style="text-align:center;margin-top:8px">已设提醒:${fmtD(o.remindAt)} 再催收</div>`:''}`;
+      ${o.remindAt?`<div class="rsub" style="text-align:center;margin-top:8px">已设提醒:${esc(fmtD(o.remindAt))} 再催收 <button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="clear-remind" data-oid="${esc(o.id)}">清除</button></div>`:''}`;
   }
 
   $('#detail-body').innerHTML=`
     <div class="sheet-head" style="padding-left:0;padding-right:0">
       <div style="min-width:0">
-        <div class="sheet-title" style="font-size:19px">${o.store}</div>
-        <div class="hsub" style="margin-top:3px">${o.cat}${o.contact?' · '+o.contact:''}</div>
+        <div class="sheet-title" style="font-size:19px">${esc(o.store)}</div>
+        <div class="hsub" style="margin-top:3px">${esc(o.cat)}${o.contact?' · '+esc(o.contact):''}</div>
       </div>
-      <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="sheet-close" data-act="edit-order" data-oid="${esc(o.id)}" title="编辑" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
+        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
     </div>
-    <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${isOver(o)?`<span class="chip c-red">欠款 ${od} 天</span>`:''}${snoozed(o)?`<span class="chip c-gray">已设提醒</span>`:''}</div>
+    <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${isOver(o)?`<span class="chip c-red">欠款 ${esc(od)} 天</span>`:''}${snoozed(o)?`<span class="chip c-gray">已设提醒</span>`:''}</div>
     ${isOver(o)?`<div class="banner-red"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
-      <span>尾款自拍摄日(${fmtD(o.shotAt||o.appt)})起已欠 <b>${od} 天</b>,超过 ${db.threshold} 天催收阈值,建议电话跟进。${snoozed(o)?`已备忘:${fmtD(o.remindAt)} 再提醒。`:''}</span></div>`:''}
+      <span>尾款自拍摄日(${esc(fmtD(o.shotAt))})起已欠 <b>${esc(od)} 天</b>,达到 ${esc(db.threshold)} 天催收阈值,建议电话跟进。${snoozed(o)?`已备忘:${esc(fmtD(o.remindAt))} 再提醒。`:''}</span></div>`:''}
     <div class="mile">${mile}</div>
+    <div class="rsub" style="text-align:center;margin:0 0 4px">点里程碑可标记 / 清除 · 记错随时改</div>
     <div style="margin-top:10px">
-      ${!o.shotAt?`<button class="btn primary" data-act="mark-shot" data-oid="${o.id}">标记已拍摄(记录实际拍摄时间)</button>`
-       :!o.submittedAt?`<button class="btn primary" data-act="mark-submit" data-oid="${o.id}">标记已提审</button>`
+      ${!o.shotAt?`<button class="btn primary" data-act="mark-shot" data-oid="${esc(o.id)}">标记已拍摄(记录实际拍摄时间)</button>`
+       :!o.submittedAt?`<button class="btn primary" data-act="mark-submit" data-oid="${esc(o.id)}">标记已提审</button>`
        :`<div class="btn2">
-          <button class="btn ${o.shortAt?'ghost':'tint'}" data-act="mark-short" data-oid="${o.id}">${o.shortAt?'短片已发 ✓':'标记发短片'}</button>
-          <button class="btn ${o.longAt?'ghost':'tint'}" data-act="mark-long" data-oid="${o.id}">${o.longAt?'长片已发 ✓':'标记发长片'}</button>
+          <button class="btn ${o.shortAt?'ghost':'tint'}" data-act="mark-short" data-oid="${esc(o.id)}" ${o.shortAt?'disabled':''}>${o.shortAt?'短片已发':'标记发短片'}</button>
+          <button class="btn ${o.longAt?'ghost':'tint'}" data-act="mark-long" data-oid="${esc(o.id)}" ${o.longAt?'disabled':''}>${o.longAt?'长片已发':'标记发长片'}</button>
         </div>`}
     </div>
     <div class="sec-title" style="margin-top:16px">收款</div>
     ${payBtns.join('')}
     ${snoozeHtml}
     <div class="info-grid">
-      <div class="ig"><div class="k">预约时间</div><div class="v">${fmtD(o.appt)} ${fmtHM(o.appt)}</div></div>
-      <div class="ig"><div class="k">实际拍摄</div><div class="v">${fmtDT(o.shotAt)}</div></div>
+      <div class="ig"><div class="k">预约时间</div><div class="v">${esc(fmtD(o.appt))} ${esc(fmtHM(o.appt))}</div></div>
+      <div class="ig"><div class="k">实际拍摄</div><div class="v">${esc(fmtDT(o.shotAt))}</div></div>
+      <div class="ig"><div class="k">渠道</div><div class="v">${esc(o.channel||'直客')}</div></div>
+      <div class="ig"><div class="k">出镜搭档</div><div class="v">${esc(o.partner||(o.note&&o.note.includes('不组队')?'不组队':'—'))}</div></div>
+      <div class="ig"><div class="k">总价</div><div class="v">${esc(fmtMoney(o.price))}</div></div>
+      <div class="ig"><div class="k">定金 ${o.depositPaidAt?'· 已收 '+esc(fmtD(o.depositPaidAt)):''}</div><div class="v">${esc(fmtMoney(o.deposit))}</div></div>
+      <div class="ig"><div class="k">尾款 ${o.finalPaidAt?'· 已收 '+esc(fmtD(o.finalPaidAt)):''}</div><div class="v">${esc(fmtMoney(money?money.final/100:0))}</div></div>
+      <div class="ig"><div class="k">已收合计</div><div class="v" style="color:#239648">${received>0?esc(fmtMoney(received)):'—'}</div></div>
+      <div class="ig"><div class="k">当前待收</div><div class="v" style="${owedOf(o)>0?'color:var(--red)':'color:#239648'}">${owedOf(o)>0?esc(fmtMoney(owedOf(o))):'已结清'}</div></div>
       <div class="ig"><div class="k">结算方式</div><div class="v">${o.settleVia==='douyin'?'抖音商单':'私收'}</div></div>
-      <div class="ig"><div class="k">已收合计</div><div class="v" style="color:#239648">${received>0?fmtMoney(received):'—'}</div></div>
-      <div class="ig"><div class="k">总价</div><div class="v">${fmtMoney(o.price)}</div></div>
-      <div class="ig"><div class="k">定金 ${o.depositPaidAt?'· 已收 '+fmtD(o.depositPaidAt):''}</div><div class="v">${fmtMoney(o.deposit)}</div></div>
-      <div class="ig"><div class="k">尾款 ${o.finalPaidAt?'· 已收 '+fmtD(o.finalPaidAt):''}</div><div class="v">${fmtMoney(o.price-o.deposit)}</div></div>
-      <div class="ig"><div class="k">当前待收</div><div class="v" style="${owedOf(o)>0?'color:var(--red)':'color:#239648'}">${owedOf(o)>0?fmtMoney(owedOf(o)):'已结清'}</div></div>
     </div>
-    ${o.note?`<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">📝 ${o.note}</div></div>`:''}
-    <div style="padding-top:16px"><button class="btn danger-ghost" data-act="del-order" data-oid="${o.id}">删除订单</button></div>`;
+    ${o.note?`<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">${esc(o.note)}</div></div>`:''}
+    <div style="padding-top:16px"><button class="btn danger-ghost" data-act="del-order" data-oid="${esc(o.id)}">删除订单</button></div>`;
   showSheet('sheet-detail');
 }
 
 /* ================= 今日行程分享图(canvas,默认不含金额) ================= */
 function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
-function buildTodayImage(){
-  const list=db.orders.filter(o=>o.appt.slice(0,10)===TODAY).sort((a,b)=>a.appt.localeCompare(b.appt));
+function buildTodayImage(day=TODAY){
+  const date=new Date(day+'T00:00');
+  const list=db.orders.filter(o=>o.appt.slice(0,10)===day).sort((a,b)=>a.appt.localeCompare(b.appt));
   const S=2,W=1080,rowH=112,headH=240,footH=110,gap=18,pad=56;
   const rows=Math.max(list.length,1);
   const H=headH+rows*(rowH+gap)+footH;
@@ -970,11 +1005,11 @@ function buildTodayImage(){
   const gr=g.createLinearGradient(0,0,W,headH);gr.addColorStop(0,'#FF8A3D');gr.addColorStop(1,'#E8352A');
   g.fillStyle=gr;g.fillRect(0,0,W,headH-28);
   g.fillStyle='rgba(255,255,255,.9)';g.font='600 26px -apple-system,PingFang SC,sans-serif';
-  g.fillText('探记 TanJi · 今日行程',pad,62);
+  g.fillText('探记 TanJi · 拍摄行程',pad,62);
   g.fillStyle='#fff';g.font='800 58px -apple-system,PingFang SC,sans-serif';
-  g.fillText(`${now.getMonth()+1}月${now.getDate()}日 周${dowOf(TODAY)}`,pad,136);
+  g.fillText(`${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日 周${dowOf(day)}`,pad,136);
   g.font='600 26px -apple-system,PingFang SC,sans-serif';g.fillStyle='rgba(255,255,255,.88)';
-  g.fillText(list.length?`${list.length} 个拍摄安排`:'今日暂无拍摄安排',pad,186);
+  g.fillText(list.length?`${list.length} 个拍摄安排`:'当天暂无拍摄安排',pad,186);
   let y=headH;
   const WT={'待拍摄':['#007AFF'],'后期中':['#AF52DE'],'发片中':['#FF9500'],'已交付':['#239648']};
   if(!list.length){g.fillStyle='#8E8E93';g.font='500 30px -apple-system,PingFang SC';g.fillText('🌙 休息,明天再战',pad,y+66);y+=rowH+gap}
@@ -993,9 +1028,13 @@ function buildTodayImage(){
   return new Promise(res=>c.toBlob(b=>res(b),'image/png'));
 }
 async function shareToday(){
-  toast('正在生成今日行程图片…');
-  const blob=await buildTodayImage();
-  ui.shareBlob=blob;
+  refreshClock();
+  const day=ui.tab==='trip'?ui.selDay:TODAY;
+  toast('正在生成行程图片…');
+  const blob=await buildTodayImage(day);
+  if(!blob){toast('图片生成失败，请重试');return}
+  ui.shareDay=day;ui.shareBlob=blob;
+  $('#sheet-share .sheet-title').textContent=`${day} · 行程分享`;
   if(ui.shareUrl)URL.revokeObjectURL(ui.shareUrl);
   ui.shareUrl=URL.createObjectURL(blob);
   $('#share-body').innerHTML=`<img src="${ui.shareUrl}" style="width:100%;border-radius:16px;border:.5px solid var(--line)">
@@ -1012,29 +1051,30 @@ function showSheet(id){
 function closeSheets(){
   $('#mask').classList.remove('show');
   document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+  ui.detail=null;ui.payCtx=null;ui.editId=null;Store.pending=null;
 }
 let toastTimer;
 function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
 
 /* ================= 统计 ================= */
 function statsFor(period){
-  let start;
-  if(period==='M')start=new Date(now.getFullYear(),now.getMonth(),1);
-  else start=new Date(now.getTime()-864e5*(+period));
+  refreshClock();
+  const start=new Date(now.getFullYear(),now.getMonth(),period==='M'?1:now.getDate()-(+period-1));
   const inWin=t=>t&&new Date(t)>=start&&new Date(t)<=now;
-  const deals=db.orders.filter(o=>new Date(o.appt)>=start&&new Date(o.appt)<=now);
+  const deals=db.orders.filter(o=>inWin(o.appt));
   const paid=db.payments.filter(p=>inWin(p.at));
-  const done=db.orders.filter(o=>o.shortAt&&o.longAt&&inWin(o.longAt));
+  const done=db.orders.filter(o=>workOf(o)==='已交付'&&inWin(o.shortAt>o.longAt?o.shortAt:o.longAt));
   return {start,deals,paid,done,
-    dealSum:deals.reduce((s,o)=>s+o.price,0),
-    paidSum:paid.reduce((s,p)=>s+p.amount,0)};
+    dealSum:deals.reduce((s,o)=>s+Math.round(o.price*100),0)/100,
+    paidSum:paid.reduce((s,p)=>s+Math.round(p.amount*100),0)/100};
 }
 
 /* ================= 顶部右侧按钮(分享 / 隐私) ================= */
 function headBtns(share){
   return `<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-    ${share?`<button class="icon-btn" data-act="share"><svg class="ic" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></svg></button>`:''}
-    <button class="icon-btn ${ui.privacy?'on':''}" data-act="privacy"><svg class="ic" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>${ui.privacy?'<path d="M4.5 4.5l15 15"/>':''}</svg></button>
+    <span style="font-size:10px;color:var(--sub)">${Store.mode==='demo'?'演示':'工作'}</span>
+    ${share?`<button class="icon-btn" data-act="share" aria-label="分享行程"><svg class="ic" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></svg></button>`:''}
+    <button class="icon-btn ${ui.privacy?'on':''}" data-act="privacy" aria-label="${ui.privacy?'显示金额':'隐藏金额'}"><svg class="ic" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>${ui.privacy?'<path d="M4.5 4.5l15 15"/>':''}</svg></button>
   </div>`;
 }
 
@@ -1076,8 +1116,8 @@ function renderHome(){
     const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
     return `<div class="row" data-act="open" data-oid="${o.id}">
       <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">预约</div></div>
-      <div class="rmain"><div class="rname">${o.store}</div>
-        <div class="chiprow">${workChip(o)}${depChip||payChip(o)}<span class="chip c-gray">${o.cat}</span></div></div>
+      <div class="rmain"><div class="rname">${esc(o.store)}</div>
+        <div class="chiprow">${workChip(o)}${depChip||payChip(o)}<span class="chip c-gray">${esc(o.cat)}</span></div></div>
       <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div></div>
       <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
     </div>`;}).join('')
@@ -1086,7 +1126,7 @@ function renderHome(){
   const sendRows=sending.length?sending.slice(0,4).map(o=>{
     const miss=[!o.submittedAt?'待提审':'',!o.shortAt?'待短片':'',!o.longAt?'待长片':''].filter(Boolean).map(t=>`<span class="chip c-orange">${t}</span>`).join('');
     return `<div class="row" data-act="open" data-oid="${o.id}">
-      <div class="rmain"><div class="rname">${o.store}</div><div class="rsub">拍摄于 ${fmtD(o.shotAt)} · ${fmtMoney(o.price)}</div></div>
+      <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">拍摄于 ${fmtD(o.shotAt)} · ${fmtMoney(o.price)}</div></div>
       <div style="display:flex;gap:5px;flex-shrink:0">${miss}</div>
     </div>`;}).join('')
     : `<div class="empty">没有待发片的订单 🎉</div>`;
@@ -1119,50 +1159,71 @@ function renderHome(){
 function orderRowTrip(o){
   const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
   return `<div class="row" data-act="open" data-oid="${o.id}">
-    <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${o.cat}</div></div>
-    <div class="rmain"><div class="rname">${o.store}</div>
-      <div class="chiprow">${workChip(o)}${depChip||payChip(o)}</div></div>
+    <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
+    <div class="rmain"><div class="rname">${esc(o.store)}</div>
+      <div class="chiprow">${workChip(o)}${depChip||payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}</div></div>
     <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div><div class="rsub">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div></div>
   </div>`;
 }
 function renderTrip(){
-  const mon=new Date(now);mon.setDate(mon.getDate()-((now.getDay()+6)%7));
-  let strip='';
-  for(let i=0;i<7;i++){
-    const d=new Date(mon);d.setDate(d.getDate()+i);
-    const iso=toISO(d);
-    const cnt=db.orders.filter(o=>o.appt.slice(0,10)===iso).length;
-    strip+=`<button class="wd ${iso===ui.selDay?'sel':''} ${iso===TODAY?'today':''}" data-act="day" data-day="${iso}">
-      <span class="wd-dow">周${DOW[i]}</span><span class="wd-num">${d.getDate()}</span>
-      <span class="wd-dots">${'<i></i>'.repeat(Math.min(cnt,3))}</span></button>`;
+  const {y,m}=ui.vMon;
+  const first=new Date(y,m-1,1);
+  const off=(first.getDay()+6)%7;
+  const dim=new Date(y,m,0).getDate();
+  const mOrders=db.orders.filter(o=>+o.appt.slice(0,4)===y&&+o.appt.slice(5,7)===m);
+  const mSum=mOrders.reduce((s,o)=>s+o.price,0);
+  const byDay={};mOrders.forEach(o=>{const k=o.appt.slice(0,10);if(!byDay[k])byDay[k]={n:0,s:0};byDay[k].n++;byDay[k].s+=o.price});
+  let bFire=0,bMoney=0;Object.values(byDay).forEach(v=>{const b=dayBadge(v.n,v.s);if(b&&b.e==='🔥')bFire++;if(b&&b.e==='💰')bMoney++});
+  const mBadges=(bFire?' 🔥'+bFire:'')+(bMoney?' 💰'+bMoney:'');
+  let cells='';
+  for(let i=0;i<off;i++)cells+='<div class="mc"></div>';
+  for(let d=1;d<=dim;d++){
+    const iso=`${y}-${pad(m)}-${pad(d)}`;
+    const ds=mOrders.filter(o=>o.appt.slice(0,10)===iso);
+    const dv=byDay[iso]||{n:0,s:0};
+    const bdg=dayBadge(dv.n,dv.s);
+    cells+=`<button class="mc ${iso===ui.selDay?'sel':''} ${iso===TODAY?'today':''}" data-act="day" data-day="${iso}" title="${bdg?bdg.t:''}">
+      <span class="n">${d}</span><span class="d">${ds.length?'<i></i>'.repeat(Math.min(ds.length,6)):''}</span>${bdg?`<span class="bdg">${bdg.e}</span>`:''}</button>`;
   }
   const list=db.orders.filter(o=>o.appt.slice(0,10)===ui.selDay).sort((a,b)=>a.appt.localeCompare(b.appt));
   const listHtml=list.length?list.map(orderRowTrip).join('')
     : `<div class="empty"><div class="e-ic">📭</div>这一天暂无拍摄安排</div>`;
-  const base=new Date(ui.selDay+'T00:00');
+  const tomorrow=dOff(1).slice(0,10);
+  // 整月时间线:所浏览月份的全部档期按日分组(可一路滚到月初/月末)
   let up='';
-  for(let i=1;i<=14;i++){
-    const d=new Date(base);d.setDate(d.getDate()+i);
-    const iso=toISO(d);
-    const ds=db.orders.filter(o=>o.appt.slice(0,10)===iso).sort((a,b)=>a.appt.localeCompare(b.appt));
-    if(!ds.length)continue;
-    const tag=iso===toISO(new Date(base.getTime()+864e5))?' · 明天':'';
+  const mdays=[...new Set(mOrders.map(o=>o.appt.slice(0,10)))].sort();
+  for(const iso of mdays){
+    const ds=mOrders.filter(o=>o.appt.slice(0,10)===iso).sort((a,b)=>a.appt.localeCompare(b.appt));
+    const d=new Date(iso+'T00:00');
+    const tag=iso===TODAY?' · 今天':(iso===tomorrow?' · 明天':'');
     up+=`<div class="sec-title">${d.getMonth()+1}月${d.getDate()}日 周${dowOf(iso)}${tag}</div>
     <div class="card rows">${ds.map(orderRowTrip).join('')}</div>`;
   }
-  if(!up)up=`<div class="empty">未来 14 天暂无新预约,点右上角「预约」新增</div>`;
+  if(!up)up=`<div class="empty">${m}月暂无档期 · 点右上角「预约」新增</div>`;
   $('#v-trip').innerHTML=`
     <div class="htop-row">
-      <div><div class="eyebrow">${now.getFullYear()}年${now.getMonth()+1}月</div><h1 class="big">行程</h1>
-      <div class="hsub">点按日期查看 · 分享按钮可生成当日行程图</div></div>
+      <div><div class="eyebrow">整月档期 · ‹ › 可翻月</div><h1 class="big">行程</h1>
+      <div class="hsub">点按日期查看当日 · 分享按钮可生成当日行程图</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         ${headBtns(true)}
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
       </div>
     </div>
-    <div class="week">${strip}</div>
-    <div class="sec-title">${ui.selDay===TODAY?'今日行程':`${+ui.selDay.slice(5,7)}月${+ui.selDay.slice(8,10)}日 周${dowOf(ui.selDay)}`}</div>
+    <div class="mgrid">
+      <div class="mhead">
+        <div class="mtitle">${y}年${m}月<span class="msum">${mOrders.length} 个档期 · ${fmtMoney(mSum)}${mBadges}</span></div>
+        <div class="mnav">
+          <button data-act="mnav" data-d="-1">‹</button>
+          <button data-act="mtoday" class="mtod">今天</button>
+          <button data-act="mnav" data-d="1">›</button>
+        </div>
+      </div>
+      <div class="mgrid-dow">${'一二三四五六日'.split('').map(x=>`<span>周${x}</span>`).join('')}</div>
+      <div class="mgrid-c">${cells}</div>
+    </div>
+    <div class="sec-title">${ui.selDay===TODAY?'今日行程':`${+ui.selDay.slice(5,7)}月${+ui.selDay.slice(8,10)}日 周${dowOf(ui.selDay)}`}${list.length&&dayBadge(list.length,list.reduce((s,o)=>s+o.price,0))?` · ${dayBadge(list.length,list.reduce((s,o)=>s+o.price,0)).e} ${dayBadge(list.length,list.reduce((s,o)=>s+o.price,0)).t}`:''}</div>
     <div class="card rows">${listHtml}</div>
+    <div class="sec-title">${m}月全部档期 · 往下滚看整月</div>
     ${up}`;
 }
 
@@ -1188,9 +1249,9 @@ function renderOrders(){
   const rows=all.length?all.map(o=>`
     <div class="row" data-act="open" data-oid="${o.id}">
       <div class="rmain">
-        <div class="rname">${o.store}</div>
-        <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${o.cat}</div>
-        <div class="chiprow">${workChip(o)}${payChip(o)}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
+        <div class="rname">${esc(o.store)}</div>
+        <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${esc(o.cat)}${o.partner?' · 出镜 '+esc(o.partner):''}</div>
+        <div class="chiprow">${workChip(o)}${payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
       </div>
       <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div>
         <div class="rsub" style="${owedOf(o)>0?'color:var(--red);font-weight:700':''}">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div>
@@ -1204,7 +1265,7 @@ function renderOrders(){
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button></div>
     </div>
     <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-      <input id="q-input" placeholder="搜索商家名称" value="${ui.q}"></div>
+      <input id="q-input" placeholder="搜索商家名称" value="${esc(ui.q)}"></div>
     <div class="chips">${chips}</div>
     <div class="card rows">${rows}</div>`;
   const qi=$('#q-input');
@@ -1216,28 +1277,28 @@ function renderPay(){
   const rows0=db.orders.filter(o=>owedOf(o)>0);
   const unDepSum=rows0.reduce((s,o)=>s+unDep(o),0);
   const unFinSum=rows0.reduce((s,o)=>s+unFin(o),0);
-  const dySum=rows0.filter(o=>o.settleVia==='douyin'&&!o.finalPaidAt&&unDep(o)===0).reduce((s,o)=>s+unFin(o),0);
+  const dySum=rows0.filter(o=>o.settleVia==='douyin').reduce((s,o)=>s+unFin(o),0);
   const overAll=db.orders.filter(isOver);
   const over=overAll.filter(o=>!snoozed(o));
   const overSum=over.reduce((s,o)=>s+unFin(o),0);
 
   const bucket=o=>{const d=overdueDays(o);return d>30?'g30':d>7?'m830':'s7'};
-  const rows=rows0.filter(o=>ui.bucket==='all'||bucket(o)===ui.bucket)
+  const rows=rows0.filter(o=>ui.bucket==='all'||(ui.bucket==='over'?isOver(o)&&!snoozed(o):ui.bucket==='snoozed'?isOver(o)&&snoozed(o):bucket(o)===ui.bucket))
     .sort((a,b)=>(snoozed(a)-snoozed(b))||overdueDays(b)-overdueDays(a)||a.appt.localeCompare(b.appt));
 
   const listHtml=rows.length?rows.map(o=>{
-    const d=overdueDays(o),isDep=unDep(o)>0,isDy=o.settleVia==='douyin',sn=snoozed(o);
+    const d=overdueDays(o),isDep=unDep(o)>0&&!isOver(o),isDy=o.settleVia==='douyin',sn=snoozed(o);
     const due=isDep?{kind:'deposit',amt:unDep(o),sub:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)} · 定金`,btn:'标记已收'}
-      :isDy?{kind:'final',amt:unFin(o),sub:`拍摄 ${fmtD(o.shotAt||o.appt)} · 抖音商单结算`,btn:'标记到账'}
-      :{kind:'final',amt:unFin(o),sub:`拍摄 ${fmtD(o.shotAt||o.appt)} · 已交付${o.shortAt&&o.longAt?'':'部分'}`,btn:'标记已收'};
+      :isDy?{kind:'final',amt:unFin(o),sub:`${o.shotAt?'拍摄 '+fmtD(o.shotAt):'待拍摄'} · 抖音商单结算`,btn:'标记到账'}
+      :{kind:'final',amt:unFin(o),sub:`${o.shotAt?'拍摄 '+fmtD(o.shotAt):'预约 '+fmtD(o.appt)} · ${workOf(o)}`,btn:'标记已收'};
     const chip=isDep?'<span class="chip c-gray">待定金</span>'
       :isDy?'<span class="chip c-blue">平台结算</span>'
       :isOver(o)?(sn?`<span class="chip c-gray">已设提醒 · ${fmtD(o.remindAt)}再催</span>`:`<span class="chip c-red">逾期 · 欠 ${d} 天</span>`)
-      :`<span class="chip ${d>7?'c-orange':'c-gray'}">欠款 ${d} 天</span>`;
+      :`<span class="chip ${d>7?'c-orange':'c-gray'}">${o.shotAt?'欠款 '+d+' 天':'未拍摄 · 尚未起算账期'}</span>`;
     return `<div class="row" data-act="open" data-oid="${o.id}">
-      <div class="rmain"><div class="rname">${o.store}</div>
+      <div class="rmain"><div class="rname">${esc(o.store)}</div>
         <div class="rsub">${due.sub} ${fmtMoney(due.amt)}</div>
-        <div class="chiprow">${chip}</div>
+        <div class="chiprow">${chip}${!isDep&&unDep(o)>0?`<span class="chip c-gray">另待定金 ${fmtMoney(unDep(o))}</span>`:''}</div>
       </div>
       <button class="mini-btn green" data-act="open-pay" data-oid="${o.id}" data-kind="${due.kind}">${due.btn}</button>
     </div>`;}).join('')
@@ -1245,9 +1306,9 @@ function renderPay(){
 
   const flow=[...db.payments].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8).map(p=>`
     <div class="row">
-      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} · ${storeOf(p.oid)}</div>
-        <div class="rsub">${p.kind} · ${fmtD(p.at)} ${fmtHM(p.at)}</div></div>
-      <span class="chip ${METHOD_CLS[p.method]||'c-gray'}">${p.method}</span>
+      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} · ${esc(storeOf(p.oid))}</div>
+        <div class="rsub">${esc(p.kind)} · ${fmtD(p.at)} ${fmtHM(p.at)}</div></div>
+      <span class="chip ${METHOD_CLS[p.method]||'c-gray'}">${esc(p.method)}</span>
     </div>`).join('');
 
   $('#v-pay').innerHTML=`
@@ -1265,8 +1326,9 @@ function renderPay(){
       </div>
     </div>
     <div class="seg" style="margin-bottom:12px">
-      ${[['all','全部'],['s7','≤7天'],['m830','8–30天'],['g30','30天+ 催收']].map(([k,l])=>`<button class="${ui.bucket===k?'on':''}" data-act="bucket" data-bucket="${k}">${l}</button>`).join('')}
+      ${[['all','全部'],['s7','≤7天'],['m830','8–30天'],['g30','30天+']].map(([k,l])=>`<button class="${ui.bucket===k?'on':''}" data-act="bucket" data-bucket="${k}">${l}</button>`).join('')}
     </div>
+    <div class="chips" style="margin-bottom:12px"><button class="fchip ${ui.bucket==='over'?'on':''}" data-act="bucket" data-bucket="over">待催收 ${over.length}</button><button class="fchip ${ui.bucket==='snoozed'?'on':''}" data-act="bucket" data-bucket="snoozed">已设提醒 ${overAll.length-over.length}</button></div>
     <div class="card rows">${listHtml}</div>
     <div class="sec-title">收款流水 <span class="more" data-act="export-csv">导出 ›</span></div>
     <div class="card rows">${flow||'<div class="empty">暂无收款记录</div>'}</div>`;
@@ -1279,19 +1341,19 @@ function renderStats(){
   let days=[];
   if(ui.period==='M'){const e=new Date(now.getFullYear(),now.getMonth(),now.getDate());for(let d=new Date(st.start);d<=e;d.setDate(d.getDate()+1))days.push(toISO(d))}
   else{for(let i=+ui.period-1;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);days.push(toISO(d))}}
-  const daily=days.map(d=>db.payments.filter(p=>p.at.slice(0,10)===d).reduce((s,p)=>s+p.amount,0));
+  const daily=days.map(d=>st.paid.filter(p=>p.at.slice(0,10)===d).reduce((s,p)=>s+Math.round(p.amount*100),0)/100);
   const mx=Math.max(...daily,1);
   const bars=daily.map((v,i)=>`<div class="bar ${v?'':'zero'}" title="${days[i]} 实收 ${fmtMoney(v)}"><i style="height:${Math.max(3,Math.round(v/mx*100))}%"></i></div>`).join('');
   const totOwed=db.orders.reduce((s,o)=>s+owedOf(o),0);
   const sending=db.orders.filter(o=>['后期中','发片中'].includes(workOf(o))).length;
   const segP=[['7','近7天'],['30','近30天'],['M','本月']].map(([k,l])=>`<button class="${ui.period===k?'on':''}" data-act="period" data-period="${k}">${l}</button>`).join('');
 
-  const byM={};st.paid.forEach(p=>{byM[p.method]=(byM[p.method]||0)+p.amount});
+  const byM=Object.create(null);st.paid.forEach(p=>{byM[p.method]=(byM[p.method]||0)+p.amount});
   const entries=Object.entries(byM).sort((a,b)=>b[1]-a[1]);
   const mxm=Math.max(...entries.map(e=>e[1]),1);
   const chRows=entries.length?entries.map(([m,v])=>`
     <div class="row" style="padding:9px 0">
-      <span class="chip ${METHOD_CLS[m]||'c-gray'}" style="width:70px;justify-content:center">${m}</span>
+      <span class="chip ${METHOD_CLS[m]||'c-gray'}" style="width:70px;justify-content:center">${esc(m)}</span>
       <div style="flex:1;height:8px;background:#F0F0F4;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(4,Math.round(v/mxm*100))}%;background:var(--brand);border-radius:4px"></i></div>
       <div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13.5px">${fmtMoney(v)}</div></div>
     </div>`).join('')
@@ -1342,12 +1404,6 @@ function renderStats(){
           <button data-act="th" data-v="-1">−</button><span>${db.threshold} 天</span><button data-act="th" data-v="1">+</button>
         </div>
       </div>
-      ${isNative?`<div class="menu-row" data-act="notify-toggle">
-        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span>
-        <div class="menu-t"><div class="menu-name">逾期催收每日提醒</div><div class="menu-sub">每天 09:00 本地通知 · 只报条数与最长天数,不含金额</div></div>
-        <span class="tag-badge">${db.notifyEnabled===false?'已关闭':'已开启'}</span>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </div>`:''}
       <div class="menu-row" data-act="export-db">
         <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/></svg></span>
         <div class="menu-t"><div class="menu-name">导出 SQLite 数据库(.db)</div><div class="menu-sub">完整数据库文件,可用任意 SQLite 工具打开</div></div>
@@ -1363,23 +1419,37 @@ function renderStats(){
         <div class="menu-t"><div class="menu-name">导出 JSON 备份</div><div class="menu-sub">含订单 + 收款流水 + 设置,可用于迁移</div></div>
         <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
       </div>
-      <div class="menu-row" data-act="reset">
-        <span class="menu-ic" style="background:var(--red-soft);color:var(--red)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 5.5v5h5"/><path d="M4.6 10.5A8 8 0 1 1 4 14"/></svg></span>
-        <div class="menu-t"><div class="menu-name">清空全部数据</div><div class="menu-sub">恢复到示例数据(建议先导出备份)</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      <div class="menu-row" data-act="import-json" role="button" tabindex="0">
+        <div class="menu-t"><div class="menu-name">导入 JSON 备份</div><div class="menu-sub">预览后恢复订单、流水与设置；替换前自动备份</div></div>
       </div>
-      <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0">探记 TanJi v0.2 · 数据仅存本机,请定期导出备份</div>
+      <div class="menu-row" data-act="restore-backup" role="button" tabindex="0">
+        <div class="menu-t"><div class="menu-name">恢复替换前的数据</div><div class="menu-sub">撤回最近一次导入或清空，仅保留最近一份</div></div>
+      </div>
+      ${isNative?`<div class="menu-row" data-act="notify-toggle" role="button" tabindex="0">
+        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span>
+        <div class="menu-t"><div class="menu-name">逾期催收每日提醒</div><div class="menu-sub">每天 09:00 本地通知 · 只报条数与最长天数,不含金额</div></div>
+        <span class="tag-badge">${db.notifyEnabled===false?'已关闭':'已开启'}</span>
+      </div>`:''}
+      <div class="menu-row" data-act="switch-mode" role="button" tabindex="0">
+        <div class="menu-t"><div class="menu-name">${Store.mode==='demo'?'进入工作数据':'切换到演示数据'}</div><div class="menu-sub">当前为${Store.mode==='demo'?'演示':'工作'}数据；两套数据独立保存，互不覆盖</div></div>
+      </div>
+      <div class="menu-row" data-act="clear-data" role="button" tabindex="0">
+        <div class="menu-t"><div class="menu-name" style="color:var(--red)">清空当前${Store.mode==='demo'?'演示':'工作'}数据</div><div class="menu-sub">需确认；清空前自动备份，不影响另一套数据</div></div>
+      </div>
+      <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0;white-space:normal">探记 TanJi v0.4 · 数据仅存本机，请定期导出备份</div>
     </div>`;
 }
 
 /* ================= Tab 路由 ================= */
 function showTab(t){
+  refreshClock();
   ui.tab=t;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('#v-'+t).classList.add('active');
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
 }
 function renderAll(){
+  refreshClock();setStorageStatus(Store.status);
   renderHome();renderTrip();renderOrders();renderPay();renderStats();
   const n=db.orders.filter(o=>isOver(o)&&!snoozed(o)).length;
   const b=$('#pay-bdg');b.style.display=n?'flex':'none';b.textContent=n;
@@ -1389,33 +1459,58 @@ function renderAll(){
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
+  if(!Store.ready||Store.busy){toast('正在读写数据，请稍候');return}
+  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
+  refreshClock();
   switch(act){
     case 'tab':showTab(t.dataset.tab);break;
     case 'open':openDetail(oid);break;
     case 'close-sheet':closeSheets();break;
     case 'new-order':openNew();break;
     case 'save-order':saveOrder();break;
-    case 'goto-collect':ui.bucket='g30';showTab('pay');renderAll();break;
+    case 'goto-collect':ui.bucket=db.orders.some(o=>isOver(o)&&!snoozed(o))?'over':'snoozed';showTab('pay');renderAll();break;
     case 'chip':ui.chip=t.dataset.chip;renderOrders();break;
     case 'bucket':ui.bucket=t.dataset.bucket;renderPay();break;
     case 'period':ui.period=t.dataset.period;renderStats();break;
     case 'day':ui.selDay=t.dataset.day;renderTrip();break;
+    case 'mnav':{
+      let m=ui.vMon.m+ +t.dataset.d, y=ui.vMon.y;
+      if(m<1){m=12;y--} if(m>12){m=1;y++}
+      ui.vMon={y,m};ui.selDay=`${y}-${pad(m)}-${pad(Math.min(+ui.selDay.slice(8,10),new Date(y,m,0).getDate()))}`;renderTrip();break;}
+    case 'mtoday':ui.vMon={y:now.getFullYear(),m:now.getMonth()+1};ui.selDay=TODAY;renderTrip();break;
     case 'mark-shot':mark(oid,'shotAt','已记录实际拍摄时间 ✓');break;
     case 'mark-submit':mark(oid,'submittedAt','已标记提审 ✓');break;
     case 'mark-short':mark(oid,'shortAt','已标记发短片 ✓');break;
     case 'mark-long':mark(oid,'longAt','已标记发长片 ✓ · 工作完结');break;
     case 'open-pay':openPay(oid,t.dataset.kind);break;
     case 'pay-method':if(ui.payCtx){ui.payCtx.method=t.dataset.m;openPay(ui.payCtx.oid,ui.payCtx.kind,ui.payCtx.method)}break;
-    case 'confirm-pay':{const hasDetail=!!ui.detail;pay(ui.payCtx.oid,ui.payCtx.kind,ui.payCtx.method);if(!hasDetail)closeSheets();break}
+    case 'confirm-pay':{
+      const ctx=ui.payCtx;ui.payCtx=null;
+      if(!ctx){toast('收款操作已结束，请重新打开收款');break}
+      const returnDetail=ui.detail===ctx.oid?ctx.oid:null;
+      closeSheets();pay(ctx.oid,ctx.kind,ctx.method);
+      if(returnDetail!==null&&byId(returnDetail))openDetail(returnDetail);
+      break}
     case 'snooze':{const o=byId(oid);if(o){const d=+t.dataset.d;o.remindAt=dOff(d,'09:00');save();renderAll();rerenderDetail();Notify.scheduleSnooze(o,d);toast(`已备忘:${d} 天后(${fmtD(o.remindAt)})提醒催收 ✓`)}break}
+    case 'notify-toggle':Notify.toggle();break;
+    case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();toast('已清除催收提醒')}break}
+    case 'mile':{const o=byId(oid),key=t.dataset.key;
+      if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key))break;
+      if(o[key]){if(confirm('清除「'+MILE_LABEL[key]+'」记录?')){o[key]=null;save();renderAll();rerenderDetail();toast('已清除,可重新标记')}}
+      else mark(oid,key,'已标记「'+MILE_LABEL[key]+'」');
+      break}
+    case 'edit-order':openEdit(oid);break;
+    case 'save-edit':saveEdit();break;
+    case 'toggle-dep':toggleReceipt(oid,'deposit');break;
+    case 'toggle-fin':toggleReceipt(oid,'final');break;
     case 'privacy':ui.privacy=!ui.privacy;renderAll();rerenderDetail();toast(ui.privacy?'已隐藏金额 · 截图模式':'已恢复显示金额');break;
     case 'share':shareToday();break;
     case 'share-confirm':{
       if(ui.shareBlob){
-        if(isNative&&CAP&&CAP.Share){download('今日行程-'+TODAY+'.png',ui.shareBlob,'image/png');break} // WebView 无 Web Share,走 Share 插件
-        const file=new File([ui.shareBlob],'今日行程-'+TODAY+'.png',{type:'image/png'});
-        if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:'今日行程'}).catch(()=>{})}
-        else{download('今日行程-'+TODAY+'.png',ui.shareBlob,'image/png');toast('图片已保存 ✓')}
+        const name='拍摄行程-'+ui.shareDay+'.png';
+        const file=new File([ui.shareBlob],name,{type:'image/png'});
+        if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:ui.shareDay+' 拍摄行程'}).catch(error=>{if(error.name!=='AbortError')toast('分享失败，请重试')})}
+        else{download(name,ui.shareBlob,'image/png');toast('图片已保存')}
       }
       break;}
     case 'del-order':
@@ -1430,9 +1525,16 @@ document.addEventListener('click',e=>{
       i=Math.min(opts.length-1,Math.max(0,i+ +t.dataset.v));
       db.threshold=opts[i];save();renderAll();rerenderDetail();Notify.syncDaily();
       toast(`催收阈值已设为 ${db.threshold} 天`);break;}
-    case 'notify-toggle':Notify.toggle();break;
-    case 'reset':
-      if(confirm('清空全部数据并恢复为示例数据?\n建议先导出备份!')){db=seed();save();renderAll();showTab('home');toast('已恢复示例数据')}
+    case 'import-json':$('#import-file').value='';$('#import-file').click();break;
+    case 'confirm-import':confirmImport();break;
+    case 'restore-backup':restoreCheckpoint();break;
+    case 'switch-mode':switchMode(Store.mode==='demo'?'work':'demo');break;
+    case 'clear-data':
+      if(confirm('清空当前'+(Store.mode==='work'?'工作':'演示')+'数据？订单与流水会清空，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold}).then(ok=>{if(ok)toast('已清空，替换前数据可在统计页恢复')});
+      break;
+    case 'export-checkpoint':exportCheckpoint();break;
+    case 'retry-storage':
+      if(Store.lockedOut){location.reload()}else if(Store.blocked){loadState().then(()=>{closeSheets();renderAll();showTab('home')})}else save();
       break;
   }
 });
@@ -1441,18 +1543,34 @@ document.addEventListener('click',e=>{
 
 /* ================= 启动 ================= */
 if(!isNative&&'serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
-  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>toast('离线缓存安装失败，联网时仍可使用')));
 }
+$('#import-file').addEventListener('change',event=>previewImport(event.target.files[0]));
+document.addEventListener('keydown',event=>{
+  if((event.key==='Enter'||event.key===' ')&&event.target.matches('[role="button"][data-act]')){event.preventDefault();event.target.click()}
+});
+function refreshVisible(){
+  if(!Store.ready||Store.busy||document.visibilityState==='hidden')return;
+  refreshClock();
+  if(document.activeElement?.matches('input,textarea,select'))return;
+  renderAll();if($('#sheet-detail').classList.contains('show'))rerenderDetail();
+}
+document.addEventListener('visibilitychange',refreshVisible);
+addEventListener('pageshow',refreshVisible);
+setInterval(refreshVisible,60000);
+addEventListener('storage',event=>{
+  if(event.key!==storageKey(Store.mode)||!event.newValue)return;
+  try{if(JSON.parse(event.newValue).revision>Store.revision){Store.blocked=true;setStorageStatus('其他页面已更新数据，已暂停本页写入。请刷新读取最新数据。')}}catch(error){}
+});
 $('#f-date').value=TODAY;
 (async()=>{
   try{if(isNative)await nativeOpen()}catch(e){console.error('[TanJi] SQLite 初始化失败',e)}
+  await acquireWriter();
   const had=await loadState();
   renderAll();showTab('home');
-  Notify.syncDaily(); // 原生:按当前逾期数据刷新每日催收提醒
-  initSqlite().then(s=>{if(s){Store.sqlite3=s;persistFull()}}); // Web:生成 .db 字节;原生 WKWebView 亦可(供导出 .db)
-  if(!had&&!isNative&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
-    setTimeout(()=>toast('已载入示例数据 · 统计页可清空后开始记录'),1200);
-  }
+  Notify.syncDaily();
+  if(!had&&!Store.blocked)await save();
+  initSqlite().then(s=>{if(s){Store.sqlite3=s;if(!Store.blocked&&!Store.busy)persistFull()}else if(!isNative)toast('SQLite 引擎未能加载，JSON 保存和备份仍可用')});
 })();
 </script>
 </body>

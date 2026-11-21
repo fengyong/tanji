@@ -1,35 +1,32 @@
-/* 探记 TanJi · Service Worker:App 外壳缓存,离线可用 */
-const VERSION='tanji-v0.2.2';
-const ASSETS=[
-  './',
-  './index.html',
-  './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/apple-touch-icon.png',
-  './vendor/sqlite3.mjs',
-  './vendor/sqlite3.wasm',
-];
-self.addEventListener('install',e=>{
-  e.waitUntil(caches.open(VERSION).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));
+const VERSION='tanji-v0.4.0';
+const ASSETS=['./','./index.html','./storage.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png','./vendor/sqlite3.mjs','./vendor/sqlite3.wasm'];
+self.addEventListener('install',event=>{
+  event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });
-self.addEventListener('activate',e=>{
-  e.waitUntil(
-    caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim())
-  );
+self.addEventListener('activate',event=>{
+  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('tanji-')&&key!==VERSION).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
 });
-self.addEventListener('fetch',e=>{
-  if(e.request.method!=='GET')return;
-  e.respondWith(
-    caches.match(e.request,{ignoreSearch:true}).then(hit=>{
-      if(hit)return hit;
-      return fetch(e.request).then(res=>{
-        if(res.ok&&new URL(e.request.url).origin===location.origin){
-          const copy=res.clone();
-          caches.open(VERSION).then(c=>c.put(e.request,copy));
-        }
-        return res;
-      }).catch(()=>caches.match('./index.html'));
-    })
-  );
+self.addEventListener('fetch',event=>{
+  if(event.request.method!=='GET')return;
+  const url=new URL(event.request.url);
+  if(url.origin!==self.location.origin)return;
+  const fresh=event.request.mode==='navigate'||url.pathname.endsWith('.html')||url.pathname.endsWith('/storage.js');
+  event.respondWith((async()=>{
+    const cache=await caches.open(VERSION);
+    const cached=await cache.match(event.request,{ignoreSearch:true});
+    if(!fresh&&cached)return cached;
+    try{
+      const response=await fetch(event.request);
+      if(response.ok)await cache.put(event.request,response.clone());
+      if(response.status>=500&&cached)return cached;
+      return response;
+    }catch(error){
+      if(cached)return cached;
+      if(event.request.mode==='navigate'){
+        const shell=await cache.match('./index.html');
+        if(shell)return shell;
+      }
+      throw error;
+    }
+  })());
 });

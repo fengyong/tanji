@@ -162,3 +162,13 @@ JS 模型(camelCase)↔ 行(snake_case)映射:`rowToOrder / rowToPayment / nativ
 - `feat:` 原生桥接 v0.1(通知 + Filesystem/Share 导出)
 - `feat:` 同步 Web v0.2 底座并移植原生适配(settle_via/remind_at、snooze→通知、分享图/.db→Share)
 - `docs:` 本笔记 + README
+
+## v0.4 同步记录(2026-11-21)
+
+- Web 层同步至 main aaf57d9(v0.4:双数据集 work/demo、金额分制、防覆盖/备份链、JSON 导入恢复、月历勋章、全环节可改、渠道/出镜字段、大王档期初始化已由 work/demo 架构替代)。
+- **storage.js 成为唯一持久化入口**:原生分支注入其中 —— `persistSnapshot`/`readSnapshot` 在 isNative 时走 CapacitorSQLite;双数据集用 `mode` 列(orders/payments 主键 (mode,id)),settings 以 `mode:suffix` 为键;Web 语义(revision/previous 备份链/validateState)完整保留。
+- 原生通知:`Notify`(syncDaily/scheduleSnooze/cancelAll/toggle)挂 storage.js;统计页通知开关仅原生显示。
+- 导出:CSV/JSON/.db/分享图原生端全部走 Filesystem+Share 面板。
+- `npx cap copy ios` ✅;`xcodebuild` 仍被 Xcode 缺失阻塞(同前)。
+- 烟雾测试(浏览器回退路径):17 笔演示单、月历/编辑/收款/隐私全功能 ✅,isNative=false 时通知开关隐藏 ✅。
+- 已知注意:acquireWriter(Web Locks)原生端跳过;validateState 依赖 index.html 的 validDateTime(加载顺序已保证)。
