@@ -21,21 +21,16 @@
 - [x] 提交 3bcbffb "feat: 云端版后端骨架……"
 
 ## 当前阶段
-**M2/M3 服务端集成测试**（backend/tests/, 真实 MySQL）
+**M2/M3 服务端集成测试 ✅ 全绿（16 个用例, 真实 MySQL）→ 已提交 3064989 并推送 origin**
 
-已写: harness_test.go(独立测试库+goose 迁移+httptest)、auth_flow_test.go(单会话替换/不泄露注册/重置吊销/登出/密码策略)、sync_ops_test.go(幂等重试100次/版本链+冲突/收款规则/墓碑/独立事务/并发恰好一次/游标单调/跨账号403/协议409/settings/依赖pending+failed/DTO形状)
+已覆盖: 单会话替换(AC06服务端)/登录不泄露注册/重复注册同文案/重置密码吊销全部会话/登出/密码策略/幂等重试100次/同ID异内容拒绝/after_op_id链+跨聚合拒绝/版本冲突携带云端内容/收款恰好一次+金额校验+撤销保留历史+撤销后重记/墓碑拒绝复活/批次独立事务/并发收款恰好一次/游标单调前进/本人事件带origin_op_id/跨账号信封403/协议409/settings阈值校验/依赖pending与failed/DTO整数分+字符串版本
 
 **下一步（按序）**:
-1. 修 3 个测试自身的 bug:
-   - TestVersionChainAndConflict: "after_op_id 跨聚合" 用例引用了订单ID(0009)而非操作ID(b4)，改成 after_op_id=aaaaaaaa-0000-4000-8000-0000000000b4
-   - TestPaymentRules: 重复收款用例的 precondition 用了 after_op_id c1(版本1)，此时版本已是 2，会 conflict；改为 expected_version:"2"
-   - TestPushAccountMismatch: account_mismatch 检查需先于 batch 数量校验（httpapi/sync_handlers.go handlePush 中调整顺序；此前 Edit 因文件过期未落盘）
-   - TestPullCursorMonotonic: 单独 probe 已证明 pull 正常，重跑确认（疑似旧构建残留）
-2. `go test ./...` 全绿后提交 "test: 服务端集成测试……"
-3. 补 sharing 集成测试(邀请→接受→授权→白名单→撤销→purge→重新授权新代次→迟到purge不误删) + bootstrap 测试(快照分页/epoch 变化 cursor_expired/回执同切点)
-4. 进入前端: packages/domain、packages/local-db(SQLite WASM+OPFS Worker)、packages/sync、packages/api-client、apps/web(Vue3+Vite)
-5. M0 前端可行性: Chrome CDP 实测 OPFS 持久化(参考 tests/browser-smoke.cjs 的 CDP 写法)
-6. 之后按架构文档 M1→M4 推进，最后 M6 验收(浏览器 E2E: 注册→离线→同步→搭档→撤销→踢出)
+1. 补 sharing 集成测试(邀请→接受→授权→白名单投影→改期→撤销purge→历史页过滤→重新授权新代次→迟到purge不误删AC12) + bootstrap 测试(快照分页/epoch 变化 cursor_expired/回执同切点/越权页拒绝)
+2. 进入前端: packages/domain、packages/local-db(SQLite WASM+OPFS Worker+事务仓储+outbox+server_base 重放)、packages/sync(引擎+退避)、packages/api-client、apps/web(Vue3+Vite, 保留现有五页布局)
+3. M0 前端可行性: Chrome CDP 实测 OPFS 持久化(参考 tests/browser-smoke.cjs 的 CDP 写法)
+4. M1→M4 推进，最后 M6 验收(浏览器 E2E: 注册→离线→同步→搭档→撤销→踢出)
+5. 全部开发完成后: 三轮 review→修复→再 review→再修复→提交(用户 2026-11-22 指示)
 
 ## 已知注意事项
 - MySQL root 无密码(dev 实例, 仅本机 127.0.0.1:33306)；测试库 tanji_test_* 每次创建后清理
