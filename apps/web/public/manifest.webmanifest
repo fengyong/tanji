@@ -1,0 +1,13 @@
+{
+  "name": "探记 TanJi",
+  "short_name": "探记",
+  "description": "探店达人的行程与记账,本地优先,云端同步",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F2F2F7",
+  "theme_color": "#FF6A2B",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

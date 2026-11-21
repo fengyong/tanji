@@ -3,7 +3,7 @@
 import type { LocalDBCommands } from './protocol';
 import {
   initialize, bindAccount, getSyncMeta, getOrders, getOrder, getSettings,
-  getSharedSchedules, getContacts, getGrants, getConflicts, getOutboxOps,
+  getSharedSchedules, getContacts, mergeContacts, getGrants, getConflicts, getOutboxOps,
   createOrder, updateOrder, setOrderStatus, deleteOrder, recordPayment, reversePayment,
   assignPartner, grantSchedule, revokeSchedule, updateSettings,
   resolveConflictKeepServer, resolveConflictRetry,
@@ -140,6 +140,10 @@ export function buildHandlers(env: HandlerEnv) {
     },
     listShared() { return getSharedSchedules(db!); },
     listContacts() { return getContacts(db!); },
+    mergeContacts(args) {
+      mergeContacts(db!, args.contacts);
+      return getContacts(db!);
+    },
     listGrants(args) { return getGrants(db!, args?.orderId); },
     listConflicts() { return getConflicts(db!); },
     resolveConflictKeepServer(args) {
@@ -152,6 +156,10 @@ export function buildHandlers(env: HandlerEnv) {
     },
     listOutbox(args) {
       return getOutboxOps(db!, args?.statuses ?? ['pending', 'sending', 'conflict', 'rejected', 'quarantined']);
+    },
+    requeueSending() {
+      db!.run(`UPDATE outbox SET status='pending', updated_at=? WHERE status='sending'`, [nowISO()]);
+      return null;
     },
     importLegacy(args) {
       return db!.transaction((tx) => importLegacy(tx, args.sourceDataset, args.items as never[], args.sessionId));

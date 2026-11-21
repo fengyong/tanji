@@ -542,6 +542,20 @@ export function getSharedSchedules(db: DBApi): Record<string, unknown>[] {
   ) as Record<string, unknown>[];
 }
 
+export function mergeContacts(db: DBApi, contacts: { contact_id: string; user_id: string; nickname: string; auth_relation_generation: string }[]): void {
+  db.transaction((tx) => {
+    const now = nowRFC3339();
+    for (const c of contacts) {
+      tx.run(
+        `INSERT INTO contacts (user_id, nickname, contact_id, generation, synced_at) VALUES (?,?,?,?,?)
+         ON CONFLICT(user_id) DO UPDATE SET nickname=excluded.nickname, contact_id=excluded.contact_id,
+           generation=excluded.generation, synced_at=excluded.synced_at`,
+        [c.user_id, c.nickname, c.contact_id, c.auth_relation_generation, now],
+      );
+    }
+  });
+}
+
 export function getContacts(db: DBApi): Record<string, unknown>[] {
   return db.all(`SELECT * FROM contacts ORDER BY nickname`) as Record<string, unknown>[];
 }

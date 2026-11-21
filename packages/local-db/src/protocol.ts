@@ -47,11 +47,13 @@ export type LocalDBCommands = {
   };
   listShared: void;
   listContacts: void;
+  mergeContacts: { contacts: { contact_id: string; user_id: string; nickname: string; auth_relation_generation: string }[] };
   listGrants: { orderId?: string };
   listConflicts: void;
   resolveConflictKeepServer: { conflictId: string };
   resolveConflictRetry: { conflictId: string };
   listOutbox: { statuses?: string[] };
+  requeueSending: void;
   importLegacy: { sourceDataset: string; items: unknown[]; sessionId: string | null };
   migrationMap: { sourceDataset: string };
   setQuarantined: void;
