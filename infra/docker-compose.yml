@@ -1,0 +1,79 @@
+name: tanji-cloud
+
+services:
+  # 云端数据库:MySQL 8.4 LTS,utf8mb4,数据持久化在命名卷
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${TANJI_MYSQL_ROOT_PASSWORD:-tanji_root_dev}
+      MYSQL_DATABASE: tanji
+      MYSQL_USER: tanji_app
+      MYSQL_PASSWORD: ${TANJI_MYSQL_APP_PASSWORD:-tanji_app_dev}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --mysqlx=OFF
+    ports:
+      - "${TANJI_MYSQL_PORT:-33306}:3306"   # 宿主机跑集成测试用
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-utanji_app", "-p${TANJI_MYSQL_APP_PASSWORD:-tanji_app_dev}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # 开发邮件:Mailpit(SMTP 1025 / Web UI 8025),验证码邮件在这里查看
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Go 后端:容器启动时自动执行 goose 迁移,失败不启动(不自动抹库)
+  backend:
+    build:
+      context: ../backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${TANJI_BACKEND_PORT:-8080}:8080"
+    environment:
+      TANJI_DEV: ${TANJI_DEV:-0}
+    # 默认 flag 指向 compose 网络内的 mysql/mailpit;迁移在启动时执行
+    command:
+      - -addr
+      - 0.0.0.0:8080
+      - -db-host
+      - mysql
+      - -db-port
+      - "3306"
+      - -db-name
+      - tanji
+      - -db-user
+      - tanji_app
+      - -db-pass
+      - ${TANJI_MYSQL_APP_PASSWORD:-tanji_app_dev}
+      - -mailpit
+      - mailpit:1025
+
+  # Web 开发服务器(Vite,带 COOP/COEP 头以支持 OPFS);--profile dev 启用
+  web:
+    image: node:22-alpine
+    profiles: ["dev"]
+    working_dir: /repo/apps/web
+    volumes:
+      - ..:/repo
+    command: >
+      sh -c "test -f package.json &&
+             (npm ci --no-audit --no-fund || npm install --no-audit --no-fund) &&
+             npm run dev -- --host 0.0.0.0 --port 5173 ||
+             echo 'apps/web 尚未初始化:跳过 web 服务(前端代码完成后可用)'"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  mysql-data:

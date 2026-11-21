@@ -32,6 +32,12 @@
 4. M1→M4 推进，最后 M6 验收(浏览器 E2E: 注册→离线→同步→搭档→撤销→踢出)
 5. 全部开发完成后: 三轮 review→修复→再 review→再修复→提交(用户 2026-11-22 指示)
 
+## Docker 化(2026-11-22 用户要求)
+- infra/docker-compose.yml(mysql:8.4 + mailpit + backend 自动迁移 + web profile)+ backend/Dockerfile(多阶段,非 root,healthcheck)+ scripts/dev-up.sh / dev-down.sh / dev-test.sh
+- 任何机器: git clone → git switch feat/cloud-local-first → ./scripts/dev-up.sh --with-web
+- **偏离记录**: 本机无 Docker(brew 损坏),compose 配置未在本机运行验证(见 docs/cloud-dev.md);本机开发用便携版 MySQL 8.4.11(~/tools/mysql84,端口 33306),测试仍为真实 MySQL
+- 集成测试兼容两种环境: 环境变量 TANJI_TEST_MYSQL_* 指向 compose MySQL 或便携 MySQL
+
 ## 已知注意事项
 - MySQL root 无密码(dev 实例, 仅本机 127.0.0.1:33306)；测试库 tanji_test_* 每次创建后清理
 - 会话令牌是 base64url 文本(修复过原始字节破坏 cookie 的问题)

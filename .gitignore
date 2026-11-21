@@ -6,3 +6,6 @@ dist/
 *.log
 .zcode-site/
 .zcode-site.json
+
+# infra 本地覆盖
+infra/.env
