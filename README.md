@@ -2,6 +2,16 @@
 
 探店达人的行程与收款本机记账工具。纯前端 PWA，无后端依赖；订单与流水保存在本机，并生成可导出的 SQLite 数据库。
 
+## 在线地址
+
+| 站点 | 链接 | 内容 |
+|---|---|---|
+| **正式版（给达人用）** | https://tanji-app-guvc.zai.site | v0.4：双数据集（工作/演示）、JSON 导入恢复、月历勋章、全环节可改 |
+| **点子实验室（验收用）** | https://tanji-lab-1v7g.zai.site | 8 个产品点子可交互 demo + 自测试机制（26 条断言 + 12 步 UAT） |
+| **代码仓库** | https://github.com/fengyong/tanji | main / native-app / lab / feat 分支 |
+
+实验室与正式版相互独立、分开部署；实验室数据全部虚构，正式版默认演示数据。
+
 ## 快速开始(手机)
 
 1. 用 iPhone 的 Safari 打开应用链接(部署后的 https 地址)
@@ -65,6 +75,8 @@ node tests/browser-smoke.cjs
 
 ## 分支
 
-- `main` — Web/PWA 版，包含可靠性修复与备份恢复
+- `main` — Web/PWA 版（线上部署即此分支），包含可靠性修复与备份恢复
+- `lab` — 点子实验室（8 个点子 demo + 自测试机制），独立部署于实验室链接，待验收合入
+- `native-app` — 本地 App 版（Capacitor 壳 + 原生 SQLite/本地通知），独立 worktree 开发；已同步 v0.4，待装 Xcode 后验证编译
 - `feat/reliability-recovery` — 可靠性修复开发分支，保留独立 worktree
-- `native-app` — 本地 App 版（Capacitor 壳 + 原生 SQLite/本地通知），独立 worktree 开发
+- `feat/cloud-local-first` — 云端/本地优先策略实验分支（未合入）
