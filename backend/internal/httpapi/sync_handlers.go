@@ -269,7 +269,8 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 				m["entity_id"] = store.ID(entity.V).String()
 			}
 			if share.Valid {
-				m["share_id"] = store.ID(share.V).String()
+				ev.ShareID = store.ID(share.V).String()
+				m["share_id"] = ev.ShareID
 			}
 			if generation.Valid {
 				m["generation"] = domain.FormatVersion(generation.Int64)

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -72,15 +73,17 @@ func (s *Server) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, apiErr(400, "invalid_payload", "需要 invitee_user_id 或 invitee_email"))
 		return
 	}
-	token, terr := store.RandomToken()
+	raw, terr := store.RandomToken()
 	if terr != nil {
 		writeErr(w, terr, s.Log, "invite")
 		return
 	}
+	// 传输形式为 base64url 文本(与会话令牌一致);哈希针对传输形式。
+	token := base64.RawURLEncoding.EncodeToString(raw)
 	_, err := s.DB.ExecContext(r.Context(),
 		`INSERT INTO contact_invites (id, inviter_id, invitee_id, token_hash, status, expires_at, created_at)
 		 VALUES (?,?,?,?,'pending',?,?)`,
-		inviteID[:], sess.UserID[:], inviteeID[:], auth.HashToken(token), now.Add(72*time.Hour), now)
+		inviteID[:], sess.UserID[:], inviteeID[:], auth.HashToken([]byte(token)), now.Add(72*time.Hour), now)
 	if err != nil {
 		writeErr(w, err, s.Log, "invite")
 		return
@@ -144,6 +147,7 @@ func (s *Server) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 			lo, hi).Scan(&linkID, &generation, &linkStatus)
 		if errors.Is(err, sql.ErrNoRows) {
 			linkID = store.NewID()
+			generation = 1
 			if _, err = tx.ExecContext(ctx,
 				`INSERT INTO contact_links (id, user_low, user_high, status, generation, created_at)
 				 VALUES (?, ?, ?, 'active', 1, ?)`, linkID[:], lo, hi, now); err != nil {
