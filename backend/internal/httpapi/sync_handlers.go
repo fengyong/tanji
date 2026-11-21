@@ -38,13 +38,13 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 409, apiErr(409, domain.CodeProtocol, "协议版本不匹配,请升级客户端"))
 		return
 	}
-	if len(req.Operations) == 0 || len(req.Operations) > domain.MaxOpsPerBatch {
-		writeJSON(w, 400, apiErr(400, "invalid_batch", "操作数量必须在 1~50 之间"))
+	// 信封账号必须等于鉴权用户,阻断切号串账(先于批内容校验)。
+	if req.AccountID != sess.UserID.String() {
+		writeJSON(w, 403, apiErr(403, "account_mismatch", "account_id 与当前会话不匹配"))
 		return
 	}
-	if req.AccountID != sess.UserID.String() {
-		// 信封账号必须等于鉴权用户,阻断切号串账。
-		writeJSON(w, 403, apiErr(403, "account_mismatch", "account_id 与当前会话不匹配"))
+	if len(req.Operations) == 0 || len(req.Operations) > domain.MaxOpsPerBatch {
+		writeJSON(w, 400, apiErr(400, "invalid_batch", "操作数量必须在 1~50 之间"))
 		return
 	}
 
@@ -123,7 +123,8 @@ func (s *Server) handleReceipts(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		var result, errCode string
+		var result string
+		var errCode sql.NullString
 		var version sql.NullInt64
 		var payload []byte
 		err = s.DB.QueryRowContext(r.Context(),
@@ -138,7 +139,7 @@ func (s *Server) handleReceipts(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, err, s.Log, "receipts")
 			return
 		}
-		res := domain.OpResult{OpID: raw, Result: result, ErrorCode: errCode}
+		res := domain.OpResult{OpID: raw, Result: result, ErrorCode: errCode.String}
 		if version.Valid {
 			res.ResultingVersion = domain.FormatVersion(version.Int64)
 		}
@@ -242,7 +243,7 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		OriginOp  string          `json:"origin_op_id,omitempty"`
 		Payload   json.RawMessage `json:"payload"`
 	}
-	var events []map[string]any
+	events := []map[string]any{}
 	hasMore := false
 	lastSeq := seq
 	scan := func(rows *sql.Rows) error {

@@ -207,7 +207,7 @@ func (s *Server) snapshotShares(ctx context.Context, tx *sql.Tx, recipient store
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
-	var out []json.RawMessage
+	out := []json.RawMessage{}
 	for _, sid := range shareIDs {
 		var g generation
 		var ownerID store.ID
@@ -233,13 +233,14 @@ func (s *Server) snapshotShares(ctx context.Context, tx *sql.Tx, recipient store
 type generation struct{ gen int64 }
 
 func (s *Server) snapshotReceipts(ctx context.Context, tx *sql.Tx, user store.ID, opIDs []string) ([]json.RawMessage, error) {
-	var out []json.RawMessage
+	out := []json.RawMessage{}
 	for _, raw := range opIDs {
 		id, err := store.ParseID(raw)
 		if err != nil {
 			continue
 		}
-		var result, errCode string
+		var result string
+		var errCode sql.NullString
 		var version sql.NullInt64
 		var payload []byte
 		var opType string
@@ -253,7 +254,7 @@ func (s *Server) snapshotReceipts(ctx context.Context, tx *sql.Tx, user store.ID
 		if err != nil {
 			return nil, err
 		}
-		m := map[string]any{"op_id": raw, "result": result, "error_code": errCode, "op_type": opType}
+		m := map[string]any{"op_id": raw, "result": result, "error_code": errCode.String, "op_type": opType}
 		if version.Valid {
 			m["resulting_version"] = domain.FormatVersion(version.Int64)
 		}

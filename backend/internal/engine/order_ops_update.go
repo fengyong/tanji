@@ -262,7 +262,17 @@ func applyOrderUpdateFields(ctx context.Context, tx *sql.Tx, oc *opContext, row 
 	return err
 }
 
+// dependencyPendingRejection:after_op_id 前置未到达,不落回执,保持可重试。
+type dependencyPendingRejection struct{}
+
+func (dependencyPendingRejection) Error() string { return "前置操作尚未到达" }
+
 func (e *Engine) rejectFromDomain(oc *opContext, err error) domain.OpResult {
+	var dp dependencyPendingRejection
+	if errors.As(err, &dp) {
+		return domain.OpResult{OpID: oc.op.OpID, Result: domain.ResultDependencyPending,
+			ErrorCode: domain.ResultDependencyPending, Message: dp.Error()}
+	}
 	var dr *domain.DomainRejection
 	if errors.As(err, &dr) {
 		if dr.IsConflict {

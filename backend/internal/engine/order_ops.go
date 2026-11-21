@@ -286,6 +286,9 @@ func (e *Engine) buildOrderDTO(ctx context.Context, tx *sql.Tx, orderID store.ID
 	if err != nil {
 		return nil, err
 	}
+	if payments == nil {
+		payments = []domain.PaymentDTO{}
+	}
 	active := map[string]string{}
 	for _, pm := range payments {
 		if pm.EntryType == domain.EntryReceipt {

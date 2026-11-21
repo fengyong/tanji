@@ -30,6 +30,8 @@ func (l LogSender) SendVerification(email, _, code, purpose string) error {
 	return nil
 }
 
+func (l LogSender) Kind() string { return "dev-log" }
+
 func NewMailpit(addr, from string, log *slog.Logger) *MailpitSender {
 	return &MailpitSender{Addr: addr, From: from, Log: log, kind: "mailpit"}
 }

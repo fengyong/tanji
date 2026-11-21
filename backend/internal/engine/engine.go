@@ -97,12 +97,18 @@ func (e *Engine) ApplyOp(ctx context.Context, tx *sql.Tx, sess SessionCtx, op do
 		return res, nil
 	}
 
-	// 依赖检查:requires_success 前置必须已成功;否则 dependency_pending(不入回执,可重试)。
-	if done, code, msg, err := e.checkRequires(tx, &oc); err != nil {
+	// 依赖检查:requires_success 前置必须已成功;
+	// 未到达 → dependency_pending(不入回执,可重试);已失败 → rejected dependency_failed(入回执)。
+	state, code, msg, err := e.checkRequires(tx, &oc)
+	if err != nil {
 		return domain.OpResult{}, err
-	} else if !done {
+	}
+	if state == requirePending {
 		return domain.OpResult{OpID: op.OpID, Result: domain.ResultDependencyPending,
 			ErrorCode: code, Message: msg}, nil
+	}
+	if state == requireFailed {
+		return reject(&oc, code, msg), nil
 	}
 
 	// 领域处理。
@@ -218,7 +224,7 @@ func (e *Engine) resolveExpectedVersion(tx *sql.Tx, oc *opContext) (int64, error
 		 WHERE user_id = ? AND op_id = ?`, oc.sess.UserID[:], afterID[:],
 	).Scan(&aggID, &result, &resultingVersion)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, domain.Reject(domain.ResultDependencyPending, "前置操作尚未到达")
+		return 0, dependencyPendingRejection{}
 	}
 	if err != nil {
 		return 0, err
@@ -236,7 +242,8 @@ func (e *Engine) resolveExpectedVersion(tx *sql.Tx, oc *opContext) (int64, error
 }
 
 func (e *Engine) lookupReceipt(tx *sql.Tx, oc *opContext) (domain.OpResult, bool, error) {
-	var result, errCode string
+	var result string
+	var errCode sql.NullString
 	var hashBytes []byte
 	var resultingVersion sql.NullInt64
 	var resultPayload []byte
@@ -256,7 +263,12 @@ func (e *Engine) lookupReceipt(tx *sql.Tx, oc *opContext) (domain.OpResult, bool
 			ErrorCode: domain.CodeHashMismatch,
 			Message:   "同 op_id 但内容不同:操作创建后 payload 不可变,请生成新 op_id"}, true, nil
 	}
-	res := domain.OpResult{OpID: oc.op.OpID, Result: result, ErrorCode: errCode}
+	// 重试返回 already_applied,让调用方区分首次应用与重放。
+	display := result
+	if result == domain.ResultApplied {
+		display = domain.ResultAlreadyApplied
+	}
+	res := domain.OpResult{OpID: oc.op.OpID, Result: display, ErrorCode: errCode.String}
 	if resultingVersion.Valid {
 		res.ResultingVersion = domain.FormatVersion(resultingVersion.Int64)
 	}
@@ -296,27 +308,35 @@ func sqlNullString(s string) any {
 	return s
 }
 
-func (e *Engine) checkRequires(tx *sql.Tx, oc *opContext) (bool, string, string, error) {
+type requireState int
+
+const (
+	requireOK requireState = iota
+	requirePending
+	requireFailed
+)
+
+func (e *Engine) checkRequires(tx *sql.Tx, oc *opContext) (requireState, string, string, error) {
 	for _, dep := range oc.op.RequiresSuccess {
 		depID, err := store.ParseID(dep)
 		if err != nil {
-			return false, domain.CodeInvalidPayload, "requires_success 含非法 op_id", nil
+			return requireFailed, domain.CodeInvalidPayload, "requires_success 含非法 op_id", nil
 		}
 		var result string
 		err = tx.QueryRowContext(context.Background(),
 			`SELECT result FROM mutation_receipts WHERE user_id = ? AND op_id = ?`,
 			oc.sess.UserID[:], depID[:]).Scan(&result)
 		if errors.Is(err, sql.ErrNoRows) {
-			return false, domain.ResultDependencyPending, "依赖操作尚未提交", nil
+			return requirePending, domain.ResultDependencyPending, "依赖操作尚未提交", nil
 		}
 		if err != nil {
-			return false, "", "", err
+			return requirePending, "", "", err
 		}
 		if result != domain.ResultApplied && result != domain.ResultAlreadyApplied {
-			return false, domain.CodeDependencyFailed, "依赖操作未成功", nil
+			return requireFailed, domain.CodeDependencyFailed, "依赖操作未成功", nil
 		}
 	}
-	return true, "", "", nil
+	return requireOK, "", "", nil
 }
 
 // flushEvents 统一分配序号:锁 user_stream_heads 按 recipient 排序,保证已提交前缀完整。
