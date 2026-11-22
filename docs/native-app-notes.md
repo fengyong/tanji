@@ -626,3 +626,10 @@ deliver_sub 迁移缺省、计数封顶显示),冒烟 20 项 `consoleErrors` 空
 权限按需请求、里程碑乱序守卫),冒烟 20 项 `consoleErrors` 空,
 `npm run check` 无漂移(按 main @ d74ffd4 重新登记锁),`plutil -lint` Info.plist OK。
 **未做**:sw.js precache 补全属 main 分支事务;站点部署(隐私/支持页 404)需外部操作。
+
+**复核补遗(2026-11-22,zcode/glm-5.3,独立核实上述修复属实后补两处)**:
+1. `validateState` 导入校验补订单 id <100000 上界——分段前提原只在新建订单处拦截,
+   手工构造的备份可绕过(备忘段会撞出片段、work 段会撞 demo 段);与 saveOrder 同口径。
+2. 新增接线静态测试钉住 `clear-remind → cancelSnooze`——变异实测把处理器改回
+   `cancelOrder` 时原有 115 项测试全绿(原语测试不经点击路径),接线层此前无防线。
+   两项新测试均做过去除修复即变红的杀伤力验证。测试 115 → 117。

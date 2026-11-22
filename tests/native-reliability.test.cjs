@@ -391,6 +391,16 @@ test('清除单笔催收备忘只撤备忘段,同单的 24h 出片提醒必须�
   assert.equal(a.device.pending.filter(n=>+n.id===300005).length,0,'删单时出片提醒仍要一起撤');
 });
 
+test('导入校验拒绝订单 id≥100000:通知 id 分段的前提不能只靠新建拦截',()=>{
+  const a=app();
+  const backup=id=>({version:'0.6',threshold:15,orders:[order({id})],payments:[]});
+  // 手工构造的备份若能带进高单号:备忘 id 会撞进出片段、work 段会撞进 demo 段,NOTIFY_OFFSET 整个失效
+  assert.throws(()=>a.run(`validateState(${JSON.stringify(backup(100000))})`),/上限|99999/);
+  assert.throws(()=>a.run(`validateState(${JSON.stringify(backup(250000))})`),/上限|99999/);
+  // 上界之内的最大合法值不受影响
+  a.run(`validateState(${JSON.stringify(backup(99999))})`);
+});
+
 test('双模式通知分段:work/demo 同订单号互不覆盖,切换模式不撤另一模式的通知',async()=>{
   const device=newDevice();
   const a=app(device);

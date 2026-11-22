@@ -103,7 +103,9 @@ function validateState(input){
 
   const orders=input.orders.map((order,index)=>{
     const label=`第 ${index+1} 笔订单`;
-    if(!order||!Number.isSafeInteger(order.id)||order.id<1||ids.has(order.id))throw new Error(`${label}的 ID 无效或重复`);
+    // 上界与新建订单(saveOrder)同口径:NOTIFY_OFFSET 分段要求 orderId<100000,只拦新建不拦导入的话,
+    // 手工构造的备份能带进高单号——备忘段会撞进出片段、work 段会撞进 demo 段,分段防线整体失效
+    if(!order||!Number.isSafeInteger(order.id)||order.id<1||order.id>=100000||ids.has(order.id))throw new Error(`${label}的 ID 无效、重复或超过上限(99999)`);
     ids.add(order.id);
     if(typeof order.store!=='string'||!order.store.trim())throw new Error(`${label}缺少商家名称`);
     if(!amount(order.price)||!amount(order.deposit)||order.deposit>order.price)throw new Error(`${label}的总价或定金不合法`);

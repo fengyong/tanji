@@ -60,6 +60,16 @@ test('脚本加载顺序:插件桥最先,storage 最后', () => {
   );
 });
 
+test('清除催收提醒必须接 cancelSnooze(只撤备忘段),不能接删单语义的 cancelOrder', () => {
+  // P2-1 的接线层防线:clear-remind 若接 cancelOrder,会连带撤掉同单的 24h 出片提醒。
+  // Notify.cancelSnooze 原语有行为级测试(native-reliability),但不经过点击处理器——
+  // 变异实测把处理器改回 cancelOrder 时其余测试全绿,接线只能在这里静态钉住。
+  const m = index.match(/case 'clear-remind':\{[\s\S]*?break\}/);
+  assert.ok(m, '找不到 clear-remind 处理器(case 块结构可能变了)');
+  assert.match(m[0], /Notify\.cancelSnooze\(/, 'clear-remind 应调用 Notify.cancelSnooze(只撤备忘段)');
+  assert.doesNotMatch(m[0], /cancelOrder/, 'clear-remind 不能调 cancelOrder(删单语义,会连带撤掉 24h 出片提醒)');
+});
+
 test('保存按钮必须落在常驻操作条里,而不是滚动区', () => {
   // 新建预约:滚动区以 flush 结尾,紧跟一个 sheet-foot 包住保存按钮
   const create = index.match(
