@@ -16,6 +16,7 @@ www/                Web 资源(与 main 分支 Web 版同源;纯资产同步,ind
   index.html        UI + 页面状态 + 平台自适应持久化 + 原生桥接
   logic.js          业务规则纯函数层(工作线/资金线/逾期/出片/统计/排期),不碰 DOM,可单测
   imaging.js        图像处理模块(裁切/压缩/烘焙淡化 + 体积上限),头像与随手拍共用
+  geo.js            到店定位与地图跳转(GPS 记录 / 手填地点导航),原生与 Web 同一套入口
   cap-plugins.js    esbuild 打包的 Capacitor 插件桥(window.TanjiCap)
   vendor/           sql.js WASM(导出真 .db 字节)
 src/cap-plugins.js  插件桥源文件
@@ -48,7 +49,7 @@ npm run sync            # 打包插件桥 + cap sync ios(www → ios/App/App/pub
 npm run sync:web        # 从 main 同步 Web 资产(纯资产自动拷;index.html/storage.js 只检测漂移,人工合并)
 npm run check           # main/native 漂移校验(指纹锁 scripts/web-sync.lock.json + esbuild 产物比对)
 npm run check:update    # 人工合并/有意改动后重新登记锁基线(只做这一件事,不碰文件)
-npm test                # 回归测试(node --test:原生 31 项 + Web 39 项 + 导出表结构 5 项 + 规则 8 项,共 83)
+npm test                # 回归测试(node --test:原生 32 + Web 39 + 导出表结构 5 + 规则 8 + 定位 5 + 接线 3,共 92)
 npm run test:smoke      # 浏览器端到端冒烟(需本机 Chrome,可用 CHROME_BIN 指定)
 npm run serve           # 本地起 Web 版预览(python3 http.server,http://localhost:8765)
 npm run build:ios       # xcodebuild 模拟器构建(不签名)
@@ -61,6 +62,9 @@ npm run open:ios        # 用 Xcode 打开 iOS 工程
 - **多账号体系**:录入多个达人账号(昵称/手机号/抖音账号/**头像**/标识色),订单挂账号;首页/订单/**收款**/统计四页可「全部合并看 / 按账号拆开」;订单/流水行带账号浅底色+迷你头像小标;账号资料**一键拷贝**(昵称+抖音+手机,去报名/给服务商);≥2 账号时建单出**单选卡**选号(不是下拉),单账号全程零打扰自动归属
 - 服务商:预设芯片点选(蜂向/小爱/金城/食物/直客)+ 直接输入,自定义过的自动记入预设
 - 品名/商家、**地点**、时间、**组队**、费用、联系方式、备注
+- **地点一键导航**:详情页地点行直接跳地图 App(按手填的中文地址查,最准);**到店定位**:打卡/随手拍时自动记一次当时 GPS(`gps_place` 新列,与手填地点并存),详情页可回看位置或手动补记
+- **保存按钮常驻**:新建/编辑弹层的保存条固定在底部,不用滚到最下面才看得见
+- **行内推进**:首页「今日拍摄」可直接打卡、首页/订单页「待发片」行内直接提审/发片/发布;订单搜索覆盖商家/地点/联系人/备注
 - 预约 → 拍摄 → 提审 → 出片(**按单配置正片/副片要求,两个多选**)→ **送审(合格/不合格)** → **发布** → 收款;时间线顺序不变,新增送审/发布两个可标记可清除的状态
 - **24 小时未出片提醒**:拍摄完成 +24h 仍未出齐(按该单正/副片配置)→ 本地通知 + 列表红色「超24h」角标
 - 定金/尾款双轨收款,渠道仅作记录标签(微信/支付宝/银行卡/抖音商单/其他);抖音商单=平台结算,豁免催收
@@ -72,7 +76,7 @@ npm run open:ios        # 用 Xcode 打开 iOS 工程
 
 ## 数据表(orders / payments / settings)
 
-见 `docs/native-app-notes.md` 第四节,或 App 内「统计 → 数据结构」页。v0.5 工作流字段:`location` / `deliver_main` / `deliver_sub` / `review_result` / `published_at`;v0.6 新增 `accounts` 表与 orders.`account_id`(旧库启动时自动迁移)。
+见 `docs/native-app-notes.md` 第四节,或 App 内「统计 → 数据结构」页。v0.5 工作流字段:`location` / `deliver_main` / `deliver_sub` / `review_result` / `published_at`;v0.6 新增 `accounts` 表与 orders.`account_id`、orders.`gps_place`(旧库启动时自动迁移)。
 
 ## 已知状态
 

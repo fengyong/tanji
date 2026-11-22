@@ -91,7 +91,7 @@ npm run sync             # esbuild 打包插件桥 + cap sync ios(拷 www → io
 
 **表结构(v0.4 后原生库按 `mode` 分双数据集,与 Web 导出的 .db 已不同构 —— 跨端搬运请走 JSON 备份):**
 
-- `orders`(26 列,主键 `(mode,id)`):mode, id, store, category, contact, price, deposit, appt_at, shot_at, submitted_at, short_sent_at, long_sent_at, deposit_paid_at, final_paid_at, **settle_via**(TEXT DEFAULT 'private'——private 私收 / douyin 抖音商单平台结算不催收), **remind_at**(催收备忘 1/3/7 天), channel(服务商), partner(组队), location / deliver_main / deliver_sub / review_result / published_at(v0.5 工作流), **account_id**(v0.6 所属账号), note, created_at, updated_at
+- `orders`(27 列,主键 `(mode,id)`):mode, id, store, category, contact, price, deposit, appt_at, shot_at, submitted_at, short_sent_at, long_sent_at, deposit_paid_at, final_paid_at, **settle_via**(TEXT DEFAULT 'private'——private 私收 / douyin 抖音商单平台结算不催收), **remind_at**(催收备忘 1/3/7 天), channel(服务商), partner(组队), location / deliver_main / deliver_sub / review_result / published_at(v0.5 工作流), **account_id**(v0.6 所属账号), **gps_place**(v0.6 到店定位,`lat,lng`), note, created_at, updated_at
 - `payments`:mode, id(AUTOINCREMENT), order_id, kind(**实际存中文「定金」/「尾款」**), amount, paid_at, method(微信/支付宝/银行卡/抖音商单/其他,仅记录标签), note
 - `accounts`(v0.6,主键 `(mode,id)`):mode, id, name, phone, douyin, color(0-7 色板序号), avatar(dataURL), created_at
 - `settings`:`(scope,key) → value`;scope=mode,key=`json`(完整状态快照,**恢复数据只认它**) / `backup`(替换前备份)
@@ -288,7 +288,7 @@ npm run check              # 再确认一遍
 ### 验证
 
 - 回归测试 +5(往返落库含头像 dataURL、悬空 accountId 归一/非法资料拒、旧库迁移出 accounts 表+account_id 列、拷贝文本跳空字段、备份文档含 accounts/providers),`npm test` 73/73。
-- export-schema 一致性测试同步收紧:orders 26 列(含 account_id)、.db 导出必须含 accounts 表、accounts INSERT 7 列 7 占位符(曾靠它抓住 .db 导出块漏改——替换锚点未命中静默跳过,测试拦下)。
+- export-schema 一致性测试同步收紧:orders 列数按已上线字段逐级校验(当前 27 列,含 account_id / gps_place)、.db 导出必须含 accounts 表、accounts INSERT 7 列 7 占位符(曾靠它抓住 .db 导出块漏改——替换锚点未命中静默跳过,测试拦下)。
 - 模拟器实测:见七节人工清单;重点:旧库启动自动建 accounts 表、建两张账号后建单出选号卡、筛选条四页生效、拷贝进系统剪贴板。
 
 ## 深度 review 记录(2026-11-22)
@@ -322,13 +322,15 @@ npm run check              # 再确认一遍
 
 ### 新增测试
 
-- `tests/native-reliability.test.cjs` —— 原生路径回归(**31 项**),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
+- `tests/native-reliability.test.cjs` —— 原生路径回归(**32 项**),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
 - `tests/web-reliability.test.cjs` —— 移植自 main 的 39 项 Web 回归,指向 `www/`。
 - `tests/export-schema.test.cjs` —— 导出表结构护栏 5 项(列数/占位符/accounts 表一致性)。
 - `tests/logic.test.cjs` —— 业务规则规格 **8 项**(正副片四种配置、四态推进、资金线、逾期起算、24h 边界、排期 ±120、统计窗口、分制金额)。
-- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 步,需本机 Chrome)。
+- `tests/geo.test.cjs` —— 到店定位规格 **5 项**(坐标串解析边界、超长串拒绝、展示格式、地图链接优先文本、无地点才用坐标)。
+- `tests/wiring.test.cjs` —— 接线一致性 **3 项**(插件桥全局名与消费端读的名字一致、www 脚本加载顺序、保存按钮不在滚动区)。
+- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 步 + 保存条常驻 + geo 加载,共 15 项检查,需本机 Chrome)。
 
-合计 `npm test` **83 项**(31 + 39 + 5 + 8)。
+合计 `npm test` **92 项**(32 + 39 + 5 + 8 + 5 + 3)。
 
 ### 业务规则层(www/logic.js)
 
@@ -359,3 +361,66 @@ node --test tests/native-reliability.test.cjs
 node --test tests/web-reliability.test.cjs
 node tests/browser-smoke.cjs
 ```
+
+## 到店定位 · 地图跳转 · 常驻保存条(2026-11-22 v0.6 增量)
+
+> 起因:三件具体的事 —— ① 地点要能直接跳地图;② 到店拍摄时自动记下当时的 GPS,单独一列,**与手填地点不冲突**;
+> ③ 新建/编辑的保存按钮不能"滚到最下面才看见"。
+> 顺带把《达人工作流与交互评估》(`docs/creator-workflow-review.md`)里的 P0 项做掉。
+
+### 数据与链路
+
+- 新增列 `orders.gps_place`(TEXT,JS 字段 `gpsPlace`),存 `纬度,经度`(6 位小数)。`location` 不动,两列各管一件事:
+  `location` 是人写的"万象城 3 层"(导航按它查最准),`gpsPlace` 是机器记的"当时在哪"。
+- 写入时机:**打卡/标记已拍摄**、**随手拍成功**后各触发一次 `capturePlace()`,取 `@capacitor/geolocation`(原生)/`navigator.geolocation`(Web)。
+  定位失败、拒绝授权、超时一律**静默**:位置是附加信息,不能挡"这单拍过了"。
+- 重拍会覆盖为最新一次(重拍意味着"我又到店了");详情页「记录当前位置」可手动补,「看位置」跳地图看精确点位。
+- 迁移:`ALTER TABLE orders ADD COLUMN gps_place TEXT` 并入既有的逐条吞重复流程;旧库启动自动补列。
+- 导出:CSV 增「到店定位」列(26 列,人在 Excel 里也读得懂);`.db` 27 列;JSON 备份自动带(读回时 `geo.isValid` 归一,
+  脏坐标**丢弃不抛错**——一条坏坐标不能让整份快照读不出来)。
+
+### 地图跳转
+
+- `www/geo.js` 的 `mapUrl()`:优先 `location` 文本(`https://maps.apple.com/?q=地址`),没填地点才用 `gpsPlace`(`ll=lat,lng&q=店名`)。
+- 用 `https://maps.apple.com` 而不是 `maps://`:没装/被拦时会自然退回网页,不会"点了没反应";原生用 `window.open(url,'_system')` 交棒系统。
+- 为什么不直接拿 GPS 导航:GPS 是 WGS84,国内地图用 GCJ02,直接按坐标导航会有几百米偏移;手填的中文地址反而最准。
+
+### 常驻保存条
+
+- `.sheet-foot` 固定在弹层底部(flex 子项、不在滚动区),`.sheet-body.flush` 收窄底部留白;新建「预约」与「编辑订单」两处都改。
+- 冒烟里加了硬断言:打开弹层后按钮必须在视口内,且 `closest('.sheet-body') === null`(放回滚动区就会失败)。
+
+### 顺带落地的交互优化(P0)
+
+| 项 | 改法 |
+|---|---|
+| 待发片只能进详情 | 首页/订单页行内按 `nextStep()` 直接给「提审 / 发副片 / 发正片 / 发布」,顺序与详情页一致 |
+| 首页今日数量越拍越少 | 「今日拍摄」改为今日**全部**单(已拍置灰),标题给 `已拍/总数`,行内加「打卡」按钮(顺手记 GPS) |
+| 搜索只搜商家名 | 覆盖 store / location / contact / channel / partner / note / cat |
+| 待发片只显示 4 条 | 超过 4 条补一行「还有 N 单,查看全部」 |
+| 行程页只有成交额 | 月头补「成交 ¥X · 已收 ¥Y」 |
+
+> 勘误:评估文档原先写"`renderTrip` 算了 `mSum` 却未渲染",实际月头早已渲染成交额(`.msum`),属我读代码时只看前 26 行导致的误判,
+> 已在 `docs/creator-workflow-review.md` 更正;这次只补了"已收"。
+
+### 顺带修掉的接线 bug(本轮准确性检查的最大收获)
+
+`src/cap-plugins.js` 把插件桥挂成 `window.TanJiCap`,而 `www/storage.js` 第 1 行读的是 `window.TanjiCap` —— 只差一个字母的大小写。
+JS 不会报错,但后果是 **`CAP = null` → `isNative = false`:整条原生路径(SQLite 持久化、本地通知、分享面板)被静默跳过**,
+数据退回 WKWebView 的 IndexedDB 照样能存,所以"看起来一切正常"。源码注释、研发笔记、测试 mock 用的都是 `TanjiCap`,
+只有打包入口写错了 —— 这类错只能靠静态比对发现,跑起来永远是"通过"的。
+
+- 修复:统一为 `TanjiCap`(消费端、mock、文档都已经是这个名字),重新 `build:plugins`。
+- 防回归:`tests/wiring.test.cjs` 直接比对「桥定义的名字」与「消费端读的名字」,并检查构建产物里也有这个名字。
+
+### 验证
+
+- `npm test` **92 项**全通过(新增 `tests/geo.test.cjs` 5 项 + `tests/wiring.test.cjs` 3 项 + 原生 gps_place 落库/读回/脏值 1 项)。
+- `npm run test:smoke` 15 项检查通过,`consoleErrors` 为空(新增「save button always visible」「geo module loaded」)。
+- `npm run check` 无漂移;`npm run build:ios` **BUILD SUCCEEDED**(`cap sync` 后 Package.swift 含 6 个插件,新增 `@capacitor/geolocation@8.2.5`)。
+- `Info.plist` 补 `NSLocationWhenInUseUsageDescription`(文案说明只存本机、不上传)。
+
+### 已知边界
+
+- 没做逆地理(坐标 → 文字地址):国内可用的免费服务不稳定,拉一个随时挂的外部依赖不值得;点「看位置」在地图里就能看到地址。
+- 模拟器/真机的定位授权弹窗、弱信号超时、前后台切换没有实测(需真机点验),失败路径已按"静默不阻塞"设计。
