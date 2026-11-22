@@ -110,4 +110,4 @@ python3 -m http.server 48762 --bind 127.0.0.1   # 本机预览，端口要和 RE
 ## 上架相关
 
 App Store 走**买断付费**（付费下载），App 内零购买代码、零服务端、零 IAP。
-提审前逐条对账 `native-app` 分支的 [`docs/appstore-release-checklist.md`](../native-app/docs/appstore-release-checklist.md)。
+提审前逐条对账 `native-app` 分支的 [`docs/appstore-release-checklist.md`](https://github.com/fengyong/tanji/blob/native-app/docs/appstore-release-checklist.md)。

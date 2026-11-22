@@ -5,7 +5,7 @@
 >
 > 最后核对：2026-11-22（**新增两条硬规则**：提交标题必须带 agent/模型前缀、推送必须用 `fengyong` 账号）。
 >
-> iOS 原生版的完整版在 `native-app` 分支的 [`docs/git-push-guide.md`](../native-app/docs/git-push-guide.md)，
+> iOS 原生版的完整版在 `native-app` 分支的 [`docs/git-push-guide.md`](https://github.com/fengyong/tanji/blob/native-app/docs/git-push-guide.md)，
 > 那份还包含原生回归、漂移防护、模拟器验证等 native 专属内容。
 
 ---
@@ -346,4 +346,4 @@ git push git@github-fengyong:fengyong/tanji.git HEAD:refs/heads/<分支>
 | [`AGENTS.md`](../AGENTS.md) | **任何改动开始前**。两条硬规则、仓库结构、常用命令、同步方向 |
 | [`docs/git-push-guide.md`](git-push-guide.md)（本文） | 准备提交与推送时 |
 | `README.md` | 功能、数据与备份、双渠道策略 |
-| `native-app` 分支的 [`AGENTS.md`](../native-app/AGENTS.md) / [`docs/git-push-guide.md`](../native-app/docs/git-push-guide.md) | 动 iOS 原生侧时看，那边是同一套硬规则的完整版 |
+| `native-app` 分支的 [`AGENTS.md`](https://github.com/fengyong/tanji/blob/native-app/AGENTS.md) / [`docs/git-push-guide.md`](https://github.com/fengyong/tanji/blob/native-app/docs/git-push-guide.md) | 动 iOS 原生侧时看，那边是同一套硬规则的完整版 |
