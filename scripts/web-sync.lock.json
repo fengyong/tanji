@@ -6,7 +6,7 @@
   "files": {
     "index.html": {
       "main": "3d4f454769af69ccf2d68622ed9504c5072015ad",
-      "native": "8e23933a63f8b581225f2c6b1d04a02a37518ec6",
+      "native": "9a10bedec6e00b331a796b273dabc28cedcba85d",
       "nativePath": "www/index.html",
       "note": "主应用 UI + 业务状态"
     },

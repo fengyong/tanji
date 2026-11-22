@@ -104,6 +104,12 @@ const server=http.createServer((request,response)=>{
     await fill('#e-price','1200');await click('[data-act="save-edit"]');
     assert.equal(await evaluate('db.orders[0].price'),1000);
     await click('#sheet-edit [data-act="close-sheet"]');
+    // 下拉关闭:详情页往下拖 200px 应当退出(iOS 弹层的基本手势,不能只靠点上方空白)
+    await click('#v-orders [data-act="open"]');
+    await evaluate(`(()=>{const sheet=document.querySelector('#sheet-detail');const pt=y=>new Touch({identifier:1,target:sheet,clientX:200,clientY:y});const fire=(type,touches)=>sheet.dispatchEvent(new TouchEvent(type,{touches,bubbles:true,cancelable:true}));fire('touchstart',[pt(400)]);fire('touchmove',[pt(480)]);fire('touchmove',[pt(600)]);fire('touchend',[])})()`);
+    assert.equal(await evaluate("document.querySelector('#sheet-detail').classList.contains('show')"),false,'下拉应该能关闭详情弹层');
+    assert.equal(await evaluate('ui.detail'),null,'关闭后 detail 状态应清空');
+    assert.equal(await evaluate("document.body.style.overflow"),'',`下拉关闭后不应留下行内 transform/overflow 残渣`);
     await click('.tab[data-tab="trip"]');await evaluate('ui.selDay="2026-11-22";ui.vMon={y:2026,m:11};renderTrip()');await click('#v-trip [data-act="share"]');
     await evaluate('new Promise(resolve=>{const check=()=>ui.shareBlob?resolve():setTimeout(check,25);check()})');
     assert.equal(await evaluate('ui.shareDay'),'2026-11-22');
@@ -133,7 +139,7 @@ const server=http.createServer((request,response)=>{
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','touch feel locked','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
+    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','touch feel locked','sheet drag to dismiss','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
     await send('Browser.close');
   }finally{
     if(socket)socket.close();

@@ -452,6 +452,10 @@
 
     <div class="sheet" id="sheet-detail">
       <div class="grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title">订单详情</span>
+        <button class="sheet-close" data-act="close-sheet" aria-label="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
       <div class="sheet-body" id="detail-body"></div>
     </div>
 
@@ -1446,8 +1450,58 @@ function showSheet(id){
 }
 function closeSheets(){
   $('#mask').classList.remove('show');
-  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+  // 下拉手势会给 sheet 写行内 transform,关闭时一并清掉,否则下次打开位置是错的
+  document.querySelectorAll('.sheet').forEach(s=>{
+    s.classList.remove('show');
+    s.style.transition='';s.style.transform='';
+  });
   ui.detail=null;ui.payCtx=null;ui.editId=null;Store.pending=null;
+}
+/**
+ * 弹层下拉关闭。
+ * iOS 上底部弹层的退出方式就是「往下拖」,点上方空白是备选而不是唯一入口。
+ * 只在「手指从头部/把手起手」或「列表已经滚到顶」时接管,往下拖才跟随,
+ * 往上拖一律还给列表滚动,横向手势直接放弃 —— 避免和滚动、切换抢手势。
+ */
+function initSheetGestures(){
+  // 表单类弹层只在头部/把手起手才允许下拉关闭:正打字时误拖一下就把输入丢掉,代价太大
+  const FORM_SHEETS='#sheet-new,#sheet-edit,#sheet-account,#sheet-import';
+  document.querySelectorAll('.sheet').forEach(sheet=>{
+    const body=sheet.querySelector('.sheet-body');
+    const bodyDragAllowed=!sheet.matches(FORM_SHEETS);
+    let startY=0,startX=0,dy=0,armed=false,pulling=false;
+    sheet.addEventListener('touchstart',event=>{
+      if(event.touches.length!==1)return;
+      const t=event.touches[0];
+      startY=t.clientY;startX=t.clientX;dy=0;pulling=false;
+      if(event.target.closest('input,textarea,select')){armed=false;return}
+      armed=!body||!body.contains(event.target)||(bodyDragAllowed&&body.scrollTop<=0);
+    },{passive:true});
+    sheet.addEventListener('touchmove',event=>{
+      if(!armed)return;
+      const t=event.touches[0];
+      const down=t.clientY-startY,across=t.clientX-startX;
+      if(!pulling){
+        if(Math.abs(across)>Math.abs(down)+4){armed=false;return}   // 横向手势不抢
+        if(down<=0){armed=false;return}                            // 往上:交给列表滚动
+        if(body&&body.scrollTop>0){armed=false;return}             // 列表不在顶部:先滚动
+        pulling=true;
+      }
+      event.preventDefault();
+      dy=down;
+      sheet.style.transition='none';
+      sheet.style.transform=`translateY(${Math.max(dy,0)}px)`;
+    },{passive:false});
+    const finish=()=>{
+      if(!pulling){armed=false;return}
+      const moved=dy;pulling=false;armed=false;
+      sheet.style.transition='';sheet.style.transform='';
+      if(moved>110)closeSheets();          // 拖足够远就关掉,否则弹回原位
+      dy=0;
+    };
+    sheet.addEventListener('touchend',finish,{passive:true});
+    sheet.addEventListener('touchcancel',finish,{passive:true});
+  });
 }
 let toastTimer;
 function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
@@ -2101,6 +2155,7 @@ $('#f-date').value=TODAY;
   Notify.syncDaily();
   initAvatarInput();
   initShotInput();
+  initSheetGestures();
   if(!had&&!Store.blocked)await save();
   initSqlite().then(s=>{if(s){Store.sqlite3=s;if(!Store.blocked&&!Store.busy)persistFull()}else if(!isNative)toast('SQLite 引擎未能加载，JSON 保存和备份仍可用')});
 })();
