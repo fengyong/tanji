@@ -25,6 +25,17 @@ docs/               v0.1 原型归档 + 研发笔记 + 上架清单 + 多账号�
 - **Xcode 16+**(构建 iOS;2026-11-22 起 Xcode 27.2 已装并实测通过,模拟器 GUI 在 `Xcode.app/Contents/Applications/DeviceHub.app`)
 - 无需 CocoaPods:Capacitor 8 默认 Swift Package Manager
 
+## 提交与推送
+
+推送必须走自己的 SSH 别名地址（`origin` 在本机是 `drax-ola` 身份、无写权限；HTTPS 到 github.com 不通）：
+
+```bash
+git push git@github-<你的GitHub用户名>:fengyong/tanji.git HEAD:refs/heads/<你的分支>
+```
+
+首次配置、提交前自检、PR 目标分支、CI 触发条件与四类 push 报错的排查见
+[docs/git-push-guide.md](docs/git-push-guide.md)。
+
 ## 常用命令
 
 ```bash

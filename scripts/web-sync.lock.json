@@ -1,7 +1,7 @@
 {
   "$schema": "tanji-web-sync-lock/v1",
   "mainRef": "main",
-  "mainCommit": "93cfa31f192525056f4fd5011b0ee72a025f6eb2",
+  "mainCommit": "9e8f8cd77e9c0b6935effdea956e17ad0edf971b",
   "updatedAt": "2026-11-22",
   "files": {
     "index.html": {
