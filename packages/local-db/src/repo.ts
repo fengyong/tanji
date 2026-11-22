@@ -505,7 +505,7 @@ export function revokeSchedule(tx: Tx, shareID: string, sessionId: string | null
   return { ok: true, data: { revoke_pending: true } };
 }
 
-export function updateSettings(tx: Tx, changes: { collect_threshold_days?: number; timezone?: string }, sessionId: string | null, opID: string): CommandResult {
+export function updateSettings(tx: Tx, changes: { collect_threshold_days?: number; timezone?: string }, sessionId: string | null, opID: string, accountID?: string): CommandResult {
   if (changes.collect_threshold_days !== undefined) {
     if (![7, 15, 30, 45].includes(changes.collect_threshold_days)) throw new Error('催收阈值应为 7、15、30 或 45 天');
     tx.run(`INSERT INTO local_settings (key,value) VALUES ('collect_threshold_days', ?)
@@ -516,8 +516,8 @@ export function updateSettings(tx: Tx, changes: { collect_threshold_days?: numbe
             ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [changes.timezone]);
   }
   appendOutbox(tx, {
-    op_id: opID, aggregate_type: 'settings', aggregate_id: '__settings__', type: 'settings.update',
-    payload: changes,
+    op_id: opID, aggregate_type: 'settings', aggregate_id: accountID || '00000000-0000-4000-8000-000000000000',
+    type: 'settings.update', payload: changes,
   }, sessionId);
   return { ok: true };
 }

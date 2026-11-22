@@ -10,8 +10,13 @@ export interface LocalDBClient {
   dispose(): void;
 }
 
-export function createWorkerClient(workerURL: string, sqliteURL: string): LocalDBClient {
-  const worker = new Worker(workerURL, { type: 'module' });
+/** 生产构建:用 Vite 官方 worker 语法构造(new Worker(new URL(...), {type:'module'})),vite 才会打包 worker。 */
+export function createWorkerClientVite(workerURL: URL, sqliteURL: string): LocalDBClient {
+  return connectWorker(new Worker(workerURL, { type: 'module' }), sqliteURL);
+}
+
+/** 连接既有 Worker 实例(dev/测试用)。 */
+export function connectWorker(worker: Worker, sqliteURL: string): LocalDBClient {
   let seq = 1;
   void sqliteURL; // sqliteUrl 随 open 命令传入(见 LocalDBCommands.open)
   const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
@@ -24,7 +29,7 @@ export function createWorkerClient(workerURL: string, sqliteURL: string): LocalD
       if (resp.ok) entry.resolve(resp.result);
       else entry.reject(new Error(resp.error ?? 'worker error'));
     }
-    if (resp.event === 'changed') changeCbs.forEach((cb) => cb());
+    if (resp.event === 'changed') changeCbs.forEach((cb) => cb()); // selfsync(同步自写)不触发,避免唤醒风暴
   };
   return {
     call(cmd, ...rest) {

@@ -44,6 +44,9 @@ export class SyncEngine {
   private backoffMs = 0;
   private backoffTimer: ReturnType<typeof setTimeout> | null = null;
   private state: SyncState = { status: 'idle', pendingOps: 0, openConflicts: 0, backoffMs: 0 };
+  /** 调试用:最近一次执行步骤 */
+  lastStep = '';
+  cycleCount = 0;
   private listeners: ((s: SyncState) => void)[] = [];
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -118,27 +121,34 @@ export class SyncEngine {
       return;
     }
     this.running = true;
+    this.cycleCount++;
     try {
       this.setState({ status: 'syncing' });
+      this.lastStep = 'meta';
       await this.refreshCounters();
 
       // 1. 拉取至本轮 high_water(先对账已有结果,再处理可上传队列)。
       let pushed = false;
       for (let round = 0; round < 50; round++) {
+        this.lastStep = 'pull#' + round;
         await this.pullOnce();
         // 2. 上传一批 pending 操作。
+        this.lastStep = 'batch#' + round;
         const batch = (await this.db.nextOutboxBatch(50)) as OpEnvelope[];
         if (batch.length === 0) {
           if (!pushed) break; // 无待传也无新下行 → 结束
           continue; // 上传过一轮,再拉一次确认没有新事件
         }
+        this.lastStep = 'push#' + round + ':' + batch.length;
         const resp = await this.api.push({
           protocol_version: PROTOCOL_VERSION,
           account_id: this.opts.accountID,
           device_id: this.opts.deviceID,
           operations: batch,
         });
+        this.lastStep = 'mark#' + round;
         await this.db.markPushResults(resp.results);
+        this.lastStep = 'refresh#' + round;
         await this.refreshCounters();
         pushed = true;
       }

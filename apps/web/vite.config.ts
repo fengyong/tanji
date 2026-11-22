@@ -10,8 +10,8 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
     proxy: {
-      '/v1': 'http://127.0.0.1:8080',
-      '/health': 'http://127.0.0.1:8080',
+      '/v1': { target: 'http://127.0.0.1:8080', xfwd: true },
+      '/health': { target: 'http://127.0.0.1:8080', xfwd: true },
     },
   },
   worker: {

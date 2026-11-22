@@ -21,6 +21,8 @@
 - [x] 提交 3bcbffb "feat: 云端版后端骨架……"
 
 ## 当前阶段
+**M6 E2E 调试中(2026-11-22 凌晨)**: 构建版应用(SW+OPFS)上 E1-E4 已通过(注册/登录/开账本/建单/CDP离线/离线重开FR-03/AC01)。E5 卡在断言时机: 后端已确认收到数据(离线新店 v1 + E2E奶茶店 v2 均入库),说明同步闭环实际工作,只是 E5 轮询窗口内 ops 还在 'sending'→确认中。已修复的关键 bug: SW 缓存键归一化丢 query(影响 opfs proxy)、serve-dist Set-Cookie 丢失、vite worker 打包(?worker&url)、sqlite3.dir 参数、唤醒风暴(requeueSending 在 WRITE_CMDS)、CSRF X-Forwarded-Host、settings aggregate_id、请求超时、VFS 安装等待。
+**下一步**: 1) E5 轮询延长至 pending==0(≤150s)并跑通 E5-E10; 2) 提交全部前端代码; 3) 按用户指示执行三轮 review→修复循环; 4) 交付说明 + push。
 **M2/M3 服务端集成测试 ✅ 全绿（16 个用例, 真实 MySQL）→ 已提交 3064989 并推送 origin**
 
 已覆盖: 单会话替换(AC06服务端)/登录不泄露注册/重复注册同文案/重置密码吊销全部会话/登出/密码策略/幂等重试100次/同ID异内容拒绝/after_op_id链+跨聚合拒绝/版本冲突携带云端内容/收款恰好一次+金额校验+撤销保留历史+撤销后重记/墓碑拒绝复活/批次独立事务/并发收款恰好一次/游标单调前进/本人事件带origin_op_id/跨账号信封403/协议409/settings阈值校验/依赖pending与failed/DTO整数分+字符串版本

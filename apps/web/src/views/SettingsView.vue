@@ -34,7 +34,7 @@ async function reload() {
 async function setThreshold(days: number) {
   const l = getLedger();
   try {
-    await l.call('updateSettings', { changes: { collect_threshold_days: days }, sessionId: app.user?.session_id ?? null });
+    await l.call('updateSettings', { changes: { collect_threshold_days: days }, sessionId: app.user?.session_id ?? null, accountID: app.user?.userID });
     await refreshOrders();
     toast(`催收阈值已设为 ${days} 天(已保存本机,等待同步)`);
   } catch (e) {

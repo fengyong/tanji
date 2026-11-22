@@ -81,10 +81,15 @@ func (s *Server) checkCSRF(r *http.Request, token []byte) error {
 	if isSafeMethod(r.Method) {
 		return nil
 	}
-	// Origin/Referer 必须与 Host 同源(浏览器场景)。
+	// Origin 必须与对外服务的主机同源。
+	// 反向代理(vite dev / 生产 Caddy)会改写 Host;使用 X-Forwarded-Host(代理注入)兜底。
 	origin := r.Header.Get("Origin")
 	if origin != "" {
-		if !sameOrigin(origin, r.Host) {
+		host := r.Header.Get("X-Forwarded-Host")
+		if host == "" {
+			host = r.Host
+		}
+		if !sameOrigin(origin, host) {
 			return errOrigin
 		}
 	}

@@ -39,6 +39,8 @@ export function buildHandlers(env: HandlerEnv) {
     async open(args) {
       const name = dbNameFor(args);
       quarantined = false;
+      // 关闭旧连接再打开:双开会泄漏 OPFS 同步句柄并造成 SQLITE_BUSY。
+      if (closeFn) { try { closeFn(); } catch { /* ignore */ } closeFn = null; db = null; }
       await env.initEngine?.(args);
       const opened = await env.openDB(name);
       closeFn = opened.close;
@@ -101,7 +103,7 @@ export function buildHandlers(env: HandlerEnv) {
       return db!.transaction((tx) => revokeSchedule(tx, args.shareId, args.sessionId, crypto.randomUUID(), args.aggregateID));
     },
     updateSettings(args) {
-      return db!.transaction((tx) => updateSettings(tx, args.changes, args.sessionId, crypto.randomUUID()));
+      return db!.transaction((tx) => updateSettings(tx, args.changes, args.sessionId, crypto.randomUUID(), args.accountID));
     },
     applyPullPage(args) {
       return db!.transaction((tx) => applyPullPage(tx, args.events, args.cursor, args.highWater, args.epoch));
@@ -181,9 +183,10 @@ export function buildHandlers(env: HandlerEnv) {
   };
 }
 
+// 注意:applyPullPage/markPushResults/installBootstrap/requeueSending 属同步自写,
+// 由 worker 标记 event='selfsync'(不触发 onChange 唤醒),避免引擎自激风暴。
 export const WRITE_CMDS = new Set([
   'createOrder', 'updateOrder', 'cancelOrder', 'archiveOrder', 'deleteOrder',
   'recordPayment', 'reversePayment', 'assignPartner', 'grantSchedule', 'revokeSchedule',
-  'updateSettings', 'applyPullPage', 'markPushResults', 'installBootstrap',
-  'resolveConflictKeepServer', 'resolveConflictRetry', 'importLegacy', 'setQuarantined',
+  'updateSettings', 'resolveConflictKeepServer', 'resolveConflictRetry', 'importLegacy', 'setQuarantined',
 ]);

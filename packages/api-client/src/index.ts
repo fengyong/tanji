@@ -52,12 +52,21 @@ export class ApiClient {
     if (this.bearerToken) headers.Authorization = `Bearer ${this.bearerToken}`;
     const csrf = this.csrfToken?.();
     if (csrf) headers['X-Tanji-CSRF'] = csrf;
-    const resp = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      method,
-      headers,
-      credentials: 'include',
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    // 请求超时:引擎不会因单个请求挂死(SSE 不走本客户端)
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    let resp: Response;
+    try {
+      resp = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        method,
+        headers,
+        credentials: 'include',
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     let data: unknown = null;
     try {
       data = await resp.json();

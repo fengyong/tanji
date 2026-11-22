@@ -11,7 +11,7 @@ export interface WorkerResponse {
   result?: unknown;
   error?: string;
   /** 数据库事件(打开/关闭/同步写完成),用于主线程刷新视图 */
-  event?: 'changed' | 'opened' | 'closed';
+  event?: 'changed' | 'opened' | 'closed' | 'selfsync';
 }
 
 export type LocalDBCommands = {
@@ -31,7 +31,7 @@ export type LocalDBCommands = {
   assignPartner: { id: string; ref: { type: 'account' | 'external'; user_id?: string; external_name?: string }; sessionId: string | null };
   grantSchedule: { orderId: string; recipientID: string; role: 'partner' | 'viewer'; sessionId: string | null; aggregateID: string };
   revokeSchedule: { shareId: string; sessionId: string | null; aggregateID: string };
-  updateSettings: { changes: { collect_threshold_days?: number; timezone?: string }; sessionId: string | null };
+  updateSettings: { changes: { collect_threshold_days?: number; timezone?: string }; sessionId: string | null; accountID?: string };
   applyPullPage: { events: import('@tanji/domain').PullEvent[]; cursor: string; highWater: string; epoch: number };
   markPushResults: { results: import('@tanji/domain').OpResult[] };
   nextOutboxBatch: { limit?: number };

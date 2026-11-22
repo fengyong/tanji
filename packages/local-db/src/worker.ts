@@ -72,7 +72,8 @@ self.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
   } catch (e) {
     resp = { id: req.id, ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-  if (WRITE_CMDS.has(req.cmd)) resp.event = 'changed';
+  if (['applyPullPage', 'markPushResults', 'installBootstrap', 'requeueSending'].includes(req.cmd)) resp.event = 'selfsync';
+  else if (WRITE_CMDS.has(req.cmd)) resp.event = 'changed';
   (self as unknown as Worker).postMessage(resp);
 };
 

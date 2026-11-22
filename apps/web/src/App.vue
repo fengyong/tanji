@@ -26,17 +26,28 @@ function setPrivacy(v: boolean) {
 }
 
 async function boot() {
+  ensureDeviceID();
   try {
-    ensureDeviceID();
     const s = await getApi().getSession();
     await import('./lib/session').then((m) => m.openWorkspace({
       user_id: s.user_id, nickname: s.nickname, email: s.email, session_id: s.session_id,
     }));
   } catch (e) {
-    // 401 → 未登录;其他错误也先回登录页,避免阻塞
-    if (e instanceof Error && !/401|unauthorized|会话/.test(e.message)) {
-      bootError.value = e.message;
+    const err = e as { status?: number; message?: string };
+    if (err?.status === 401) {
+      // 会话明确失效(新登录/撤销):不能复活,进入登录页
+      app.phase = 'logged-out';
+      return;
     }
+    // 网络不可用:曾验证过的工作区允许离线启动(本地只读+可编辑;联网后先核验再同步)
+    const m = await import('./lib/session');
+    const last = m.loadLastSession?.() ?? null;
+    if (last) {
+      bootError.value = '当前离线:已打开本机工作区(上次登录的账号);联网后将自动核验身份并同步。';
+      await m.openWorkspace(last);
+      return;
+    }
+    bootError.value = err?.message ?? String(e);
     app.phase = 'logged-out';
   }
 }

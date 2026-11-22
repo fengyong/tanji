@@ -92,14 +92,23 @@ async function main() {
   };
 
   await goto(webOrigin);
+  // SW 可能缓存/改写 worker 脚本加载:先卸载,隔离变量
+  await evaluate(`(async () => {
+    const rs = await navigator.serviceWorker?.getRegistrations?.() ?? [];
+    for (const r of rs) await r.unregister();
+    const keys = await caches.keys();
+    for (const k of keys) await caches.delete(k);
+    return rs.length;
+  })()`);
+  await goto(webOrigin);
 
   console.log('== A1: Dedicated Worker 内 opfs 写入并读回 ==');
   const probe = await evaluate(`(async () => {
-    const worker = new Worker('/vendor/opfs-probe.worker.js', { type: 'module' });
+    const worker = new Worker('/vendor/opfs-probe.worker.js?sqlite3.dir=/vendor/', { type: 'module' });
     const reply = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('worker 超时')), 30000);
       worker.onmessage = (ev) => { clearTimeout(timer); resolve(ev.data); };
-      worker.onerror = (e) => { clearTimeout(timer); reject(new Error('worker 错误: ' + e.message)); };
+      worker.onerror = (e) => { clearTimeout(timer); reject(new Error('worker 错误: ' + e.message + ' @' + e.filename + ':' + e.lineno)); };
       worker.postMessage({ name: 'tanji-smoke-flat.db', mode: 'write' });
     });
     worker.terminate();
@@ -118,11 +127,11 @@ async function main() {
   sessionId = att2.sessionId;
   await goto(webOrigin);
   const probe2 = await evaluate(`(async () => {
-    const worker = new Worker('/vendor/opfs-probe.worker.js', { type: 'module' });
+    const worker = new Worker('/vendor/opfs-probe.worker.js?sqlite3.dir=/vendor/', { type: 'module' });
     const reply = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('worker 超时')), 30000);
       worker.onmessage = (ev) => { clearTimeout(timer); resolve(ev.data); };
-      worker.onerror = (e) => { clearTimeout(timer); reject(new Error('worker 错误: ' + e.message)); };
+      worker.onerror = (e) => { clearTimeout(timer); reject(new Error('worker 错误: ' + e.message + ' @' + e.filename + ':' + e.lineno)); };
       worker.postMessage({ name: 'tanji-smoke-flat.db', mode: 'read' });
     });
     worker.terminate();
@@ -133,11 +142,11 @@ async function main() {
 
   console.log('== A3: 失败保全(坏 VFS 必须明确抛错) ==');
   const probe3 = await evaluate(`(async () => {
-    const worker = new Worker('/vendor/opfs-probe.worker.js', { type: 'module' });
+    const worker = new Worker('/vendor/opfs-probe.worker.js?sqlite3.dir=/vendor/', { type: 'module' });
     const reply = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('worker 超时')), 30000);
       worker.onmessage = (ev) => { clearTimeout(timer); resolve(ev.data); };
-      worker.onerror = (e) => { clearTimeout(timer); reject(new Error('worker 错误: ' + e.message)); };
+      worker.onerror = (e) => { clearTimeout(timer); reject(new Error('worker 错误: ' + e.message + ' @' + e.filename + ':' + e.lineno)); };
       worker.postMessage({ mode: 'failcheck' });
     });
     worker.terminate();

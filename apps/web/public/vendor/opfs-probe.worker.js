@@ -9,6 +9,7 @@ self.onmessage = async (ev) => {
   const { name, mode } = ev.data ?? {};
   try {
     const sqlite3 = await sqlite3p;
+    await new Promise((r) => setTimeout(r, 500));
     if (mode === 'failcheck') {
       try {
         const db = new sqlite3.oo1.DB('nosuchvfs://x/y.db', 'c');
@@ -23,6 +24,11 @@ self.onmessage = async (ev) => {
     await new Promise((r) => setTimeout(r, 800));
     let db;
     try {
+      const hasOpfs = !!sqlite3.capi.sqlite3_vfs_find('opfs');
+      if (!hasOpfs) {
+        self.postMessage({ error: 'opfs VFS 未安装', diag: { warnings: warnings.slice(0, 4) } });
+        return;
+      }
       db = new sqlite3.oo1.DB({ filename: name, vfs: 'opfs', flags: 'c' });
     } catch (e) {
       const diag = {
