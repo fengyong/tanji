@@ -12,7 +12,7 @@
     },
     "storage.js": {
       "main": "7d40eafe0b5d8f118fb6b697e9bf74b4bc299301",
-      "native": "ba627ddd58665a9f779cd4d0f1e3d74ac90194b4",
+      "native": "932f9b4b7de9c3e0b740feee6054f50ae7835bd4",
       "nativePath": "src/app/storage.js",
       "note": "双副本存储与迁移"
     },
