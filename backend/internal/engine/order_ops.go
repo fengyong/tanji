@@ -356,7 +356,22 @@ func (e *Engine) SnapshotOrderDTO(ctx context.Context, tx *sql.Tx, orderID store
 	return e.buildOrderDTO(ctx, tx, orderID, version)
 }
 
+// queryRower 统一 *sql.DB / *sql.Tx 的单行查询能力。
+type queryRower interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// SnapshotShareProjectionDB 供 HTTP 层直接基于连接池查询(不经事务;修复 nil tx panic)。
+func (e *Engine) SnapshotShareProjectionDB(ctx context.Context, db *sql.DB, shareID store.ID, generation int64, linkID store.ID, linkGeneration int64) (*domain.ScheduleProjectionDTO, error) {
+	return e.snapshotShareProjection(ctx, db, shareID, generation, linkID, linkGeneration)
+}
+
+// SnapshotShareProjection 供 bootstrap 在事务内使用。
 func (e *Engine) SnapshotShareProjection(ctx context.Context, tx *sql.Tx, shareID store.ID, generation int64, linkID store.ID, linkGeneration int64) (*domain.ScheduleProjectionDTO, error) {
+	return e.snapshotShareProjection(ctx, tx, shareID, generation, linkID, linkGeneration)
+}
+
+func (e *Engine) snapshotShareProjection(ctx context.Context, tx queryRower, shareID store.ID, generation int64, linkID store.ID, linkGeneration int64) (*domain.ScheduleProjectionDTO, error) {
 	var revision int64
 	var ownerDisplay, storeName string
 	var startsAt time.Time

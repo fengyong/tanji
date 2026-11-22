@@ -350,14 +350,14 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	sessID := sess.SessionID
 	userID := sess.UserID
-	watchCtx, cancelWatch := context.WithCancel(r.Context())
-	defer cancelWatch()
+	// 存活期校验:会话被替换/撤销时关闭 dead channel,SSE 连接随即断开
+	dead := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
-			case <-watchCtx.Done():
+			case <-r.Context().Done():
 				return
 			case <-ticker.C:
 				var active sql.Null[[]byte]
@@ -365,10 +365,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				err := s.DB.QueryRow(`SELECT active_session_id, status FROM users WHERE id = ?`,
 					userID[:]).Scan(&active, &status)
 				if err != nil || status != "active" || !active.Valid || store.ID(active.V) != sessID {
-					return // 关闭监视即可;连接由写失败或客户端断开结束。
+					close(dead) // 会话失效:断开 SSE,客户端锁屏
+					return
 				}
 			}
 		}
 	}()
-	s.Notify.HandleSSE(w, r, userID[:])
+	s.Notify.HandleSSE(w, r, userID[:], dead)
 }

@@ -127,3 +127,53 @@ func TestPasswordPolicy(t *testing.T) {
 		t.Fatalf("短于 12 字符的密码应被拒绝")
 	}
 }
+
+// 停用账号:再次认证 + 会话全失效 + 发出的共享撤销(接收者收到 purge)。
+func TestDeactivate(t *testing.T) {
+	env := newEnv(t)
+	owner := registerAndLogin(t, env, "deact-owner@example.com", "停", "11111111-1111-4111-8111-111111111111")
+	partner := registerAndLogin(t, env, "deact-partner@example.com", "伙", "22222222-2222-4222-8222-222222222222")
+	contactLink(t, owner, partner)
+	orderID := uuid("aaaaaaaa-0000-4000-8000-0000000000aa")
+	pushCreate(t, owner, orderID, "aaaaaaaa-0000-4000-8000-0000000000ab", "停用店", 8000, 0)
+	res := opGrant(t, owner, orderID, partner.userID, "partner", "aaaaaaaa-0000-4000-8000-0000000000ac")
+	if res["result"] != "applied" {
+		t.Fatalf("grant: %v", res)
+	}
+
+	code, resp := owner.do("POST", "/v1/auth/deactivate", map[string]any{"password": "password-123456"})
+	if code != 200 {
+		t.Fatalf("停用: %d %v", code, resp)
+	}
+	// 会话全失效
+	if code, _ := owner.get("/v1/session"); code != 401 {
+		t.Fatalf("停用后原会话必须 401, got %d", code)
+	}
+	// 授权全部撤销
+	var active int
+	if err := env.db.QueryRow(`SELECT COUNT(*) FROM schedule_grants WHERE status='active'`).Scan(&active); err != nil {
+		t.Fatal(err)
+	}
+	if active != 0 {
+		t.Fatalf("停用后不得有 active 授权, got %d", active)
+	}
+	// 接收者收到 purge
+	page, _ := pullEvents(t, partner, "", 100)
+	found := false
+	for _, e := range page["events"].([]any) {
+		if e.(map[string]any)["event_type"] == "share.purged" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("接收者应收到 purge: %v", page)
+	}
+	// 停用后登录被拒
+	c := &client{t: t, base: env.server.URL}
+	code2, _ := c.post("/v1/auth/login", map[string]any{
+		"email": "deact-owner@example.com", "password": "password-123456",
+		"device_id": "11111111-1111-4111-8111-111111111111"})
+	if code2 != 403 {
+		t.Fatalf("停用账号登录应 403, got %d", code2)
+	}
+}

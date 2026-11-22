@@ -301,8 +301,8 @@ func (s *Server) handleGetContact(w http.ResponseWriter, r *http.Request) {
 	var other []byte
 	err = s.DB.QueryRowContext(r.Context(),
 		`SELECT generation, CASE WHEN user_low = ? THEN user_high ELSE user_low END
-		 FROM contact_links WHERE id = ? AND status='active'`,
-		sess.UserID[:], linkID[:]).Scan(&generation, &other)
+		 FROM contact_links WHERE id = ? AND status='active' AND (user_low = ? OR user_high = ?)`,
+		sess.UserID[:], linkID[:], sess.UserID[:], sess.UserID[:]).Scan(&generation, &other)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, 404, apiErr(404, "not_found", "联系人不存在"))
 		return

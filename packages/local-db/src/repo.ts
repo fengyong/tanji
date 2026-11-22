@@ -591,18 +591,26 @@ export function resolveConflictKeepServer(db: DBApi, conflictID: string): void {
     const c = db.get(`SELECT * FROM conflicts WHERE id = ? AND status='open'`, [conflictID]) as Row | undefined;
     if (!c) throw new Error('冲突不存在或已处理');
     const intent = JSON.parse(c.intent as string) as { aggregate_id: string };
+    // 在途(sending)与被冲突阻塞(blocked)的操作一并标记被取代:用户已选择采用云端。
+    db.run(
+      `UPDATE outbox SET status='superseded', updated_at=? WHERE aggregate_id = ? AND status IN ('pending','sending','blocked')`,
+      [nowRFC3339(), intent.aggregate_id],
+    );
     // 以服务端基线为准,丢弃本地意图:从 server_base 恢复工作视图。
     const base = db.get(
       `SELECT content FROM server_base WHERE aggregate_type='order' AND aggregate_id = ?`,
       [intent.aggregate_id],
     ) as { content: string } | undefined;
     db.run(`DELETE FROM orders WHERE id = ?`, [intent.aggregate_id]);
-    db.run(`DELETE FROM payment_entries WHERE order_id = ? AND state='pending'`, [intent.aggregate_id]);
+    db.run(`DELETE FROM payment_entries WHERE order_id = ?`, [intent.aggregate_id]);
     if (base) {
       const dto = JSON.parse(base.content) as OrderDTO;
       upsertFromDTO(db as unknown as Tx, dto, { keepDirty: false, prevDirty: 0 });
+      if (dto.status !== 'deleted') {
+        // DELETE 级联清空了流水;从基线恢复已确认收款(否则本地丢失真实账目)。
+        replaceConfirmedPayments(db as unknown as Tx, dto);
+      }
     }
-    db.run(`UPDATE outbox SET status='superseded', updated_at=? WHERE aggregate_id = ? AND status='pending'`, [nowRFC3339(), intent.aggregate_id]);
     db.run(`UPDATE conflicts SET status='resolved_keep_server' WHERE id = ?`, [conflictID]);
   });
 }
@@ -644,7 +652,11 @@ export function resolveConflictRetry(db: DBApi, conflictID: string): void {
         nowRFC3339(), nowRFC3339()],
     );
     db.run(`UPDATE orders SET dirty=1, updated_at=? WHERE id=?`, [nowRFC3339(), intent.aggregate_id]);
-    db.run(`UPDATE outbox SET status='superseded', updated_at=? WHERE op_id = ?`, [nowRFC3339(), intent.op_id]);
+    // 旧冲突操作与同聚合被阻塞/在途的操作全部被取代(新链已建立)。
+    db.run(
+      `UPDATE outbox SET status='superseded', updated_at=? WHERE aggregate_id = ? AND status IN ('pending','sending','blocked')`,
+      [nowRFC3339(), intent.aggregate_id],
+    );
     db.run(`UPDATE conflicts SET status='resolved_retry', created_at=? WHERE id = ?`, [nowRFC3339(), conflictID]);
   });
 }

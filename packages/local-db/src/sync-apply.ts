@@ -319,10 +319,6 @@ function replayPending(tx: Tx, orderID: string, pendingOps: Row[]): void {
           }
         }
       }
-    } else if (type === 'partner.assign') {
-      const p = op.payload as { type: string; user_id?: string; external_name?: string };
-      tx.run(`UPDATE orders SET partner_type=?, partner_user=?, partner_name=?, dirty=1 WHERE id=?`,
-        [p.type, p.user_id ?? null, p.external_name ?? null, orderID]);
     }
     // order.update/reschedule/create/delete 的工作视图效果已由本地修改产生,基线刷新时
     // upsertFromDTO(keepDirty) 保留了本地行字段——这里无需重复。

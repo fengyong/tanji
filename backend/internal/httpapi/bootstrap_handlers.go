@@ -49,6 +49,10 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	var epoch int64
 
 	err := store.WithTx(ctx, s.DB, func(tx *sql.Tx) error {
+		// 锁 users 行核验单会话(与 push 一致;防止会话被顶替的窗口内物化快照)
+		if err := s.Auth.LockUserForWrite(ctx, tx, sess); err != nil {
+			return err
+		}
 		// 锁定流头读取 epoch/high_water(同一事务内与数据一致)。
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO user_stream_heads (user_id, seq, stream_epoch, updated_at)
@@ -364,7 +368,7 @@ func (s *Server) handleSharedList(w http.ResponseWriter, r *http.Request) {
 			 WHERE share_id = ? AND status='active'`, sid[:]).Scan(&gen, &linkID, &linkGen); err != nil {
 			continue
 		}
-		dto, err := s.Engine.SnapshotShareProjection(r.Context(), nil, sid, gen, linkID, linkGen)
+		dto, err := s.Engine.SnapshotShareProjectionDB(r.Context(), s.DB, sid, gen, linkID, linkGen)
 		if err != nil {
 			continue
 		}

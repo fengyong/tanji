@@ -60,7 +60,9 @@ func (h *Hub) NotifyUsers(ids [][]byte) {
 
 // NotifySessionRevoked 向持有给定会话令牌哈希的连接发送踢出事件由 sessions 层调用;
 // 这里按 user id 粗粒度唤醒,客户端在收到 notify 后主动 GET /v1/session 复核,发现失效即锁屏。
-func (h *Hub) HandleSSE(w http.ResponseWriter, r *http.Request, userID []byte) {
+// HandleSSE 是 GET /v1/events:连接建立与存活期间都要校验会话。
+// sessionDead 由调用方定期核验会话后关闭;连接随即断开,客户端下个请求将得到 401。
+func (h *Hub) HandleSSE(w http.ResponseWriter, r *http.Request, userID []byte, sessionDead <-chan struct{}) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -78,6 +80,10 @@ func (h *Hub) HandleSSE(w http.ResponseWriter, r *http.Request, userID []byte) {
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-sessionDead:
+			_, _ = w.Write([]byte("event: session_revoked\ndata: {}\n\n"))
+			flusher.Flush()
 			return
 		case msg := <-ch:
 			if _, err := w.Write([]byte("event: notify\ndata: {\"type\":\"" + msg + "\"}\n\n")); err != nil {
