@@ -20,7 +20,6 @@ export const ACCS=()=>db.accounts||[];
 export const accMulti=()=>ACCS().length>=2;
 export const accById=id=>ACCS().find(a=>a.id===+id);
 export const accColor=a=>ACC_COLORS[(a&&a.color!=null?a.color:0)%8];
-export const accMatch=o=>ui.accFilter==null||o.accountId===ui.accFilter;
 export const providerList=()=>[...new Set([...PRESET_PROVIDERS,...(db.providers||[])])];
 /*
  * 多账号的区分方式:行首一条 3px 账号色条,不再整行铺底色。

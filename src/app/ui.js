@@ -33,11 +33,16 @@ export function showTab(t){
   $('#v-'+t).classList.add('active');
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
 }
+/* P1-T2-B:逾期角标的口径依赖 derived(isOver/snoozed),而 derived 需 import 本模块 —
+   角标改组合根注入,保持 ui 不依赖 derived,环从根上不成。 */
+let badgeCounter=null;
+export function registerBadgeCounter(fn){badgeCounter=fn}
+
 export function renderAll(){
   refreshClock();setStorageStatus(Store.status);
   RENDERERS.home();RENDERERS.trip();RENDERERS.orders();RENDERERS.pay();RENDERERS.stats();
   // 角标跟随当前账号筛选:拆账号查看时,数字必须只数当前账号的逾期单
-  const n=db.orders.filter(accMatch).filter(o=>isOver(o)&&!snoozed(o)).length;
+  const n=badgeCounter?badgeCounter():0;
   const b=$('#pay-bdg');b.style.display=n?'flex':'none';b.textContent=n;
 }
 

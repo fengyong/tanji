@@ -1,6 +1,7 @@
 /* ================= 派生逻辑(双轨状态机,P0 §3:含 byId/gpsText/storeOf) ================= */
 import {now,TODAY,nowStr} from './util.js';
 import {db} from './storage.js';
+import {ui} from './ui.js';
 
 /* ================= 派生逻辑(双轨状态机) =================
  * 规则实现集中在 logic.js(纯函数,不碰 DOM/全局)。这里只保留「读全局 → 调规则」
@@ -24,6 +25,8 @@ export function lastRemind(o){return TanJiLogic.lastRemind(o)}
 export function expectOverdue(o){return TanJiLogic.expectOverdue(o,db.payments,now)}
 /* 账号筛选是全局口径:首页/订单/收款/统计/行程都只数当前账号的数据。
    上面的 accMatch 按订单筛,流水要按「这张单属于哪个账号」筛,不能直接拿 db.payments。 */
+/* 账号筛选谓词:只依赖 ui.accFilter,与订单谓词同层(P1-T2-B 自 accounts.js 归位) */
+export const accMatch=o=>ui.accFilter==null||o.accountId===ui.accFilter;
 export const accOrderIds=()=>new Set(db.orders.filter(accMatch).map(o=>o.id));
 export function upcoming7(){return TanJiLogic.upcomingByDay(db.orders.filter(accMatch),TODAY,7)}
 

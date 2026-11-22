@@ -2,8 +2,8 @@
 import {$,esc,fmtMoney,fmtD,fmtHM,now,TODAY,dowOf,greeting} from '../util.js';
 import {db,deliveredAll,needMain,needSub} from '../storage.js';
 import {ui} from '../ui.js';
-import {isOver,snoozed,owedOf,overdueDays,workOf,unDep,payChip,workChip,deliverLate} from '../derived.js';
-import {accMatch,accBar,accTint,accOrderTag,accChipbarHTML} from '../accounts.js';
+import {isOver,snoozed,owedOf,overdueDays,workOf,unDep,payChip,workChip,deliverLate,accMatch} from '../derived.js';
+import {accBar,accTint,accOrderTag,accChipbarHTML} from '../accounts.js';
 import {priceCell,stepBtn} from '../detail.js';
 import {statsFor,headBtns} from '../stats.js';
 

@@ -402,7 +402,7 @@ function demoSeed() {
 }
 
 // src/app/storage.js
-var db = { orders: [], payments: [], threshold: 15 };
+var db2 = { orders: [], payments: [], threshold: 15 };
 var Store = { sqlite3: null, mode: "demo", revision: 0, queue: Promise.resolve(), ready: false, busy: false, blocked: false, lockedOut: false, backup: null, status: "\u6B63\u5728\u8BFB\u53D6\u672C\u673A\u6570\u636E\u2026", pending: null };
 var afterLoad = null;
 var bytesBuilder = null;
@@ -612,7 +612,7 @@ function setStorageStatus(message) {
     banner.querySelector("span").textContent = message;
   }
 }
-function snapshot(state = db, mode = Store.mode) {
+function snapshot(state = db2, mode = Store.mode) {
   Store.revision = Math.max(Date.now(), Store.revision + 1);
   return { ...cloneState(state), v: 3, revision: Store.revision, savedAt: (/* @__PURE__ */ new Date()).toISOString(), mode };
 }
@@ -702,7 +702,7 @@ async function loadState() {
     for (const source of sources) {
       if (source.value === null) continue;
       try {
-        db = validateState({ ...source.value, payments: source.value.payments ?? [] });
+        db2 = validateState({ ...source.value, payments: source.value.payments ?? [] });
         Store.mode = "work";
         Store.ready = true;
         await save();
@@ -716,11 +716,11 @@ async function loadState() {
   }
   Store.mode = mode;
   if (state.value) {
-    db = validateState(state.value);
+    db2 = validateState(state.value);
     Store.revision = Math.max(Store.revision, state.value.revision);
     Store.backup = state.value.previous;
   } else if (state.uncertain) return blockLoad();
-  else db = mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
+  else db2 = mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
   Store.ready = true;
   Store.blocked = Store.blocked || state.uncertain;
   setStorageStatus(state.uncertain ? "\u90E8\u5206\u672C\u673A\u526F\u672C\u4E0D\u53EF\u8BFB\uFF0C\u5F53\u524D\u4EC5\u4F9B\u67E5\u770B\uFF1B\u5DF2\u6682\u505C\u5199\u5165\uFF0C\u8BF7\u5148\u5BFC\u51FA\u5907\u4EFD\u5E76\u91CD\u8BD5\u8BFB\u53D6\u3002" : "");
@@ -729,7 +729,7 @@ async function loadState() {
 function blockLoad() {
   Store.blocked = true;
   Store.ready = true;
-  db = { orders: [], payments: [], threshold: 15 };
+  db2 = { orders: [], payments: [], threshold: 15 };
   setStorageStatus("\u672C\u673A\u6570\u636E\u8BFB\u53D6\u5931\u8D25\uFF0C\u5DF2\u6682\u505C\u5199\u5165\u4EE5\u4FDD\u62A4\u539F\u6570\u636E\u3002\u8BF7\u91CD\u8BD5\uFF0C\u6216\u5148\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u7559\u5B58\u3002");
   return false;
 }
@@ -748,7 +748,7 @@ async function switchMode(mode) {
       return;
     }
     Store.mode = mode;
-    db = target.value ? validateState(target.value) : mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
+    db2 = target.value ? validateState(target.value) : mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
     Store.revision = Math.max(Store.revision, target.value?.revision || 0);
     Store.backup = target.value?.previous || null;
     afterLoad && afterLoad.closeSheets();
@@ -767,7 +767,7 @@ async function switchMode(mode) {
 async function replaceData(state) {
   if (Store.busy || Store.blocked) return false;
   const validated = validateState(state);
-  if (!state || state.notifyEnabled === void 0) validated.notifyEnabled = db.notifyEnabled !== false;
+  if (!state || state.notifyEnabled === void 0) validated.notifyEnabled = db2.notifyEnabled !== false;
   Store.busy = true;
   try {
     await Store.queue;
@@ -775,7 +775,7 @@ async function replaceData(state) {
     next.previous = before;
     if (!await persistSnapshot(next)) return false;
     Store.backup = before;
-    db = validated;
+    db2 = validated;
     afterLoad && afterLoad.closeSheets();
     ui.q = "";
     ui.chip = "all";
@@ -793,7 +793,7 @@ async function replaceData(state) {
     Store.busy = false;
   }
 }
-function backupDocument(state = db) {
+function backupDocument(state = db2) {
   return { app: "\u63A2\u8BB0 TanJi", version: "0.6", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), threshold: state.threshold, notifyEnabled: state.notifyEnabled !== false, accounts: cloneState(state.accounts || []), providers: cloneState(state.providers || []), orders: cloneState(state.orders), payments: cloneState(state.payments) };
 }
 function accountCopyText(account) {
@@ -941,8 +941,8 @@ var Notify = {
       const pend = await L.getPending();
       const oldDaily = (pend.notifications || []).filter((n) => +n.id === base + 1);
       if (oldDaily.length) await L.cancel({ notifications: oldDaily });
-      const over = db.orders.filter((o) => isOver(o) && !snoozed(o));
-      if (!over.length || db.notifyEnabled === false) return;
+      const over = db2.orders.filter((o) => isOver(o) && !snoozed(o));
+      if (!over.length || db2.notifyEnabled === false) return;
       if (!await this.ensurePermission()) return;
       const maxD = Math.max(...over.map(overdueDays));
       await L.schedule({ notifications: [{
@@ -967,7 +967,7 @@ var Notify = {
       const mine = (pend.notifications || []).filter((n) => +n.id >= base + 3e5 && +n.id < base + 4e5);
       if (mine.length) await L.cancel({ notifications: mine });
       const now2 = Date.now();
-      const list = db.orders.filter((o) => o.shotAt && !deliveredAll(o)).map((o) => ({ o, at: new Date(new Date(o.shotAt).getTime() + 864e5) })).filter((x) => !isNaN(x.at.getTime()) && x.at.getTime() > now2);
+      const list = db2.orders.filter((o) => o.shotAt && !deliveredAll(o)).map((o) => ({ o, at: new Date(new Date(o.shotAt).getTime() + 864e5) })).filter((x) => !isNaN(x.at.getTime()) && x.at.getTime() > now2);
       if (!list.length) return;
       if (!await this.ensurePermission()) return;
       await L.schedule({ notifications: list.map(({ o, at }) => ({
@@ -1041,10 +1041,10 @@ var Notify = {
     }
   },
   async toggle() {
-    db.notifyEnabled = db.notifyEnabled === false;
+    db2.notifyEnabled = db2.notifyEnabled === false;
     save();
     afterLoad && afterLoad.renderAll();
-    if (db.notifyEnabled !== false) await this.syncDaily();
+    if (db2.notifyEnabled !== false) await this.syncDaily();
     else {
       try {
         const L = CAP.LocalNotifications, pend = await L.getPending();
@@ -1053,7 +1053,7 @@ var Notify = {
       } catch (e) {
       }
     }
-    afterLoad && afterLoad.toast(db.notifyEnabled !== false ? "\u5DF2\u5F00\u542F\u6BCF\u65E5\u50AC\u6536\u63D0\u9192\uFF08\u6BCF\u5929 09:00\uFF09" : "\u5DF2\u5173\u95ED\u6BCF\u65E5\u50AC\u6536\u63D0\u9192");
+    afterLoad && afterLoad.toast(db2.notifyEnabled !== false ? "\u5DF2\u5F00\u542F\u6BCF\u65E5\u50AC\u6536\u63D0\u9192\uFF08\u6BCF\u5929 09:00\uFF09" : "\u5DF2\u5173\u95ED\u6BCF\u65E5\u50AC\u6536\u63D0\u9192");
   }
 };
 
@@ -1083,6 +1083,10 @@ function showTab(t) {
   $("#v-" + t).classList.add("active");
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
 }
+var badgeCounter = null;
+function registerBadgeCounter(fn) {
+  badgeCounter = fn;
+}
 function renderAll() {
   refreshClock();
   setStorageStatus(Store.status);
@@ -1091,7 +1095,7 @@ function renderAll() {
   RENDERERS.orders();
   RENDERERS.pay();
   RENDERERS.stats();
-  const n = db.orders.filter(accMatch).filter((o) => isOver(o) && !snoozed(o)).length;
+  const n = badgeCounter ? badgeCounter() : 0;
   const b = $("#pay-bdg");
   b.style.display = n ? "flex" : "none";
   b.textContent = n;
@@ -1126,31 +1130,31 @@ function paymentSpec(kind) {
   return TanJiLogic.paymentSpec(kind);
 }
 function hasReceipt(o, kind) {
-  return TanJiLogic.hasReceipt(o, kind, db.payments);
+  return TanJiLogic.hasReceipt(o, kind, db2.payments);
 }
 function hasAnyReceipt(o) {
-  return TanJiLogic.hasAnyReceipt(o, db.payments);
+  return TanJiLogic.hasAnyReceipt(o, db2.payments);
 }
 function unDep(o) {
-  return TanJiLogic.unDep(o, db.payments);
+  return TanJiLogic.unDep(o, db2.payments);
 }
 function unFin(o) {
-  return TanJiLogic.unFin(o, db.payments);
+  return TanJiLogic.unFin(o, db2.payments);
 }
 function owedOf(o) {
-  return TanJiLogic.owedOf(o, db.payments);
+  return TanJiLogic.owedOf(o, db2.payments);
 }
 function payOf(o) {
-  return TanJiLogic.payOf(o, db.payments);
+  return TanJiLogic.payOf(o, db2.payments);
 }
 function overdueDays2(o) {
-  return TanJiLogic.overdueDays(o, db.payments, now);
+  return TanJiLogic.overdueDays(o, db2.payments, now);
 }
 function snoozed2(o) {
   return TanJiLogic.snoozed(o, nowStr());
 }
 function isOver2(o) {
-  return TanJiLogic.isOver(o, db.payments, db.threshold, now);
+  return TanJiLogic.isOver(o, db2.payments, db2.threshold, now);
 }
 function remindLogOf(o) {
   return TanJiLogic.remindLogOf(o);
@@ -1159,11 +1163,12 @@ function lastRemind(o) {
   return TanJiLogic.lastRemind(o);
 }
 function expectOverdue(o) {
-  return TanJiLogic.expectOverdue(o, db.payments, now);
+  return TanJiLogic.expectOverdue(o, db2.payments, now);
 }
-var accOrderIds = () => new Set(db.orders.filter(accMatch).map((o) => o.id));
+var accMatch = (o) => ui2.accFilter == null || o.accountId === ui2.accFilter;
+var accOrderIds = () => new Set(db2.orders.filter(accMatch).map((o) => o.id));
 function upcoming7() {
-  return TanJiLogic.upcomingByDay(db.orders.filter(accMatch), TODAY, 7);
+  return TanJiLogic.upcomingByDay(db2.orders.filter(accMatch), TODAY, 7);
 }
 var WORK_CLS = { "\u5F85\u62CD\u6444": "c-blue", "\u540E\u671F\u4E2D": "c-purple", "\u53D1\u7247\u4E2D": "c-orange", "\u5DF2\u4EA4\u4ED8": "c-green" };
 var PAY_CLS = { "\u5F85\u5B9A\u91D1": "c-gray", "\u5F85\u5C3E\u6B3E": "c-orange", "\u5E73\u53F0\u7ED3\u7B97": "c-blue", "\u5DF2\u903E\u671F": "c-red", "\u5DF2\u7ED3\u6E05": "c-green" };
@@ -1181,7 +1186,7 @@ function deliverLate(o) {
   return TanJiLogic.deliverLate(o, Date.now());
 }
 var REVIEW_LABEL = { pass: "\u9001\u5BA1\u5408\u683C", fail: "\u9001\u5BA1\u4E0D\u5408\u683C" };
-var byId = (id) => db.orders.find((o) => o.id === id);
+var byId = (id) => db2.orders.find((o) => o.id === id);
 var gpsText = (o) => o && o.gpsPlace && typeof TanJiGeo !== "undefined" ? TanJiGeo.label(o.gpsPlace) : "";
 var storeOf = (id) => {
   const o = byId(id);
@@ -1301,12 +1306,11 @@ var ACC_COLORS = [
   { name: "\u5375\u77F3\u7070", bg: "#F2F2F6", ink: "#67676F" }
 ];
 var PRESET_PROVIDERS = ["\u8702\u5411", "\u5C0F\u7231", "\u91D1\u57CE", "\u98DF\u7269", "\u76F4\u5BA2"];
-var ACCS = () => db.accounts || [];
+var ACCS = () => db2.accounts || [];
 var accMulti = () => ACCS().length >= 2;
 var accById = (id) => ACCS().find((a) => a.id === +id);
 var accColor = (a) => ACC_COLORS[(a && a.color != null ? a.color : 0) % 8];
-var accMatch2 = (o) => ui2.accFilter == null || o.accountId === ui2.accFilter;
-var providerList = () => [.../* @__PURE__ */ new Set([...PRESET_PROVIDERS, ...db.providers || []])];
+var providerList = () => [.../* @__PURE__ */ new Set([...PRESET_PROVIDERS, ...db2.providers || []])];
 var accTint = (o) => o && accMulti() && o.accountId != null ? `--acc:${accColor(accById(o.accountId)).ink}` : "";
 var accBar = (o) => accTint(o) ? " acc-bar" : "";
 var accOrderTag = (o) => accMulti() ? accTagHTML(accById(o.accountId)) : "";
@@ -1344,7 +1348,7 @@ function renderAccPick(elId, sel) {
   el.innerHTML = `<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">\u8D26\u53F7 <span style="color:var(--red)">*</span></div>
     <div class="acc-sel">${ACCS().map((a) => {
     const c = accColor(a);
-    const n = db.orders.filter((o) => o.accountId === a.id).length;
+    const n = db2.orders.filter((o) => o.accountId === a.id).length;
     return `<button type="button" class="acc-opt ${sel === a.id ? "sel" : ""}" data-act="acc-pick" data-id="${a.id}" style="${sel === a.id ? `border-color:${c.ink};background:${c.bg}` : ""}">
         <span class="acc-dot"></span>${accAvatarHTML(a, "width:30px;height:30px;font-size:14px;border-radius:10px")}
         <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${n} \u5355</span></button>`;
@@ -1365,7 +1369,7 @@ function renderProvPick(elId, val) {
 }
 function chanFromDraft() {
   const v = (ui2.draftProv || "").trim() || "\u76F4\u5BA2";
-  if (!providerList().includes(v)) db.providers = [.../* @__PURE__ */ new Set([...db.providers || [], v])];
+  if (!providerList().includes(v)) db2.providers = [.../* @__PURE__ */ new Set([...db2.providers || [], v])];
   return v;
 }
 function openAccount(id) {
@@ -1409,7 +1413,7 @@ function saveAccount() {
     toast("\u5DF2\u4FDD\u5B58\u8D26\u53F7");
   } else {
     const maxId = ACCS().reduce((m, x) => Math.max(m, x.id), 0);
-    db.accounts = [...ACCS(), { id: maxId + 1, createdAt: nowStr(), ...base }];
+    db2.accounts = [...ACCS(), { id: maxId + 1, createdAt: nowStr(), ...base }];
     toast("\u5DF2\u6DFB\u52A0\u8D26\u53F7");
   }
   save();
@@ -1419,10 +1423,10 @@ function saveAccount() {
 function deleteAccount() {
   const a = accById(ui2.editAccountId);
   if (!a) return;
-  const n = db.orders.filter((o) => o.accountId === a.id).length;
+  const n = db2.orders.filter((o) => o.accountId === a.id).length;
   if (!confirm(`\u5220\u9664\u300C${a.name}\u300D?\u5176\u540D\u4E0B ${n} \u7B14\u8BA2\u5355\u5C06\u53D8\u4E3A\u300C\u672A\u6307\u5B9A\u300D,\u53EF\u518D\u6539\u6302\u3002`)) return;
-  db.accounts = ACCS().filter((x) => x.id !== a.id);
-  db.orders.forEach((o) => {
+  db2.accounts = ACCS().filter((x) => x.id !== a.id);
+  db2.orders.forEach((o) => {
     if (o.accountId === a.id) o.accountId = null;
   });
   if (ui2.accFilter === a.id) ui2.accFilter = null;
@@ -1455,7 +1459,7 @@ function dayBadge(n, sum) {
 }
 
 // src/app/sqlite-bytes.js
-function buildSqliteBytes(state = db) {
+function buildSqliteBytes(state = db2) {
   if (!Store.sqlite3) return null;
   try {
     const s = Store.sqlite3;
@@ -1603,7 +1607,7 @@ function q(v) {
 }
 function exportCsv() {
   const head = ["ID", "\u54C1\u540D/\u5546\u5BB6", "\u7C7B\u578B", "\u7ED3\u7B97\u65B9\u5F0F", "\u670D\u52A1\u5546", "\u7EC4\u961F", "\u8D26\u53F7", "\u5730\u70B9", "\u5230\u5E97\u5B9A\u4F4D", "\u8054\u7CFB\u65B9\u5F0F", "\u603B\u4EF7", "\u5B9A\u91D1", "\u9884\u7EA6\u65F6\u95F4", "\u5B9E\u9645\u62CD\u6444", "\u63D0\u5BA1\u65F6\u95F4", "\u526F\u7247\u53D1\u51FA", "\u6B63\u7247\u53D1\u51FA", "\u51FA\u7247\u8981\u6C42", "\u9001\u5BA1\u7ED3\u679C", "\u53D1\u5E03\u65F6\u95F4", "\u5DE5\u4F5C\u72B6\u6001", "\u6536\u6B3E\u72B6\u6001", "\u5F85\u6536\u91D1\u989D", "\u6B20\u6B3E\u5929\u6570", "\u50AC\u6536\u5907\u5FD8", "\u50AC\u6536\u6B21\u6570", "\u6700\u8FD1\u50AC\u6536", "\u9884\u8BA1\u5230\u8D26", "\u5907\u6CE8"];
-  const lines = db.orders.map((o) => [
+  const lines = db2.orders.map((o) => [
     o.id,
     o.store,
     o.cat,
@@ -1635,7 +1639,7 @@ function exportCsv() {
     o.note
   ].map(q).join(","));
   const phead = ["\u5E8F\u53F7", "\u8BA2\u5355ID", "\u5546\u5BB6", "\u7C7B\u578B", "\u91D1\u989D", "\u5230\u8D26\u65F6\u95F4", "\u6536\u6B3E\u65B9\u5F0F"];
-  const plines = db.payments.map((p, i) => [i + 1, p.oid, storeOf(p.oid), p.kind, p.amount, p.at, p.method].map(q).join(","));
+  const plines = db2.payments.map((p, i) => [i + 1, p.oid, storeOf(p.oid), p.kind, p.amount, p.at, p.method].map(q).join(","));
   download(`\u63A2\u8BB0-\u5BFC\u51FA-${TODAY}.csv`, [head.map(q).join(","), ...lines, "", "", phead.map(q).join(","), ...plines].join("\n"), "text/csv;charset=utf-8");
   toast("\u5DF2\u5BFC\u51FA CSV(\u8BA2\u5355 + \u6D41\u6C34)\u2713");
 }
@@ -1841,7 +1845,7 @@ function openDetail(id) {
     if (s[1]) lastDone = i;
   });
   const progress = lastDone < 0 ? 0 : (lastDone + 0.5) / visibleSteps.length * 72;
-  const received = db.payments.filter((p) => p.oid === o.id).reduce((s, p) => s + (moneyCents(p.amount) || 0), 0) / 100;
+  const received = db2.payments.filter((p) => p.oid === o.id).reduce((s, p) => s + (moneyCents(p.amount) || 0), 0) / 100;
   const payBtns = [];
   if (unDep(o) > 0) payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="deposit">\u6536\u5B9A\u91D1 ${esc(fmtMoney(unDep(o)))}</button>`);
   if (unFin(o) > 0) payBtns.push(`<button class="btn ${isOver2(o) ? "primary" : "pay"}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">\u6536\u5C3E\u6B3E<span class="pmoney">${esc(fmtMoney(unFin(o)))}</span></button>`);
@@ -1889,7 +1893,7 @@ function openDetail(id) {
     </div>
     <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${o.reviewResult ? `<span class="chip ${o.reviewResult === "pass" ? "c-green" : "c-red"}">${REVIEW_LABEL[o.reviewResult]}</span>` : ""}${deliverLate(o) ? `<span class="chip c-red">\u8D8524h\u672A\u51FA\u7247</span>` : ""}${isOver2(o) ? `<span class="chip c-red">\u6B20\u6B3E ${esc(od)} \u5929</span>` : ""}${o.settleVia === "douyin" && o.expectPayAt && unFin(o) > 0 ? `<span class="chip ${lateDays > 0 ? "c-red" : "c-blue"}">\u9884\u8BA1 ${esc(fmtD(o.expectPayAt))} \u5230\u8D26${lateDays > 0 ? ` \xB7 \u8D85\u671F ${esc(lateDays)} \u5929` : ""}</span>` : ""}${snoozed2(o) ? `<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>` : ""}</div>
     ${isOver2(o) ? `<div class="banner-red"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
-      <span>\u5C3E\u6B3E\u81EA\u62CD\u6444\u65E5(${esc(fmtD(o.shotAt))})\u8D77\u5DF2\u6B20 <b>${esc(od)} \u5929</b>,\u8FBE\u5230 ${esc(db.threshold)} \u5929\u50AC\u6536\u9608\u503C,\u5EFA\u8BAE\u7535\u8BDD\u8DDF\u8FDB\u3002${snoozed2(o) ? `\u5DF2\u5907\u5FD8:${esc(fmtD(o.remindAt))} \u518D\u63D0\u9192\u3002` : ""}</span></div>` : ""}
+      <span>\u5C3E\u6B3E\u81EA\u62CD\u6444\u65E5(${esc(fmtD(o.shotAt))})\u8D77\u5DF2\u6B20 <b>${esc(od)} \u5929</b>,\u8FBE\u5230 ${esc(db2.threshold)} \u5929\u50AC\u6536\u9608\u503C,\u5EFA\u8BAE\u7535\u8BDD\u8DDF\u8FDB\u3002${snoozed2(o) ? `\u5DF2\u5907\u5FD8:${esc(fmtD(o.remindAt))} \u518D\u63D0\u9192\u3002` : ""}</span></div>` : ""}
     <div class="mile" style="--p:${progress.toFixed(1)}%">${mile}</div>
     <div class="shotline">
       <button class="mini-btn" data-act="shot-pick" data-oid="${esc(o.id)}">\u{1F4F7} ${o.photoThumb ? "\u91CD\u62CD\u95E8\u53E3\u7167" : "\u968F\u624B\u62CD \xB7 \u5230\u5E97\u95E8\u53E3\u6765\u4E00\u5F20"}</button>
@@ -1969,7 +1973,7 @@ function pay(id, kind, method = "\u5FAE\u4FE1") {
   }
   const t = nowStr(), amount = m[kind] / 100;
   o[spec.field] = t;
-  db.payments.push({ oid: id, kind: spec.label, amount, at: t, method });
+  db2.payments.push({ oid: id, kind: spec.label, amount, at: t, method });
   save();
   renderAll();
   rerenderDetail();
@@ -1980,12 +1984,12 @@ function pay(id, kind, method = "\u5FAE\u4FE1") {
 function undoPay(id, kind, at) {
   const spec = paymentSpec(kind), o = byId(id);
   if (!spec || !o) return false;
-  const index = db.payments.findIndex((p) => p.oid === id && p.kind === spec.label && p.at === at);
+  const index = db2.payments.findIndex((p) => p.oid === id && p.kind === spec.label && p.at === at);
   if (index < 0 || o[spec.field] !== at) {
     toast("\u8FD9\u7B14\u6536\u6B3E\u5DF2\u88AB\u6539\u52A8,\u65E0\u6CD5\u64A4\u9500");
     return false;
   }
-  db.payments.splice(index, 1);
+  db2.payments.splice(index, 1);
   o[spec.field] = null;
   save();
   renderAll();
@@ -2120,7 +2124,7 @@ function conflictLine(o) {
   return `${esc(fmtHM(o.appt))} \u300C${esc(o.store)}\u300D${place ? ` \xB7 ${esc(place)}` : ""}`;
 }
 function conflictFor(date, time, excludeId) {
-  const { same, overlap } = TanJiLogic.apptOverlap(db.orders, date, time, excludeId);
+  const { same, overlap } = TanJiLogic.apptOverlap(db2.orders, date, time, excludeId);
   if (!same.length) return "";
   const rows = (list) => list.map((o) => `<div>\xB7 ${conflictLine(o)}</div>`).join("");
   if (overlap.length) return `<b>\u8BE5\u65F6\u6BB5\u5DF2\u6709\u6392\u671F(\u524D\u540E 2 \u5C0F\u65F6\u5185):</b>${rows(overlap)}\u4E0D\u5F71\u54CD\u4FDD\u5B58\u2014\u2014\u53EF\u627E\u4EBA\u4EE3\u62CD\u6216\u9519\u5CF0\u3002`;
@@ -2191,7 +2195,7 @@ function saveOrder() {
     fail("\u8BF7\u9009\u62E9\u6709\u6548\u7684\u7ED3\u7B97\u65B9\u5F0F");
     return;
   }
-  const maxId = db.orders.reduce((max, x) => Number.isSafeInteger(x.id) && x.id > 0 ? Math.max(max, x.id) : NaN, 0);
+  const maxId = db2.orders.reduce((max, x) => Number.isSafeInteger(x.id) && x.id > 0 ? Math.max(max, x.id) : NaN, 0);
   const id = maxId + 1;
   if (!Number.isSafeInteger(id) || id < 1) {
     fail("\u8BA2\u5355\u7F16\u53F7\u8D85\u51FA\u5B89\u5168\u8303\u56F4\u6216\u5DF2\u6709\u5F02\u5E38\u7F16\u53F7\uFF0C\u65E0\u6CD5\u65B0\u5EFA");
@@ -2227,7 +2231,7 @@ function saveOrder() {
     remindAt: null,
     note: $("#f-note").value.trim()
   };
-  db.orders.push(o);
+  db2.orders.push(o);
   save();
   Notify.syncDeliver();
   closeSheets();
@@ -2271,7 +2275,7 @@ function toggleReceipt(oid, kind) {
   if (hasReceipt(o, kind)) {
     if (!confirm("\u64A4\u9500" + spec.label + "\u8BB0\u5F55\u5E76\u5220\u9664\u5BF9\u5E94\u6D41\u6C34\uFF1F\u4EC5\u7528\u4E8E\u7EA0\u6B63\u9519\u8BEF\u6536\u6B3E\uFF0C\u4E0D\u8868\u793A\u9000\u6B3E\u3002")) return;
     o[spec.field] = null;
-    db.payments = db.payments.filter((p) => !(p.oid === oid && (p.kind === spec.label || p.kind === kind)));
+    db2.payments = db2.payments.filter((p) => !(p.oid === oid && (p.kind === spec.label || p.kind === kind)));
     save();
     renderAll();
     Notify.syncDaily();
@@ -2444,7 +2448,7 @@ function rr(g, x, y, w, h, r) {
 }
 function buildTodayImage(day = TODAY) {
   const date = /* @__PURE__ */ new Date(day + "T00:00");
-  const list = db.orders.filter((o) => o.appt.slice(0, 10) === day).sort((a, b) => a.appt.localeCompare(b.appt));
+  const list = db2.orders.filter((o) => o.appt.slice(0, 10) === day).sort((a, b) => a.appt.localeCompare(b.appt));
   const S = 2, W = 1080, rowH = 112, headH = 240, footH = 110, gap = 18, pad2 = 56;
   const rows = Math.max(list.length, 1);
   const H = headH + rows * (rowH + gap) + footH;
@@ -2523,7 +2527,7 @@ async function shareToday() {
 // src/app/stats.js
 function statsFor(period, list) {
   refreshClock();
-  return TanJiLogic.statsFor({ orders: db.orders, payments: db.payments, period, list, now });
+  return TanJiLogic.statsFor({ orders: db2.orders, payments: db2.payments, period, list, now });
 }
 function headBtns(share) {
   return `<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
@@ -2554,8 +2558,8 @@ function chipMatch(o) {
 function renderOrders() {
   const q2 = ui2.q.trim().toLowerCase();
   const hit = (o) => q2 && [o.store, o.location, o.contact, o.channel, o.partner, o.note, o.cat].some((v) => String(v ?? "").toLowerCase().includes(q2));
-  const all = db.orders.filter(accMatch2).filter(chipMatch).filter((o) => !q2 || hit(o)).sort((a, b) => (b.shotAt || b.appt).localeCompare(a.shotAt || a.appt));
-  const cnt = (k) => db.orders.filter(accMatch2).filter((o) => {
+  const all = db2.orders.filter(accMatch).filter(chipMatch).filter((o) => !q2 || hit(o)).sort((a, b) => (b.shotAt || b.appt).localeCompare(a.shotAt || a.appt));
+  const cnt = (k) => db2.orders.filter(accMatch).filter((o) => {
     const t = ui2.chip;
     ui2.chip = k;
     const r = chipMatch(o);
@@ -2598,11 +2602,11 @@ function renderOrders() {
 
 // src/app/views/pay.js
 function renderPay() {
-  const rows0 = db.orders.filter(accMatch2).filter((o) => owedOf(o) > 0);
+  const rows0 = db2.orders.filter(accMatch).filter((o) => owedOf(o) > 0);
   const unDepSum = rows0.reduce((s, o) => s + unDep(o), 0);
   const unFinSum = rows0.reduce((s, o) => s + unFin(o), 0);
   const dySum = rows0.filter((o) => o.settleVia === "douyin").reduce((s, o) => s + unFin(o), 0);
-  const overAll = db.orders.filter(accMatch2).filter(isOver2);
+  const overAll = db2.orders.filter(accMatch).filter(isOver2);
   const over = overAll.filter((o) => !snoozed2(o));
   const overSum = over.reduce((s, o) => s + unFin(o), 0);
   const bucket = (o) => {
@@ -2624,8 +2628,8 @@ function renderPay() {
       <button class="mini-btn green" data-act="open-pay" data-oid="${o.id}" data-kind="${due.kind}">${due.btn}</button>
     </div>`;
   }).join("") : `<div class="empty"><div class="e-ic">\u2705</div>\u8BE5\u533A\u95F4\u6682\u65E0\u5F85\u6536\u6B3E</div>`;
-  const flow = [...db.payments].filter((p) => accOrderIds().has(p.oid)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((p) => {
-    const po = db.orders.find((x) => x.id === p.oid);
+  const flow = [...db2.payments].filter((p) => accOrderIds().has(p.oid)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((p) => {
+    const po = db2.orders.find((x) => x.id === p.oid);
     return `<div class="row${accBar(po)}" style="${accTint(po)}">
       <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} \xB7 ${esc(storeOf(p.oid))}</div>
         <div class="rsub">${esc(p.kind)} \xB7 ${fmtD(p.at)} ${fmtHM(p.at)}${accMulti() ? ` \xB7 ${accTagHTML(po ? accById(po.accountId) : null)}` : ""}</div></div>
@@ -2666,7 +2670,7 @@ function accountSectionHtml() {
   let html = "";
   for (const a of accs) {
     const c = accColor(a);
-    const n = db.orders.filter((o) => o.accountId === a.id).length;
+    const n = db2.orders.filter((o) => o.accountId === a.id).length;
     html += `<div class="row" style="background:${c.bg};border-radius:14px;align-items:center;gap:12px">
       ${accAvatarHTML(a)}
       <div style="flex:1;min-width:0"><div class="rname" style="font-size:14.5px">${esc(a.name)}</div>
@@ -2676,14 +2680,14 @@ function accountSectionHtml() {
         <button class="mini-btn" style="background:rgba(0,0,0,.06);color:#55555e" data-act="open-account" data-id="${a.id}">\u7F16\u8F91</button></div>
     </div>`;
   }
-  const unassigned = accMulti() ? db.orders.filter((o) => o.accountId == null).length : 0;
+  const unassigned = accMulti() ? db2.orders.filter((o) => o.accountId == null).length : 0;
   if (unassigned) html += `<div class="row" style="align-items:center;gap:10px">
     <div class="rmain"><div class="rsub" style="color:var(--orange)">${unassigned} \u7B14\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7(\u542B\u5386\u53F2\u5355)</div></div>
     <button class="mini-btn" data-act="assign-open">\u6279\u91CF\u6539\u6302</button></div>`;
   return html;
 }
 function renderStats() {
-  const st = statsFor(ui2.period, db.orders.filter(accMatch));
+  const st = statsFor(ui2.period, db2.orders.filter(accMatch));
   const avg = st.deals.length ? Math.round(st.dealSum / st.deals.length) : 0;
   let days = [];
   if (ui2.period === "M") {
@@ -2699,8 +2703,8 @@ function renderStats() {
   const daily = days.map((d) => st.paid.filter((p) => p.at.slice(0, 10) === d).reduce((s, p) => s + Math.round(p.amount * 100), 0) / 100);
   const mx = Math.max(...daily, 1);
   const bars = daily.map((v, i) => `<div class="bar ${v ? "" : "zero"}" title="${days[i]} \u5B9E\u6536 ${fmtMoney(v)}"><i style="height:${Math.max(3, Math.round(v / mx * 100))}%"></i></div>`).join("");
-  const totOwed = db.orders.filter(accMatch).reduce((s, o) => s + owedOf(o), 0);
-  const sending = db.orders.filter(accMatch).filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf(o))).length;
+  const totOwed = db2.orders.filter(accMatch).reduce((s, o) => s + owedOf(o), 0);
+  const sending = db2.orders.filter(accMatch).filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf(o))).length;
   const segP = [["7", "\u8FD17\u5929"], ["30", "\u8FD130\u5929"], ["M", "\u672C\u6708"]].map(([k, l]) => `<button class="${ui2.period === k ? "on" : ""}" data-act="period" data-period="${k}">${l}</button>`).join("");
   const byM = /* @__PURE__ */ Object.create(null);
   st.paid.forEach((p) => {
@@ -2759,7 +2763,7 @@ function renderStats() {
         <span class="menu-ic" style="background:var(--orange-soft);color:#E8850A"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg></span>
         <div class="menu-t"><div class="menu-name">\u5C3E\u6B3E\u50AC\u6536\u9608\u503C</div><div class="menu-sub">\u8D85\u8FC7\u8BE5\u5929\u6570\u672A\u6536\u5C3E\u6B3E\u5373\u6807\u8BB0\u300C\u5DF2\u903E\u671F\u300D;\u63D0\u9192\u4EE5\u6253\u5F00 App \u67E5\u770B\u4E3A\u51C6</div></div>
         <div class="stepper">
-          <button data-act="th" data-v="-1">\u2212</button><span>${db.threshold} \u5929</span><button data-act="th" data-v="1">+</button>
+          <button data-act="th" data-v="-1">\u2212</button><span>${db2.threshold} \u5929</span><button data-act="th" data-v="1">+</button>
         </div>
       </div>
       <div class="menu-row" data-act="export-db">
@@ -2786,7 +2790,7 @@ function renderStats() {
       ${isNative ? `<div class="menu-row" data-act="notify-toggle" role="button" tabindex="0">
         <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span>
         <div class="menu-t"><div class="menu-name">\u903E\u671F\u50AC\u6536\u6BCF\u65E5\u63D0\u9192</div><div class="menu-sub">\u6BCF\u5929 09:00 \u672C\u5730\u901A\u77E5 \xB7 \u53EA\u62A5\u6761\u6570\u4E0E\u6700\u957F\u5929\u6570,\u4E0D\u542B\u91D1\u989D</div></div>
-        <span class="tag-badge">${db.notifyEnabled === false ? "\u5DF2\u5173\u95ED" : "\u5DF2\u5F00\u542F"}</span>
+        <span class="tag-badge">${db2.notifyEnabled === false ? "\u5DF2\u5173\u95ED" : "\u5DF2\u5F00\u542F"}</span>
       </div>` : ""}
       <div class="menu-row" data-act="switch-mode" role="button" tabindex="0">
         <div class="menu-t"><div class="menu-name">${Store.mode === "demo" ? "\u8FDB\u5165\u5DE5\u4F5C\u6570\u636E" : "\u5207\u6362\u5230\u6F14\u793A\u6570\u636E"}</div><div class="menu-sub">\u5F53\u524D\u4E3A${Store.mode === "demo" ? "\u6F14\u793A" : "\u5DE5\u4F5C"}\u6570\u636E\uFF1B\u4E24\u5957\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u4E92\u4E0D\u8986\u76D6</div></div>
@@ -2835,10 +2839,10 @@ function renderTrip() {
   const first = new Date(y, m - 1, 1);
   const off = (first.getDay() + 6) % 7;
   const dim = new Date(y, m, 0).getDate();
-  const mOrders = db.orders.filter(accMatch2).filter((o) => +o.appt.slice(0, 4) === y && +o.appt.slice(5, 7) === m);
+  const mOrders = db2.orders.filter(accMatch).filter((o) => +o.appt.slice(0, 4) === y && +o.appt.slice(5, 7) === m);
   const mSum = mOrders.reduce((s, o) => s + o.price, 0);
   const mPrefix = `${y}-${pad(m)}`;
-  const mPaidSum = db.payments.filter((p) => accOrderIds().has(p.oid) && String(p.at || "").slice(0, 7) === mPrefix).reduce((s, p) => s + p.amount, 0);
+  const mPaidSum = db2.payments.filter((p) => accOrderIds().has(p.oid) && String(p.at || "").slice(0, 7) === mPrefix).reduce((s, p) => s + p.amount, 0);
   const byDay = {};
   mOrders.forEach((o) => {
     const k = o.appt.slice(0, 10);
@@ -2863,7 +2867,7 @@ function renderTrip() {
     cells += `<button class="mc ${iso === ui2.selDay ? "sel" : ""} ${iso === TODAY ? "today" : ""}" data-act="day" data-day="${iso}" title="${bdg ? bdg.t : ""}">
       <span class="n">${d}</span><span class="d">${ds.length ? "<i></i>".repeat(Math.min(ds.length, 6)) : ""}</span>${bdg ? `<span class="bdg">${bdg.e}</span>` : ""}</button>`;
   }
-  const list = db.orders.filter(accMatch2).filter((o) => o.appt.slice(0, 10) === ui2.selDay).sort((a, b) => a.appt.localeCompare(b.appt));
+  const list = db2.orders.filter(accMatch).filter((o) => o.appt.slice(0, 10) === ui2.selDay).sort((a, b) => a.appt.localeCompare(b.appt));
   const listHtml = list.length ? list.map(orderRowTrip).join("") : `<div class="empty"><div class="e-ic">\u{1F4ED}</div>\u8FD9\u4E00\u5929\u6682\u65E0\u62CD\u6444\u5B89\u6392</div>`;
   const tomorrow = dOff(1).slice(0, 10);
   let up = "";
@@ -2933,7 +2937,7 @@ registerAction("save-order", (t, oid) => {
   saveOrder();
 });
 registerAction("goto-collect", (t, oid) => {
-  ui2.bucket = db.orders.some((o) => isOver2(o) && !snoozed2(o)) ? "over" : "snoozed";
+  ui2.bucket = db2.orders.some((o) => isOver2(o) && !snoozed2(o)) ? "over" : "snoozed";
   showTab("pay");
   renderAll();
 });
@@ -3075,7 +3079,7 @@ registerAction("assign-open", (t, oid) => {
     const c = accColor(a);
     return `<button type="button" class="acc-opt ${ui2.assignAcc === a.id ? "sel" : ""}" data-act="assign-pick" data-id="${a.id}" style="${ui2.assignAcc === a.id ? `border-color:${c.ink};background:${c.bg}` : ""}">
           <span class="acc-dot"></span>${accAvatarHTML(a, "width:30px;height:30px;font-size:14px;border-radius:10px")}
-          <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${db.orders.filter((o) => o.accountId === a.id).length} \u5355</span></button>`;
+          <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${db2.orders.filter((o) => o.accountId === a.id).length} \u5355</span></button>`;
   }).join("");
   showSheet("sheet-assign");
 });
@@ -3092,7 +3096,7 @@ registerAction("assign-pick", (t, oid) => {
   }
 });
 registerAction("assign-run", (t, oid) => {
-  const n = db.orders.filter((o) => o.accountId == null).length;
+  const n = db2.orders.filter((o) => o.accountId == null).length;
   if (!n) {
     toast("\u6CA1\u6709\u672A\u6307\u5B9A\u7684\u8BA2\u5355");
     return;
@@ -3101,7 +3105,7 @@ registerAction("assign-run", (t, oid) => {
     toast("\u5148\u9009\u4E00\u4E2A\u8D26\u53F7");
     return;
   }
-  db.orders.forEach((o) => {
+  db2.orders.forEach((o) => {
     if (o.accountId == null) o.accountId = ui2.assignAcc;
   });
   save();
@@ -3250,8 +3254,8 @@ registerAction("share-confirm", (t, oid) => {
 });
 registerAction("del-order", (t, oid) => {
   if (confirm("\u5220\u9664\u8BE5\u8BA2\u5355\u53CA\u5176\u6D41\u6C34?")) {
-    db.orders = db.orders.filter((o) => o.id !== oid);
-    db.payments = db.payments.filter((p) => p.oid !== oid);
+    db2.orders = db2.orders.filter((o) => o.id !== oid);
+    db2.payments = db2.payments.filter((p) => p.oid !== oid);
     save();
     closeSheets();
     renderAll();
@@ -3274,14 +3278,14 @@ registerAction("open-schema", (t, oid) => {
 });
 registerAction("th", (t, oid) => {
   const opts = [7, 15, 30, 45];
-  let i = opts.indexOf(db.threshold);
+  let i = opts.indexOf(db2.threshold);
   i = Math.min(opts.length - 1, Math.max(0, i + +t.dataset.v));
-  db.threshold = opts[i];
+  db2.threshold = opts[i];
   save();
   renderAll();
   rerenderDetail();
   Notify.syncDaily();
-  toast(`\u50AC\u6536\u9608\u503C\u5DF2\u8BBE\u4E3A ${db.threshold} \u5929`);
+  toast(`\u50AC\u6536\u9608\u503C\u5DF2\u8BBE\u4E3A ${db2.threshold} \u5929`);
 });
 registerAction("import-json", (t, oid) => {
   $("#import-file").value = "";
@@ -3297,7 +3301,7 @@ registerAction("switch-mode", (t, oid) => {
   switchMode(Store.mode === "demo" ? "work" : "demo");
 });
 registerAction("clear-data", (t, oid) => {
-  if (confirm("\u6E05\u7A7A\u5F53\u524D" + (Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A") + "\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [] }).then((ok) => {
+  if (confirm("\u6E05\u7A7A\u5F53\u524D" + (Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A") + "\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db2.threshold, notifyEnabled: db2.notifyEnabled, accounts: db2.accounts || [], providers: db2.providers || [] }).then((ok) => {
     if (ok) toast("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
   });
 });
@@ -3336,7 +3340,7 @@ document.addEventListener("click", (e) => {
 
 // src/app/views/home.js
 function renderHome() {
-  const flt = db.orders.filter(accMatch2);
+  const flt = db2.orders.filter(accMatch);
   const overAll = flt.filter(isOver2);
   const over = overAll.filter((o) => !snoozed2(o));
   const overSum = over.reduce((s, o) => s + owedOf(o), 0);
@@ -3422,7 +3426,6 @@ function renderHome() {
 
 // src/app/main.js
 Object.assign(globalThis, {
-  accMatch: accMatch2,
   isOver: isOver2,
   snoozed: snoozed2,
   overdueDays: overdueDays2,
@@ -3434,11 +3437,12 @@ Object.assign(globalThis, {
   previewImport,
   buildSqliteBytes
 });
-Object.defineProperty(globalThis, "db", { get: () => db, configurable: true });
+Object.defineProperty(globalThis, "db", { get: () => db2, configurable: true });
 globalThis.Store = Store;
 registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats });
 registerDetailRerender(rerenderDetail);
 registerStorageHooks({ renderAll, showTab, toast, closeSheets });
+registerBadgeCounter(() => db.orders.filter(accMatch).filter((o) => isOver2(o) && !snoozed2(o)).length);
 registerBytesBuilder(buildSqliteBytes);
 if (!isNative && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
   addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => toast("\u79BB\u7EBF\u7F13\u5B58\u5B89\u88C5\u5931\u8D25\uFF0C\u8054\u7F51\u65F6\u4ECD\u53EF\u4F7F\u7528")));

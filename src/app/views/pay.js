@@ -2,8 +2,8 @@
 import {$,esc,fmtD,fmtHM,fmtMoney} from '../util.js';
 import {db} from '../storage.js';
 import {ui} from '../ui.js';
-import {isOver,snoozed,unDep,unFin,owedOf,overdueDays,expectOverdue,workOf,accOrderIds,METHOD_CLS} from '../derived.js';
-import {accMatch,accBar,accTint,accOrderTag,accTagHTML,accById,accMulti,accChipbarHTML} from '../accounts.js';
+import {isOver,snoozed,unDep,unFin,owedOf,overdueDays,expectOverdue,workOf,accOrderIds,METHOD_CLS,accMatch} from '../derived.js';
+import {accBar,accTint,accOrderTag,accTagHTML,accById,accMulti,accChipbarHTML} from '../accounts.js';
 import {headBtns} from '../stats.js';
 import {storeOf} from '../derived.js';
 
