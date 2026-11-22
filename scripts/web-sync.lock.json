@@ -1,0 +1,56 @@
+{
+  "$schema": "tanji-web-sync-lock/v1",
+  "mainRef": "main",
+  "mainCommit": "1d1c28ff14558ebe808144511f4ea3ad7d97ff9c",
+  "updatedAt": "2026-11-22",
+  "files": {
+    "index.html": {
+      "main": "5cead9c098f0f9ef3eb2b7a814b33b60a20794ec",
+      "native": "a6a88e2c003125dc06c173d3c8e6d8818acc956d",
+      "nativePath": "www/index.html",
+      "note": "主应用 UI + 业务状态"
+    },
+    "storage.js": {
+      "main": "7d40eafe0b5d8f118fb6b697e9bf74b4bc299301",
+      "native": "e1e2022cff0ee309818bfae7273b02a2d1dea428",
+      "nativePath": "www/storage.js",
+      "note": "双副本存储与迁移"
+    },
+    "sw.js": {
+      "main": "02e82ca4b96e2878783fa67c7c817f868f8bae0a",
+      "native": "02e82ca4b96e2878783fa67c7c817f868f8bae0a",
+      "nativePath": "www/sw.js",
+      "note": "Service Worker 离线缓存"
+    },
+    "manifest.webmanifest": {
+      "main": "b687f68cbde1892a517b6dbb9895c4adb91f9283",
+      "native": "b687f68cbde1892a517b6dbb9895c4adb91f9283",
+      "nativePath": "www/manifest.webmanifest",
+      "note": "PWA 清单"
+    },
+    "privacy.html": {
+      "main": "2909699cfe3fef97654fba619e7ebaeca5e0f6e9",
+      "native": "2909699cfe3fef97654fba619e7ebaeca5e0f6e9",
+      "nativePath": "www/privacy.html",
+      "note": "隐私政策（App Store 必需）"
+    },
+    "support.html": {
+      "main": "3558ac9d016559fd505d02f2a24ee1f2a6665be3",
+      "native": "3558ac9d016559fd505d02f2a24ee1f2a6665be3",
+      "nativePath": "www/support.html",
+      "note": "支持页（App Store 必需）"
+    },
+    "icons": {
+      "main": "0ca9708c1ab060f8533e36315bd96c946de77d2365c1fc13c8041bd44a6e9c89",
+      "native": "0ca9708c1ab060f8533e36315bd96c946de77d2365c1fc13c8041bd44a6e9c89",
+      "nativePath": "www/icons",
+      "note": "图标目录"
+    },
+    "vendor": {
+      "main": "d03167d20d7172a9490f752fc53475ce1a5f665eece01b4ccd87af13c8b0b161",
+      "native": "d03167d20d7172a9490f752fc53475ce1a5f665eece01b4ccd87af13c8b0b161",
+      "nativePath": "www/vendor",
+      "note": "第三方静态资源（sqlite3 wasm）"
+    }
+  }
+}
