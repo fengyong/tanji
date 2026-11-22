@@ -1,7 +1,7 @@
 # 探记云端版 · 开发进度跟踪（看门狗恢复用）
 
 > 本文件由主任务会话维护；看门狗自动化(automation-7e7f1021)据此判断停滞并恢复任务。
-> **任务完成标记: 未完成**（交付后改为 DELIVERED）
+> **任务完成标记: DELIVERED**
 
 ## 任务基线
 - 指令文档: docs/cloud-prd.md + docs/cloud-architecture.md（未提交设计输入，保留）
@@ -21,6 +21,7 @@
 - [x] 提交 3bcbffb "feat: 云端版后端骨架……"
 
 ## 当前阶段
+**交付完成(2026-11-22)**: 三轮 review 完成,全量回归通过(后端24+前端内核9+domain14+E2E E1-E10+OPFS冒烟),交付说明见 docs/cloud-delivery.md,全部提交已推送 origin。
 **M6 E2E 调试中(2026-11-22 凌晨)**: 构建版应用(SW+OPFS)上 E1-E4 已通过(注册/登录/开账本/建单/CDP离线/离线重开FR-03/AC01)。E5 卡在断言时机: 后端已确认收到数据(离线新店 v1 + E2E奶茶店 v2 均入库),说明同步闭环实际工作,只是 E5 轮询窗口内 ops 还在 'sending'→确认中。已修复的关键 bug: SW 缓存键归一化丢 query(影响 opfs proxy)、serve-dist Set-Cookie 丢失、vite worker 打包(?worker&url)、sqlite3.dir 参数、唤醒风暴(requeueSending 在 WRITE_CMDS)、CSRF X-Forwarded-Host、settings aggregate_id、请求超时、VFS 安装等待。
 **下一步**: 1) E5 轮询延长至 pending==0(≤150s)并跑通 E5-E10; 2) 提交全部前端代码; 3) 按用户指示执行三轮 review→修复循环; 4) 交付说明 + push。
 **M2/M3 服务端集成测试 ✅ 全绿（16 个用例, 真实 MySQL）→ 已提交 3064989 并推送 origin**
