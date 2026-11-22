@@ -12,7 +12,10 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Clipboard } from '@capacitor/clipboard';
+import { Geolocation } from '@capacitor/geolocation';
 
+// 全局名必须与 www/storage.js 第 1 行读取的名字完全一致:写错大小写不会报错,
+// 只会让 CAP=null → 之后整条原生路径(SQLite/通知/分享)被静默跳过。
 window.TanjiCap = {
   Capacitor,
   CapacitorSQLite,
@@ -23,4 +26,5 @@ window.TanjiCap = {
   Directory,
   Encoding,
   Clipboard,
+  Geolocation,
 };
