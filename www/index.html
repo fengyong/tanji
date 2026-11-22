@@ -660,7 +660,10 @@ function blobToBase64(blob){
 async function nativeShareFile(name,content){
   const {Filesystem,Directory,Encoding,Share}=CAP;
   const opts={path:name,directory:Directory.Cache};
-  if(typeof content==='string'){opts.data=content;opts.encoding=Encoding.UTF8}
+  // 与 Web 版保持一致：文本导出带 UTF-8 BOM，Excel/Numbers 打开 CSV 才不会把中文认成乱码。
+  // 二进制(.db / 分享图 PNG)不传 encoding —— 插件缺省按 base64 解码后写入原始字节；
+  // 一旦传了 encoding 反而会被当作文本原样落盘。
+  if(typeof content==='string'){opts.data='\ufeff'+content;opts.encoding=Encoding.UTF8}
   else{opts.data=await blobToBase64(new Blob([content]))}
   const res=await Filesystem.writeFile(opts);
   await Share.share({title:name,url:res.uri,dialogTitle:'分享导出'});
@@ -887,7 +890,7 @@ function pay(id,kind,method='微信'){
   const t=nowStr(),amount=m[kind]/100;
   o[spec.field]=t;
   db.payments.push({oid:id,kind:spec.label,amount,at:t,method});
-  save();renderAll();rerenderDetail();
+  save();renderAll();rerenderDetail();Notify.syncDaily();
   toast(`已收${spec.label} ${fmtMoney(amount)} · ${method}`);
   return true;
 }
@@ -1493,7 +1496,7 @@ document.addEventListener('click',e=>{
       break}
     case 'snooze':{const o=byId(oid);if(o){const d=+t.dataset.d;o.remindAt=dOff(d,'09:00');save();renderAll();rerenderDetail();Notify.scheduleSnooze(o,d);toast(`已备忘:${d} 天后(${fmtD(o.remindAt)})提醒催收 ✓`)}break}
     case 'notify-toggle':Notify.toggle();break;
-    case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();toast('已清除催收提醒')}break}
+    case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();Notify.cancelOrder(oid);toast('已清除催收提醒')}break}
     case 'mile':{const o=byId(oid),key=t.dataset.key;
       if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key))break;
       if(o[key]){if(confirm('清除「'+MILE_LABEL[key]+'」记录?')){o[key]=null;save();renderAll();rerenderDetail();toast('已清除,可重新标记')}}
@@ -1514,7 +1517,7 @@ document.addEventListener('click',e=>{
       }
       break;}
     case 'del-order':
-      if(confirm('删除该订单及其流水?')){db.orders=db.orders.filter(o=>o.id!==oid);db.payments=db.payments.filter(p=>p.oid!==oid);save();closeSheets();renderAll();Notify.syncDaily();toast('订单已删除')}
+      if(confirm('删除该订单及其流水?')){db.orders=db.orders.filter(o=>o.id!==oid);db.payments=db.payments.filter(p=>p.oid!==oid);save();closeSheets();renderAll();Notify.cancelOrder(oid);Notify.syncDaily();toast('订单已删除')}
       break;
     case 'export-csv':exportCsv();break;
     case 'export-json':exportJson();break;

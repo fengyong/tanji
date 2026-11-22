@@ -91,7 +91,10 @@ function validateState(input){
     if(!['微信','支付宝','银行卡','抖音商单','其他'].includes(payment.method))throw new Error(`${label}的收款方式无效`);
     return {oid:payment.oid,kind:payment.kind,amount:Math.round(payment.amount*100)/100,at:payment.at,method:payment.method,...(payment.note!=null?{note:text(payment.note,`${label}备注`)}:{})};
   });
-  return {orders,payments,threshold};
+  // notifyEnabled 是原生端的每日催收通知开关，必须跟着数据一起活过重启，
+  // 否则用户关掉提醒后重启 App 又会被静默打开。
+  const notifyEnabled=input.notifyEnabled===undefined?true:input.notifyEnabled!==false;
+  return {orders,payments,threshold,notifyEnabled};
 }
 function setStorageStatus(message){
   if(Store.lockedOut)message='当前为只读：请关闭其他探记标签页后刷新重试；浏览器须支持安全写入锁。';
@@ -107,7 +110,14 @@ function persistSnapshot(payload){
   if(isNative){
     const write=async()=>{
       const ok=await nativePersistSnapshot(payload);
-      if(ok)localWrite(storageKey(payload.mode),payload); // 轻量镜像,便于调试
+      // 无论 SQLite 写成功与否都先落一份 localStorage 镜像:它是原生端的第二副本,
+      // SQLite 写失败时至少数据还在,下次启动能按修订号取回。
+      localWrite(storageKey(payload.mode),payload);
+      // 原生端也必须像 Web 一样把写入结果告诉用户：SQLite 写失败若静默吞掉，
+      // 用户会以为账目已经存上，实际只留在内存里，一关 App 就没了。
+      if(Store.mode===payload.mode&&Store.revision===payload.revision&&!Store.blocked){
+        setStorageStatus(ok?'':'保存失败：改动仅在当前页面，请勿关闭，先导出 JSON 备份再重试。');
+      }
       return ok;
     };
     Store.queue=Store.queue.then(write,write);
@@ -207,13 +217,16 @@ async function switchMode(mode){
     if(!await rememberMode(mode)){setStorageStatus('无法保存切换状态，请导出备份后重试。');return}
     Store.mode=mode;db=target.value?validateState(target.value):mode==='work'?{orders:[],payments:[],threshold:15}:demoSeed();
     Store.revision=Math.max(Store.revision,target.value?.revision||0);Store.backup=target.value?.previous||null;
-    closeSheets();ui.q='';ui.chip='all';ui.bucket='all';await save();renderAll();showTab('home');
+    closeSheets();ui.q='';ui.chip='all';ui.bucket='all';await save();renderAll();showTab('home');Notify.syncDaily();
     toast(mode==='work'?'已切换到工作数据':'已切换到独立演示数据，工作数据未改动');
   }finally{Store.busy=false}
 }
 async function replaceData(state){
   if(Store.busy||Store.blocked)return false;
   const validated=validateState(state);
+  // 导入的备份若没带通知开关（比如别的机器导出的 Web 版备份），沿用本机当前设置，
+  // 免得一次导入把用户明确关掉的每日催收提醒又打开。
+  if(!state||state.notifyEnabled===undefined)validated.notifyEnabled=db.notifyEnabled!==false;
   Store.busy=true;
   try{
     await Store.queue;
@@ -224,7 +237,7 @@ async function replaceData(state){
     return true;
   }finally{Store.busy=false}
 }
-function backupDocument(state=db){return {app:'探记 TanJi',version:'0.4',exportedAt:new Date().toISOString(),threshold:state.threshold,orders:cloneState(state.orders),payments:cloneState(state.payments)}}
+function backupDocument(state=db){return {app:'探记 TanJi',version:'0.4',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,orders:cloneState(state.orders),payments:cloneState(state.payments)}}
 async function previewImport(file){
   if(!file)return;
   try{
@@ -274,8 +287,10 @@ async function nativeOpen(){
   const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
   const conn=await sqlite.createConnection(NATIVE_DB,false,'no-encryption',1,false);
   await conn.open();
-  await conn.execute(
-`CREATE TABLE IF NOT EXISTS orders(
+  // @capacitor-community/sqlite 的 iOS 实现要求 executeSet 的每一项都同时带
+  // statement 与 values 两个键，缺 values 会整批 reject；DDL 用空数组占位。
+  await conn.executeSet([
+    {statement:`CREATE TABLE IF NOT EXISTS orders(
   mode TEXT NOT NULL,
   id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
   price REAL NOT NULL, deposit REAL DEFAULT 0,
@@ -283,11 +298,12 @@ async function nativeOpen(){
   deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
   channel TEXT, partner TEXT,
   note TEXT, created_at TEXT, updated_at TEXT,
-  PRIMARY KEY(mode,id));
-CREATE TABLE IF NOT EXISTS payments(
+  PRIMARY KEY(mode,id))`,values:[]},
+    {statement:`CREATE TABLE IF NOT EXISTS payments(
   mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT);
-CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key));`,true);
+  order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`,values:[]},
+    {statement:`CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`,values:[]},
+  ],true);
   Store.conn=conn;
   return conn;
 }
@@ -305,7 +321,7 @@ async function nativePersistSnapshot(payload){
       {statement:'DELETE FROM orders WHERE mode=?',values:[payload.mode]},
       {statement:'DELETE FROM payments WHERE mode=?',values:[payload.mode]},
     ];
-    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.note||null,ts,ts]}));
+    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.note||null,ts,ts]}));
     payload.payments.forEach(p=>set.push({statement:'INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)',values:[payload.mode,p.oid,p.kind,p.amount,p.at,p.method||null,p.note||null]}));
     const doc={...cloneState(payload),savedAt:ts};
     set.push({statement:'INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)',values:[payload.mode,'json',JSON.stringify(doc)]});
@@ -322,13 +338,41 @@ async function nativeReadSnapshot(mode,suffix='json'){
       const raw=(r.values||[])[0];
       return {value:raw?JSON.parse(raw.value):null,uncertain:false};
     }
+    // 原生端的第二副本是 localStorage 镜像(Web 版是 IndexedDB)。
+    // 两份都读,按修订号取较新的一份:SQLite 写失败或落后时,下次启动仍能拿回数据。
+    const sources=[];
     const r=await conn.query('SELECT value FROM settings WHERE scope=? AND key=?',[mode,'json']);
     const raw=(r.values||[])[0];
-    if(!raw)return {value:null,uncertain:false};
-    const parsed=JSON.parse(raw.value);
-    const data=validateState(parsed);
-    return {value:{...data,mode,revision:parsed.revision||0,savedAt:parsed.savedAt||null,previous:parsed.previous||null},uncertain:false};
-  }catch(e){console.error('[TanJi] SQLite 读取失败',e);return {value:null,uncertain:true}}
+    if(raw)sources.push(raw.value);
+    const mirror=localRead(storageKey(mode));
+    if(mirror.ok&&mirror.value!==null)sources.push(mirror.value);
+    const candidates=[];
+    for(const source of sources){
+      try{
+        const parsed=typeof source==='string'?JSON.parse(source):source;
+        const data=validateState(parsed);
+        const revision=parsed.revision;
+        if(!Number.isSafeInteger(revision)||revision<0)throw new Error('无效修订号');
+        candidates.push({...data,v:3,mode,revision,savedAt:parsed.savedAt||null,previous:parsed.previous||null});
+      }catch(error){console.warn('[TanJi] 副本内容无效,已跳过',error)}
+    }
+    if(!candidates.length)return {value:null,uncertain:sources.length>0};
+    candidates.sort((a,b)=>b.revision-a.revision);
+    return {value:candidates[0],uncertain:false};
+  }catch(e){
+    console.error('[TanJi] SQLite 读取失败',e);
+    // SQLite 整个读不了时退回镜像;但无从得知 SQLite 里是否存着更新的数据,
+    // 故标记 uncertain 暂停写入,让用户先导出备份,别用旧镜像盖掉新数据。
+    try{
+      const mirror=localRead(storageKey(mode));
+      if(mirror.ok&&mirror.value){
+        const parsed=mirror.value;
+        const data=validateState(parsed);
+        return {value:{...data,v:3,mode,revision:parsed.revision||0,savedAt:parsed.savedAt||null,previous:parsed.previous||null},uncertain:true};
+      }
+    }catch(e2){}
+    return {value:null,uncertain:true};
+  }
 }
 
 /* ================= 本地通知(仅 iOS 原生生效) =================
@@ -384,6 +428,14 @@ const Notify={
       const L=CAP.LocalNotifications,pend=await L.getPending();
       const ours=(pend.notifications||[]).filter(n=>+n.id===1||+n.id>=100000);
       if(ours.length)await L.cancel({notifications:ours});
+    }catch(e){}
+  },
+  async cancelOrder(id){
+    if(!this.native())return;
+    try{
+      const L=CAP.LocalNotifications,pend=await L.getPending();
+      const mine=(pend.notifications||[]).filter(n=>{const v=+n.id-100000;return v>=0&&Math.floor(v/100)===+id&&v%100!==0});
+      if(mine.length)await L.cancel({notifications:mine});
     }catch(e){}
   },
   async toggle(){

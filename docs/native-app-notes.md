@@ -87,7 +87,7 @@ npm run sync             # esbuild 打包插件桥 + cap sync ios(拷 www → io
 | Web/PWA | IndexedDB `json` → localStorage `tanji_v2`(含 tanstore_v1 v0.1 迁移)→ seed | localStorage 即时 + IndexedDB(json + 真 .db 字节)防抖 400ms | sql.js 生成 `.db` 导出 |
 | iOS 原生 | CapacitorSQLite `tanji` 库三表读出;空库时写入 seed(首装体验与 Web 一致) | `executeSet` 事务内 DELETE + 全量重插,防抖 300ms | settings 键:collect_threshold_days / notify_enabled / app_version |
 
-**表结构(与 Web v0.2 完全同构,Web 导出的 .db 可直接打开原生库):**
+**表结构(v0.4 后原生库按 `mode` 分双数据集,与 Web 导出的 .db 已不同构 —— 跨端搬运请走 JSON 备份):**
 
 - `orders`:id, store, category, contact, price, deposit, appt_at, shot_at, submitted_at, short_sent_at, long_sent_at, deposit_paid_at, final_paid_at, **settle_via**(TEXT DEFAULT 'private'——private 私收 / douyin 抖音商单平台结算不催收), **remind_at**(催收备忘 1/3/7 天), note, created_at, updated_at
 - `payments`:id(AUTOINCREMENT), order_id, kind(定金/尾款/extra), amount, paid_at, method(微信/支付宝/银行卡/抖音商单/其他,仅记录标签), note
@@ -172,3 +172,44 @@ JS 模型(camelCase)↔ 行(snake_case)映射:`rowToOrder / rowToPayment / nativ
 - `npx cap copy ios` ✅;`xcodebuild` 仍被 Xcode 缺失阻塞(同前)。
 - 烟雾测试(浏览器回退路径):17 笔演示单、月历/编辑/收款/隐私全功能 ✅,isNative=false 时通知开关隐藏 ✅。
 - 已知注意:acquireWriter(Web Locks)原生端跳过;validateState 依赖 index.html 的 validDateTime(加载顺序已保证)。
+
+## 深度 review 记录(2026-11-22)
+
+> 起因:研发笔记里的「烟雾测试」跑的是**浏览器回退路径(isNative=false)**,原生持久化与通知桥接从未被真正执行过。
+> 本次用 `node:sqlite`(真实 SQLite)给 @capacitor-community/sqlite 做高保真 mock,把原生路径拉进回归,并逐条核对三个插件的 iOS 一手源码。
+
+### 已修复(6 项,均已复现并加测试)
+
+| # | 问题 | 影响 | 修复 |
+|---|---|---|---|
+| 1 | `nativePersistSnapshot` 的 INSERT 拼出 `VALUES (??,?,?…)` —— 模板多了一个 `?` | **原生端任何一笔数据都存不进去**,每次写入都是 SQLite 语法错误 | 补回逗号:`VALUES (?,${cols.map(()=>'?').join(',')})` |
+| 2 | `validateState` 只返回 `{orders,payments,threshold}`,把 `notifyEnabled` 丢了 | 用户关掉每日催收提醒后**重启 App 又被静默打开** | validateState 保留 notifyEnabled;backupDocument 一并导出;导入无此字段时沿用本机设置 |
+| 3 | 清除催收备忘 / 删除订单时不撤销已排程的一次性通知 | 提醒已清,通知照响;删掉的订单仍弹「尾款该跟进了」 | 新增 `Notify.cancelOrder(id)`,两处调用点接上 |
+| 4 | 收款后不重排每日催收汇总 | 已结清的订单第二天仍被通知「N 笔已逾期」 | `pay()` 与 `switchMode()` 补 `Notify.syncDaily()` |
+| 5 | 原生端 SQLite 写入失败被静默吞掉 | **用户以为账目存上了,实际只在内存里,一关 App 就没了** | 原生 persistSnapshot 失败时给出「保存失败…先导出 JSON 备份」提示;成功时清掉「正在保存…」 |
+| 6 | 原生文本导出没有 UTF-8 BOM(Web 版有) | 导出的 CSV 在 Excel 里中文乱码 | 文本导出补 BOM,与 Web 版一致 |
+| 7 | 原生端只写 SQLite,localStorage 镜像只写不读 | SQLite 写失败时数据只在内存里,**重启即丢**(Web 版有双副本兜底) | 镜像改为每次保存都写;读取时 SQLite 与镜像都读,按修订号取较新的一份;SQLite 整个不可读时退回镜像并暂停写入 |
+
+### 一并纠正的两个「差点改错」
+
+- **二进制导出不用加 `encoding`**:@capacitor/filesystem v8 的 `Encoding` 枚举已无 `Base64`,且 iOS 端 `getEncoding` 缺省值是 `.byteBuffer`(自动 base64 解码)。一旦传了 `encoding`,反而会把 base64 当**文本**落盘,.db 彻底损坏。现状写法正确,未改动。
+- **建表改用 executeSet 必须补 `values: []`**:iOS 端 `CapacitorSQLitePlugin.swift:932` 要求 executeSet 每项同时含 `statement` 与 `values` 两个键,缺 `values` 整批 reject(Android 与浏览器端不会暴露)。原 `execute(多语句)` 走 `sqlite3_exec` 本来是对的;若改写成 executeSet,**必须**给 DDL 补空数组占位。
+
+### 仍未解决 / 待决策
+
+- **原生库与导出 .db 表结构不同构**:原生库 `orders`/`payments` 带 `mode` 列(双数据集),而导出 .db 用的是 Web 版表结构(无 mode)。README 与本笔记第四节的「同构/可互换打开」表述已按实情更正 —— **跨端搬运请用 JSON 备份**。
+- **`orders`/`payments` 两张表只写不读**:真实数据源是 `settings` 里的 JSON 文档,`rowToOrder()` 是死代码。两张表每次保存都要 DELETE+全量重插,属冗余写放大。`payments.order_id` 不含 mode,跨数据集有歧义——当前无触发点。
+- ~~**原生端没有 Web 那样的双副本兜底**~~ —— 已修复:localStorage 镜像改为**每次保存都写**(不再只在 SQLite 成功时写),`nativeReadSnapshot` 同时读 SQLite 与镜像并按修订号取较新的一份;SQLite 整个不可读时退回镜像并暂停写入(uncertain),避免用旧镜像盖掉新数据。
+- **Xcode 仍未安装**:`xcodebuild` 依旧阻塞,以上原生路径修复均未经过真机编译验证,需装机后按第七节清单实测。
+
+### 新增测试
+
+- `tests/native-reliability.test.cjs` —— 原生路径回归(18 项),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
+- `tests/web-reliability.test.cjs` —— 移植自 main 的 39 项 Web 回归,指向 `www/`。
+- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 项)。
+
+```sh
+node --test tests/native-reliability.test.cjs
+node --test tests/web-reliability.test.cjs
+node tests/browser-smoke.cjs
+```
