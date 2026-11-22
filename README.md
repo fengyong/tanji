@@ -3,6 +3,8 @@
 探店达人的行程 + 记账工具。本分支用 **Capacitor 壳复用 Web UI** 的路线做 iOS 本地 App:同一套页面/状态机,持久化按平台切换——Web 走 IndexedDB + localStorage,iOS 原生走 App 沙盒内 SQLite(@capacitor-community/sqlite)。
 
 技术决策与完整研发记录见 [docs/native-app-notes.md](docs/native-app-notes.md)。
+达人工作流还原、交互评估与功能缺口优先级见 [docs/creator-workflow-review.md](docs/creator-workflow-review.md);
+视觉探索产物(六套配色 / 首页卡片 / 金额格 / 详情 v2)归档在 `docs/design-preview/`,排在功能之后落地。
 
 > 当前开发分支:`fix/native-persistence-review`(PR 目标 `native-app`)。代码、App 内页脚、导出 `.db`、
 > 备份文档与本文档的版本号统一为 **v0.6**。
@@ -11,12 +13,14 @@
 
 ```
 www/                Web 资源(与 main 分支 Web 版同源;纯资产同步,index.html/storage.js 含原生适配层与 v0.5/v0.6 专属改动)
-  index.html        UI + 双轨状态机 + 平台自适应持久化 + 原生桥接
+  index.html        UI + 页面状态 + 平台自适应持久化 + 原生桥接
+  logic.js          业务规则纯函数层(工作线/资金线/逾期/出片/统计/排期),不碰 DOM,可单测
+  imaging.js        图像处理模块(裁切/压缩/烘焙淡化 + 体积上限),头像与随手拍共用
   cap-plugins.js    esbuild 打包的 Capacitor 插件桥(window.TanjiCap)
   vendor/           sql.js WASM(导出真 .db 字节)
 src/cap-plugins.js  插件桥源文件
 ios/App/            cap add ios 生成的 Xcode 工程(SPM,Capacitor 8)
-docs/               v0.1 原型归档 + 研发笔记 + 上架清单 + 多账号原型(docs/proto)
+docs/               v0.1 原型归档 + 研发笔记 + 交互评估 + 上架清单 + 多账号原型(docs/proto) + 视觉探索(design-preview)
 ```
 
 ## 环境要求
@@ -44,7 +48,7 @@ npm run sync            # 打包插件桥 + cap sync ios(www → ios/App/App/pub
 npm run sync:web        # 从 main 同步 Web 资产(纯资产自动拷;index.html/storage.js 只检测漂移,人工合并)
 npm run check           # main/native 漂移校验(指纹锁 scripts/web-sync.lock.json + esbuild 产物比对)
 npm run check:update    # 人工合并/有意改动后重新登记锁基线(只做这一件事,不碰文件)
-npm test                # 回归测试(node --test:原生路径 29 项 + Web 39 项 + 导出表结构 5 项,共 73)
+npm test                # 回归测试(node --test:原生 31 项 + Web 39 项 + 导出表结构 5 项 + 规则 8 项,共 83)
 npm run test:smoke      # 浏览器端到端冒烟(需本机 Chrome,可用 CHROME_BIN 指定)
 npm run serve           # 本地起 Web 版预览(python3 http.server,http://localhost:8765)
 npm run build:ios       # xcodebuild 模拟器构建(不签名)

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>随手拍 · 金额区淡化照片做底图</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  :root{
+    --bg:#F7F5F2; --card:#FFFFFF; --ink:#1F1D1B; --sub:#8A8681; --line:#EDE9E4;
+    --brand:#E8663C; --brand-soft:#FCEFE8;
+    --green:#2FA05F; --green-soft:#EAF6EE; --orange:#D08A24; --red:#D24B45;
+    --shadow:0 1px 2px rgba(120,100,80,.06),0 8px 20px rgba(120,100,80,.06);
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;
+    background:#0E0E11;color:var(--ink);padding:14px;
+    display:flex;gap:14px;align-items:flex-start;user-select:none;
+  }
+  .panel{width:392px;background:var(--bg);border-radius:26px;padding:16px 14px 18px;border:1px solid #26262b}
+  .cap{font-size:12.5px;font-weight:700;color:#fff;text-align:center;padding:8px 0 0}
+  .cap span{display:block;color:#8f8f99;font-weight:400;font-size:11.5px;margin-top:2px}
+
+  .head{display:flex;align-items:baseline;gap:8px;margin:2px 2px 12px}
+  .head h1{font-size:26px;font-weight:800;letter-spacing:-.5px}
+  .head .n{font-size:12.5px;color:var(--sub);font-weight:600}
+
+  .row{
+    display:flex;align-items:center;gap:11px;background:var(--card);border-radius:16px;
+    padding:11px 12px;margin-bottom:9px;box-shadow:var(--shadow);
+  }
+  .info{min-width:0;flex:1}
+  .name{font-size:14.5px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:11.5px;color:var(--sub);font-weight:600}
+  .chip{padding:2px 7px;border-radius:7px;font-size:11px;font-weight:700;background:var(--orange);color:#fff}
+  .chip.done{background:var(--green-soft);color:var(--green)}
+  .chip.wait{background:#F1EFEC;color:var(--sub)}
+
+  /* ===== 金额区:无照片 vs 照片淡化铺底 ===== */
+  .amt{
+    position:relative;flex-shrink:0;min-width:86px;height:44px;border-radius:12px;overflow:hidden;
+    display:flex;align-items:center;justify-content:flex-end;padding:0 9px;
+    font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.3px;
+    background:#F5F2EE;
+  }
+  .amt img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.26;filter:saturate(.9)}
+  /* 数字在右侧,所以右侧更白保证对比;左侧留出照片轮廓,让"去过哪家店"可辨 */
+  .amt::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.34),rgba(255,255,255,.74))}
+  .amt span{position:relative;z-index:1;text-shadow:0 1px 0 rgba(255,255,255,.85)}
+  .amt.shot{box-shadow:inset 0 0 0 1px rgba(120,100,80,.08)}
+  /* 有照片的那一格,右下角一个小小的相机点,提示"这是随手拍"而不是装饰图 */
+  .amt.shot::before{
+    content:'📷';position:absolute;left:7px;bottom:4px;z-index:1;font-size:9px;opacity:.5;
+  }
+  .empty-row{padding:14px;border-radius:14px;border:1px dashed rgba(120,100,80,.22);text-align:center;font-size:12px;color:var(--sub);margin-top:10px}
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="head"><h1>订单</h1><span class="n">5 单 · 待收 ¥5,400</span></div>
+
+    <div class="row"><div class="info"><div class="name">麓野日料·万象城店</div><div class="meta"><span class="chip">待尾款</span><span>11-22 14:00</span></div></div><div class="amt"><span>¥1,600</span></div></div>
+    <div class="row"><div class="info"><div class="name">循环洗衣·Central店</div><div class="meta"><span class="chip">待尾款</span><span>11-13 拍摄</span></div></div><div class="amt"><span>¥1,400</span></div></div>
+    <div class="row"><div class="info"><div class="name">山茶花奶茶·观前街店</div><div class="meta"><span class="chip">待尾款</span><span>11-21 拍摄</span></div></div><div class="amt"><span>¥1,000</span></div></div>
+    <div class="row"><div class="info"><div class="name">老城区火锅·解放路店</div><div class="meta"><span class="chip wait">待拍摄</span><span>11-25 18:00</span></div></div><div class="amt"><span>¥800</span></div></div>
+    <div class="row"><div class="info"><div class="name">面包工坊·in77店</div><div class="meta"><span class="chip wait">待拍摄</span><span>11-26 10:00</span></div></div><div class="amt"><span>¥600</span></div></div>
+
+    <div class="empty-row">改造前:金额区是纯色底,扫列表看不出哪些店已经去过</div>
+    <div class="cap">改造前<span>只有状态文字,要靠读才知道</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="head"><h1>订单</h1><span class="n">5 单 · 待收 ¥5,400</span></div>
+
+    <div class="row"><div class="info"><div class="name">麓野日料·万象城店</div><div class="meta"><span class="chip done">已到店</span><span>14:05 随手拍</span></div></div><div class="amt shot"><img src="photos/door-photo.jpg" alt=""><span>¥1,600</span></div></div>
+    <div class="row"><div class="info"><div class="name">循环洗衣·Central店</div><div class="meta"><span class="chip done">已到店</span><span>11-13 11:20 随手拍</span></div></div><div class="amt shot"><img src="photos/laundry.jpg" alt=""><span>¥1,400</span></div></div>
+    <div class="row"><div class="info"><div class="name">山茶花奶茶·观前街店</div><div class="meta"><span class="chip done">已到店</span><span>11-21 09:40 随手拍</span></div></div><div class="amt shot"><img src="photos/milktea.jpg" alt=""><span>¥1,000</span></div></div>
+    <div class="row"><div class="info"><div class="name">老城区火锅·解放路店</div><div class="meta"><span class="chip wait">待拍摄</span><span>11-25 18:00</span></div></div><div class="amt"><span>¥800</span></div></div>
+    <div class="row"><div class="info"><div class="name">面包工坊·in77店</div><div class="meta"><span class="chip wait">待拍摄</span><span>11-26 10:00</span></div></div><div class="amt"><span>¥600</span></div></div>
+
+    <div class="empty-row">改造后:有照片的单,金额格自带店门底色;扫一眼就知道哪几单已经到过店</div>
+    <div class="cap">改造后<span>照片 = 状态,不用读文字</span></div>
+  </div>
+</body>
+</html>

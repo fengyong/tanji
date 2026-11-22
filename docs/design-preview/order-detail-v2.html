@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>订单详情 · 基于现有骨架的优化</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  :root{
+    --bg:#F7F5F2; --card:#FFFFFF; --ink:#1F1D1B; --sub:#8A8681; --line:#EDE9E4;
+    --brand:#E8663C; --brand-soft:#FCEFE8;
+    --green:#2FA05F; --green-soft:#EAF6EE; --orange:#D08A24; --orange-soft:#FBF3E4;
+    --blue:#3B7DD8; --blue-soft:#EDF3FC; --red:#D24B45;
+    --shadow:0 1px 2px rgba(120,100,80,.06),0 8px 20px rgba(120,100,80,.05);
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;
+    background:#0E0E11;color:var(--ink);padding:16px;display:flex;gap:18px;align-items:flex-start;user-select:none;
+  }
+  .phone{width:392px;background:var(--bg);border-radius:26px;padding:16px 14px 20px;border:1px solid #26262b;position:relative}
+
+  /* ---- 头部 ---- */
+  .top{display:flex;align-items:flex-start;gap:10px;padding:2px 2px 12px}
+  .top h1{font-size:23px;font-weight:800;letter-spacing:-.5px;line-height:1.2}
+  .top .cat{font-size:12.5px;color:var(--sub);font-weight:600;margin-top:3px}
+  .top .acts{margin-left:auto;display:flex;gap:8px}
+  .icbtn{width:32px;height:32px;border-radius:50%;border:none;background:#fff;color:#5B574F;font-size:14px;
+    box-shadow:0 1px 3px rgba(120,100,80,.12);display:flex;align-items:center;justify-content:center}
+
+  /* ---- 状态 chip:浅底彩字,不再用实底 ---- */
+  .chips{display:flex;gap:7px;padding:0 2px 16px}
+  .chip{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:9px}
+  .chip.blue{background:var(--blue-soft);color:var(--blue)}
+  .chip.orange{background:var(--orange-soft);color:var(--orange)}
+
+  /* ---- 里程碑:每阶段一色(--c) + 发片节点放大 + 连线分段同色 ---- */
+  .steps{position:relative;display:flex;padding:4px 0 0;margin-bottom:6px}
+  .steps .track{position:absolute;left:9%;right:9%;top:22px;height:2px;background:#E7E2DC;border-radius:2px}
+  .seg{position:absolute;top:22px;height:2px;border-radius:2px}
+  .step{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;z-index:1}
+  .dotwrap{height:36px;display:flex;align-items:center;justify-content:center}
+  .dot{
+    width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid #E7E2DC;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;transition:transform .2s;
+  }
+  /* 发片(副片/正片)是交付核心,圆点大一号 */
+  .step.big .dot{width:34px;height:34px;border-width:2.5px}
+  .step.done .dot{background:var(--c);border-color:var(--c);color:#fff;font-size:13px}
+  .step.done .dot img{width:100%;height:100%;object-fit:cover}
+  .step.now .dot{border-color:var(--c);box-shadow:0 0 0 4px var(--soft)}
+  .step.now .dot::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--c)}
+  .lab{font-size:11.5px;font-weight:700;color:var(--sub)}
+  .step.done .lab{color:var(--c)}
+  .step.now .lab{color:var(--ink)}
+  .sub{font-size:10px;color:var(--sub);font-weight:600;margin-top:-3px}
+  .step.now .sub{color:var(--c)}
+
+  /* ---- 单一主行动:只留一个实心按钮 ---- */
+  .primary{
+    width:100%;height:50px;border-radius:15px;border:none;font:inherit;font-size:15.5px;font-weight:800;
+    background:var(--brand);color:#fff;margin:14px 0 10px;
+    box-shadow:0 6px 18px rgba(232,102,60,.26);
+  }
+  /* 收款是钱,给它更大的体量和更大的金额数字 */
+  .ghost{
+    width:100%;height:58px;border-radius:16px;font:inherit;font-size:15.5px;font-weight:700;
+    background:#fff;color:var(--green);border:1.5px solid rgba(47,160,95,.38);
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  .ghost .amt{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+  .step.big.done .dot{font-size:15px}
+
+  /* ---- 分组标题 ---- */
+  .sec{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;color:var(--ink);margin:20px 2px 10px}
+  .sec::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--brand)}
+  .sec .hint{margin-left:auto;font-size:11px;font-weight:600;color:var(--sub)}
+
+  /* ---- 备忘胶囊 ---- */
+  .snooze{display:flex;gap:8px}
+  .snooze button{flex:1;height:40px;border-radius:12px;border:none;background:#fff;color:var(--ink);
+    font:inherit;font-size:13px;font-weight:700;box-shadow:var(--shadow)}
+  .snooze button.on{background:var(--brand-soft);color:var(--brand);box-shadow:inset 0 0 0 1.5px rgba(232,102,60,.4)}
+
+  /* ---- 明细网格 ---- */
+  .grid{background:var(--card);border-radius:18px;padding:4px 14px;box-shadow:var(--shadow)}
+  .grow{display:flex;gap:12px;padding:13px 0;border-bottom:.5px solid var(--line)}
+  .grow:last-child{border-bottom:none}
+  .cell{flex:1;min-width:0}
+  .k{font-size:11px;color:var(--sub);font-weight:600;margin-bottom:3px}
+  .v{font-size:14px;font-weight:700;letter-spacing:-.2px}
+  .v.mono{font-variant-numeric:tabular-nums}
+  .acct{display:inline-flex;align-items:center;gap:5px;background:var(--orange-soft);color:var(--orange);
+    padding:3px 8px;border-radius:8px;font-size:12px;font-weight:700}
+  .acct .sw{width:12px;height:12px;border-radius:50%;background:var(--orange)}
+  .copy{margin-left:6px;font-size:11.5px;color:var(--sub);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+
+  /* ---- 标注 ---- */
+  .rel{position:relative}
+  .pin{position:absolute;right:-7px;top:-7px;width:19px;height:19px;border-radius:50%;background:#111;color:#fff;
+    font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:20;border:2px solid #fff}
+  .legend{width:430px;color:#E8E8EC;font-size:12.5px;line-height:1.75;padding-top:4px}
+  .legend h2{font-size:15px;font-weight:800;margin-bottom:10px;color:#fff}
+  .legend li{list-style:none;display:flex;gap:9px;margin-bottom:11px}
+  .legend b{color:#fff;font-weight:700}
+  .legend .n{flex-shrink:0;width:19px;height:19px;border-radius:50%;background:#fff;color:#111;font-size:11px;
+    font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .legend em{color:#9a9aa3;font-style:normal}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="top">
+      <div><h1>潘多拉</h1><div class="cat">咖啡</div></div>
+      <div class="acts">
+        <button class="icbtn">✎</button>
+        <button class="icbtn">✕</button>
+      </div>
+    </div>
+
+    <div class="chips">
+      <span class="chip blue">待发布</span>
+      <span class="chip orange">待尾款</span>
+    </div>
+
+    <div class="rel">
+      <div class="steps">
+        <div class="track"></div>
+        <span class="seg" style="left:9%;width:20.5%;background:#E8663C"></span>
+        <span class="seg" style="left:29.5%;width:20.5%;background:#3B7DD8"></span>
+        <span class="seg" style="left:50%;width:20.5%;background:#8B6BC4"></span>
+        <span class="seg" style="left:70.5%;width:20.5%;background:#2FA05F"></span>
+        <div class="step done" style="--c:#E8663C;--soft:#FCEFE8">
+          <div class="dotwrap"><div class="dot"><img src="photos/door-photo.jpg" alt=""></div></div>
+          <div class="lab">拍摄</div><div class="sub">14:05</div>
+        </div>
+        <div class="step done" style="--c:#3B7DD8;--soft:#EDF3FC">
+          <div class="dotwrap"><div class="dot">✓</div></div>
+          <div class="lab">提审</div><div class="sub">16:20</div>
+        </div>
+        <div class="step done big" style="--c:#8B6BC4;--soft:#F3EEFA">
+          <div class="dotwrap"><div class="dot">✓</div></div>
+          <div class="lab">副片</div><div class="sub">20:10</div>
+        </div>
+        <div class="step done big" style="--c:#2FA05F;--soft:#EAF6EE">
+          <div class="dotwrap"><div class="dot">✓</div></div>
+          <div class="lab">正片</div><div class="sub">11-23</div>
+        </div>
+        <div class="step now" style="--c:#5C6B7A;--soft:#EDEFF2">
+          <div class="dotwrap"><div class="dot"></div></div>
+          <div class="lab">发布</div><div class="sub">待标记</div>
+        </div>
+      </div>
+      <span class="pin">3</span>
+    </div>
+
+    <div class="rel"><button class="primary">标记已发布</button><span class="pin">1</span></div>
+
+    <div class="sec">收款<span class="hint">报价 ¥600 · 已收定金 ¥300</span></div>
+    <div class="rel"><button class="ghost">收尾款 <span class="amt">¥300</span></button><span class="pin">2</span></div>
+
+    <div class="sec">催收备忘<span class="hint">打开 App 时查看</span></div>
+    <div class="snooze">
+      <button class="on">1 天后提醒</button>
+      <button>3 天后</button>
+      <button>7 天后</button>
+    </div>
+
+    <div class="sec">明细</div>
+    <div class="rel"><div class="grid">
+      <div class="grow">
+        <div class="cell"><div class="k">预约时间</div><div class="v mono">11-22 10:00</div></div>
+        <div class="cell"><div class="k">实际拍摄</div><div class="v mono">11-22 14:05</div></div>
+      </div>
+      <div class="grow">
+        <div class="cell"><div class="k">账号</div><div class="v">
+          <span class="acct"><span class="sw"></span>吃饱饱才不饿</span><span class="copy">拷贝</span>
+        </div></div>
+        <div class="cell"><div class="k">地点</div><div class="v">南山</div></div>
+      </div>
+      <div class="grow">
+        <div class="cell"><div class="k">发布时间</div><div class="v">—</div></div>
+        <div class="cell"><div class="k">服务商</div><div class="v">食物</div></div>
+      </div>
+    </div><span class="pin">4</span></div>
+  </div>
+
+  <div class="legend">
+    <h2>4 处改动（结构完全保留）</h2>
+    <ul>
+      <li><span class="n">1</span><div><b>只留一个实心主按钮，文案跟随当前节点</b><br>
+        原来「标记已拍摄」橙 + 「收尾款」绿两个实心大按钮并列，互相抢注意力，<br>
+        而且里程碑和按钮是同一个动作的两个入口。<br>
+        <em>现在按状态只亮一个，文案跟着节点走（已拍摄 → 「标记已提审」），一条动线只给一个动作。</em></div></li>
+
+      <li><span class="n">2</span><div><b>收款：降色阶，但提体量</b><br>
+        高饱和绿实底换成白底 + 绿字 + 描边（不再和主按钮抢），同时高度 48→58、金额 15→21px。<br>
+        <em>它是钱，应该比"标记发布"更醒目 —— 靠尺寸而不是靠颜色。</em></div></li>
+
+      <li><span class="n">3</span><div><b>里程碑：每阶段一色 + 发片节点放大</b><br>
+        拍摄橙 / 提审蓝 / 副片紫 / 正片绿 / 发布灰蓝（终点用中性色收束），连线也按段同色。<br>
+        副片、正片是交付核心，圆点 26→34px；<em>已拍摄那格直接就是门口照片，流程条本身就是"到过店"的证据。</em></div></li>
+
+      <li><span class="n">4</span><div><b>明细区加分组，弱化低频操作</b><br>
+        加「收款 / 催收备忘 / 明细」分组标题，报价与已收收成标题右侧的灰字提示；<br>
+        「拷贝」从橙色胶囊降为下划线文字，<em>整页彩色元素从 6 处收敛到 2 处（主按钮 + 当前节点）。</em></div></li>
+    </ul>
+    <p style="margin-top:14px;color:#9a9aa3;font-size:12px;line-height:1.7">
+      另外：删掉「点里程碑可标记 / 清除 · 记错随时改」这行常驻说明——它每天占一行却只读一次，<br>
+      改成首次进入时的一次性提示即可。
+    </p>
+  </div>
+</body>
+</html>

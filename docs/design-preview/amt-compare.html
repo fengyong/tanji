@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,"PingFang SC",sans-serif;background:#F7F5F2;padding:18px;width:430px}
+  h1{font-size:14px;font-weight:800;color:#1F1D1B;margin-bottom:4px}
+  .sub{font-size:11.5px;color:#8A8681;margin-bottom:14px;line-height:1.6}
+  .row{display:flex;align-items:center;gap:11px;background:#fff;border-radius:16px;padding:11px 12px;margin-bottom:9px;
+    box-shadow:0 1px 2px rgba(120,100,80,.06),0 8px 20px rgba(120,100,80,.05)}
+  .info{flex:1;min-width:0}
+  .name{font-size:14px;font-weight:700}
+  .meta{font-size:11px;color:#8A8681;font-weight:600;margin-top:4px}
+  .amt{
+    position:relative;width:92px;height:48px;border-radius:12px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:flex-end;padding:0 9px;
+    font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.3px;color:#1F1D1B;
+    background-size:cover;background-position:center;background-color:#F5F2EE;
+    box-shadow:inset 0 0 0 1px rgba(120,100,80,.08);
+  }
+  .amt span{position:relative;z-index:1;text-shadow:0 1px 0 rgba(255,255,255,.7)}
+  .tag{position:absolute;left:7px;bottom:4px;font-size:9px;color:rgba(40,36,32,.45);z-index:1;font-weight:700}
+</style></head><body>
+  <h1>淡化强度选型（192×96 · JPEG q60 · 全部 2~3KB）</h1>
+  <div class="sub">同一张门口照，只改“叠白”比例。数值越大越淡、越像底纹。</div>
+
+  <div class="row"><div class="info"><div class="name">原图直接缩小（不淡化）</div><div class="meta">对照：看得出是照片，但会抢金额</div></div>
+    <div class="amt" style="background-image:url(photos/thumb-raw.jpg)"><span>¥1,600</span></div></div>
+
+  <div class="row"><div class="info"><div class="name">叠白 45%（最清晰）</div><div class="meta">能认出店门细节</div></div>
+    <div class="amt" style="background-image:url(photos/thumb-w45.jpg)"><span>¥1,600</span></div></div>
+
+  <div class="row"><div class="info"><div class="name">叠白 53%（推荐）</div><div class="meta">有轮廓、不抢数字</div></div>
+    <div class="amt" style="background-image:url(photos/thumb-w53.jpg)"><span>¥1,600</span></div></div>
+
+  <div class="row"><div class="info"><div class="name">叠白 62%</div><div class="meta">偏淡,像底纹</div></div>
+    <div class="amt" style="background-image:url(photos/thumb-w62.jpg)"><span>¥1,600</span></div></div>
+
+  <div class="row"><div class="info"><div class="name">叠白 72%（最淡）</div><div class="meta">只剩色块,几乎认不出</div></div>
+    <div class="amt" style="background-image:url(photos/thumb-w72.jpg)"><span>¥1,600</span></div></div>
+</body></html>

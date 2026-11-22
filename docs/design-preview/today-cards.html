@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>探记 · Today 卡片与展开转场原型</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  :root{
+    /* A 方案色板:暖白底 + 珊瑚橙 */
+    --bg:#F7F5F2; --card:#FFFFFF; --ink:#1F1D1B; --sub:#8A8681; --line:#EDE9E4;
+    --brand:#E8663C; --brand-soft:#FCEFE8;
+    --green:#2FA05F; --orange:#D08A24; --red:#D24B45; --blue:#3B7DD8;
+    /* Today 卡片的阴影:近距离贴边 + 远距离柔光,不发品牌色 */
+    --shadow:0 2px 6px rgba(120,100,80,.06),0 14px 36px rgba(120,100,80,.10);
+    --shadow-press:0 1px 3px rgba(120,100,80,.08),0 6px 16px rgba(120,100,80,.08);
+  }
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;
+    background:var(--bg);color:var(--ink);user-select:none;
+    padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-width:520px;margin:0 auto;
+  }
+  .eyebrow{font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
+  h1{font-size:28px;font-weight:800;letter-spacing:-.5px;line-height:1.18;margin:4px 0 14px}
+
+  /* ===== Today 卡片 ===== */
+  .today-card{
+    position:relative;border-radius:22px;overflow:hidden;margin-bottom:16px;
+    background:var(--card);box-shadow:var(--shadow);
+    transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s;
+    cursor:pointer;
+  }
+  .today-card:active{transform:scale(.975);box-shadow:var(--shadow-press)}
+  .cover{height:164px;position:relative;padding:16px;display:flex;flex-direction:column;justify-content:flex-end;color:#fff}
+  /* 封面没有实拍图时,用店名首字做超大低透明水印,把"空白"变成视觉锚点 */
+  .mark{position:absolute;top:-16px;right:0;font-size:132px;font-weight:900;line-height:1;color:rgba(255,255,255,.14);letter-spacing:-8px;pointer-events:none}
+  .cover::after{ /* 文字压在图上时必须有遮罩,这是 Today 卡最容易被忽略的一条 */
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(0,0,0,0) 34%,rgba(24,16,10,.72) 100%);
+  }
+  .cover>*{position:relative;z-index:1}
+  .cover .kick{font-size:12px;font-weight:700;letter-spacing:.06em;opacity:.92;margin-bottom:6px}
+  .cover .name{font-size:23px;font-weight:800;letter-spacing:-.3px;line-height:1.2}
+  .cover .row2{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;font-weight:600;opacity:.96}
+  .cover .dot{width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.6)}
+  .cover .amt{margin-left:auto;font-variant-numeric:tabular-nums;font-size:17px;font-weight:800}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:9px;background:rgba(255,255,255,.22);backdrop-filter:blur(8px)}
+
+  .c1{background:linear-gradient(135deg,#3E3A36 0%,#6B5A48 52%,#A8825F 100%)}
+  .c2{background:linear-gradient(135deg,#243447 0%,#2F5570 55%,#4E8B9E 100%)}
+  .c3{background:linear-gradient(135deg,#4A2E2A 0%,#8A4A3A 55%,#C9704F 100%)}
+
+  /* ===== 展开后的详情(全屏) ===== */
+  .overlay{position:fixed;inset:0;z-index:50;display:none;background:#0F0F12}
+  .overlay.on{display:block}
+  .detail{position:absolute;inset:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;will-change:transform}
+  .hero{height:200px;position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:16px 20px 24px;color:#fff;overflow:hidden}
+  .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(20,14,10,.78) 100%)}
+  .hero>*{position:relative;z-index:1}
+  .hero .name{font-size:27px;font-weight:800;letter-spacing:-.4px;line-height:1.2}
+  .hero .meta{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:13.5px;opacity:.95}
+  .close{
+    position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;z-index:2;
+    width:34px;height:34px;border-radius:50%;border:none;background:rgba(20,20,24,.42);color:#fff;
+    backdrop-filter:blur(12px);font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center;
+  }
+  .sheet-body{
+    position:relative;margin-top:-22px;background:var(--bg);border-radius:24px 24px 0 0;
+    padding:20px;min-height:calc(100% - 170px);
+  }
+  .money{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+  .money div{background:var(--card);border-radius:16px;padding:13px 12px;box-shadow:0 1px 2px rgba(120,100,80,.06)}
+  .money .k{font-size:11.5px;color:var(--sub);font-weight:600}
+  .money .v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.3px;margin-top:3px}
+  .money .v.owed{color:var(--red)}
+
+  /* ===== 随手拍:门口照淡化后作为金额区底图 =====
+     可读性靠三层:照片降到 16% 不抢数字、上层白色渐变把文字区提亮、数字本身用深墨色 + 等宽 */
+  .money-photo{
+    position:relative;border-radius:20px;overflow:hidden;margin-bottom:16px;
+    background:var(--card);box-shadow:0 1px 2px rgba(120,100,80,.08),0 10px 26px rgba(120,100,80,.08);
+  }
+  .money-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.16;filter:saturate(.8) contrast(.92)}
+  .money-photo::after{
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(255,255,255,.62) 0%,rgba(255,255,255,.9) 62%,rgba(255,255,255,.96) 100%);
+  }
+  .mp-grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px 16px 12px}
+  .mp-grid .k{font-size:11.5px;color:var(--sub);font-weight:600}
+  .mp-grid .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.4px;margin-top:3px}
+  .mp-grid .v.owed{color:var(--red)}
+  .shot-flag{
+    position:relative;z-index:1;display:flex;align-items:center;gap:6px;
+    margin:0 16px 14px;padding-top:11px;border-top:.5px solid rgba(120,100,80,.14);
+    font-size:12px;font-weight:700;color:var(--green);
+  }
+  .shot-flag .cam{font-size:12px}
+  .shot-flag .chg{margin-left:auto;color:var(--sub);font-weight:600}
+
+  /* 未拍照时的引导:不占照片位,直接换成一条可点的虚线按钮 */
+  .shot-btn{
+    width:100%;height:46px;border-radius:14px;font:inherit;font-size:13.5px;font-weight:700;
+    color:var(--brand);background:var(--brand-soft);border:1px dashed rgba(232,102,60,.45);
+    display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:18px;
+  }
+  .sec{font-size:13px;font-weight:800;color:var(--ink);margin:20px 0 10px;display:flex;align-items:center;gap:7px}
+  .sec::before{content:'';width:3px;height:13px;border-radius:2px;background:var(--brand)}
+  .tl{background:var(--card);border-radius:18px;padding:6px 16px;box-shadow:0 1px 2px rgba(120,100,80,.06)}
+  .tl .item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:.5px solid var(--line);font-size:14px}
+  .tl .item:last-child{border-bottom:none}
+  .tl .dot{width:9px;height:9px;border-radius:50%;background:var(--line);flex-shrink:0}
+  .tl .item.done .dot{background:var(--green)}
+  .tl .item.now .dot{background:var(--brand);box-shadow:0 0 0 4px var(--brand-soft)}
+  .tl .t{margin-left:auto;font-size:12.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+  .cta{display:flex;gap:10px;margin:20px 0 8px}
+  .btn{flex:1;height:48px;border-radius:15px;border:none;font:inherit;font-size:15px;font-weight:700;background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(120,100,80,.08)}
+  .btn.primary{background:var(--brand);color:#fff;box-shadow:0 6px 18px rgba(232,102,60,.28)}
+
+  .hint{margin-top:18px;font-size:12.5px;color:var(--sub);line-height:1.7;text-align:center}
+</style>
+</head>
+<body>
+  <div class="eyebrow">Today</div>
+  <h1>今天 2 场<br>还有 2 笔要收</h1>
+
+  <div class="today-card" data-i="0">
+    <div class="cover c1">
+      <span class="mark">麓</span>
+      <div class="kick">14:00 · 餐饮</div>
+      <div class="name">麓野日料·万象城店</div>
+      <div class="row2"><span class="badge">待拍摄</span><span class="badge">待尾款</span><span class="dot"></span><span>2 小时</span><span class="amt">¥1,600</span></div>
+    </div>
+  </div>
+
+  <div class="today-card" data-i="1">
+    <div class="cover c2">
+      <span class="mark">循</span>
+      <div class="kick">拍摄完成 · 已超 24h</div>
+      <div class="name">循环洗衣·Central店</div>
+      <div class="row2"><span class="badge">待正片</span><span class="dot"></span><span>11-13 拍摄</span><span class="amt">¥1,400</span></div>
+    </div>
+  </div>
+
+  <div class="today-card" data-i="2">
+    <div class="cover c3">
+      <span class="mark">山</span>
+      <div class="kick">11-21 · 拍摄完成</div>
+      <div class="name">山茶花奶茶·观前街店</div>
+      <div class="row2"><span class="badge">待正片</span><span class="badge">待副片</span><span class="dot"></span><span>已收定金</span><span class="amt">¥1,000</span></div>
+    </div>
+  </div>
+
+  <p class="hint">原型说明：卡片阴影为双层（贴边 2px + 柔光 14px），不用品牌色发光；<br>封面文字底部有黑色渐变遮罩；展开用 FLIP（transform 缩放，非 width/height 动画）。</p>
+
+  <div class="overlay" id="ov">
+    <div class="detail" id="dt"></div>
+  </div>
+
+<script>
+const DATA=[
+  {name:'麓野日料·万象城店',cls:'c1',kick:'今天 14:00 · 餐饮 · 2 小时',price:'1,600',paid:'0',owed:'1,600',photo:true,shot:'14:05',
+   steps:[['预约','11-22 14:00',1],['拍摄','待拍摄',0],['提审','—',0],['出片','待正片+副片',0]]},
+  {name:'循环洗衣·Central店',cls:'c2',kick:'11-13 拍摄 · 已超 24 小时',price:'1,400',paid:'400',owed:'1,000',
+   steps:[['预约','11-13 10:00',1],['拍摄','11-13 11:20',1],['提审','11-13 18:00',1],['出片','待正片',0]]},
+  {name:'山茶花奶茶·观前街店',cls:'c3',kick:'11-21 拍摄 · 副片已发',price:'1,000',paid:'500',owed:'500',
+   steps:[['预约','11-21 09:30',1],['拍摄','11-21 10:40',1],['提审','11-21 16:00',1],['副片','11-21 20:00',1],['正片','待发',0]]},
+];
+
+const ov=document.getElementById('ov'),dt=document.getElementById('dt');
+let opened=null,anim=null;
+
+/* 金额区两种形态:
+   有随手拍照 → 照片淡化铺底 + 一行「已到店·时间」,一眼看出拍摄已完成;
+   没拍照     → 三块白卡 + 一条虚线引导按钮,不占照片位也不留空 */
+function moneyHTML(d){
+  if(d.photo){
+    return `<div class="money-photo">
+      <img src="photos/door-photo.jpg" alt="到店随手拍">
+      <div class="mp-grid">
+        <div><div class="k">报价</div><div class="v">¥${d.price}</div></div>
+        <div><div class="k">已收</div><div class="v">¥${d.paid}</div></div>
+        <div><div class="k">待收</div><div class="v owed">¥${d.owed}</div></div>
+      </div>
+      <div class="shot-flag"><span class="cam">📷</span>已到店 · ${d.shot} 随手拍<span class="chg">重拍</span></div>
+    </div>`;
+  }
+  return `<div class="money">
+      <div><div class="k">报价</div><div class="v">¥${d.price}</div></div>
+      <div><div class="k">已收</div><div class="v">¥${d.paid}</div></div>
+      <div><div class="k">待收</div><div class="v owed">¥${d.owed}</div></div>
+    </div>
+    <button class="shot-btn">📷 到店了？门口拍一张</button>`;
+}
+
+function detailHTML(d){
+  return `
+    <div class="hero ${d.cls}">
+      <span class="mark">${d.name.slice(0,1)}</span>
+      <button class="close" onclick="closeCard()">✕</button>
+      <div class="kick" style="font-size:12px;font-weight:700;opacity:.9;margin-bottom:7px">${d.kick}</div>
+      <div class="name">${d.name}</div>
+      <div class="meta"><span class="badge">已通过平台</span><span>·</span><span>私收</span></div>
+    </div>
+    <div class="sheet-body">
+      ${moneyHTML(d)}
+      <div class="sec">拍摄流程</div>
+      <div class="tl">${d.steps.map(([n,t,ok])=>`<div class="item ${ok?'done':''}"><span class="dot"></span><span>${n}</span><span class="t">${t}</span></div>`).join('')}</div>
+      <div class="cta"><button class="btn">加速记一笔</button><button class="btn primary">收尾款</button></div>
+    </div>`;
+}
+
+function openCard(card){
+  const d=DATA[+card.dataset.i];
+  const first=card.querySelector('.cover').getBoundingClientRect();
+  dt.innerHTML=detailHTML(d);
+  ov.classList.add('on');
+  const hero=dt.querySelector('.hero'),detail=dt;
+  const last=hero.getBoundingClientRect();
+  const sx=first.width/last.width, sy=first.height/last.height;
+  const dx=first.left-last.left, dy=first.top-last.top;
+  dt.scrollTop=0;
+  // FLIP:只对 transform 做动画,60fps;圆角从 22 收到 0,模拟卡片"长成"页面
+  anim=detail.animate([
+    {transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`,borderRadius:'22px'},
+    {transform:'none',borderRadius:'0px'}
+  ],{duration:420,easing:'cubic-bezier(.22,.9,.24,1)',fill:'both'});
+  dt.querySelectorAll('.sheet-body,.money,.tl,.cta').forEach((el,i)=>{
+    el.animate([{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'none'}],
+      {duration:320,delay:120+i*40,easing:'cubic-bezier(.2,.8,.2,1)',fill:'backwards'});
+  });
+  opened=card;
+}
+
+function closeCard(){
+  if(!opened)return;
+  const card=opened, first=card.querySelector('.cover').getBoundingClientRect();
+  const detail=dt, last=detail.querySelector('.hero').getBoundingClientRect();
+  const sx=first.width/last.width, sy=first.height/last.height;
+  const dx=first.left-last.left, dy=first.top-last.top;
+  const a=detail.animate([
+    {transform:'none',borderRadius:'0px'},
+    {transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`,borderRadius:'22px'}
+  ],{duration:360,easing:'cubic-bezier(.4,0,.2,1)',fill:'both'});
+  a.onfinish=()=>{ov.classList.remove('on');dt.innerHTML='';opened=null};
+}
+
+document.querySelectorAll('.today-card').forEach(c=>c.addEventListener('click',()=>openCard(c)));
+
+// 供截图使用:#detail 展开(已随手拍) / #detail-empty 展开(未拍,显示引导按钮)
+const HASH=location.hash;
+if(HASH==='#detail'||HASH==='#detail-empty'){
+  if(HASH==='#detail-empty')DATA[0].photo=false;
+  openCard(document.querySelector('.today-card'));
+  document.getAnimations().forEach(a=>{try{a.finish()}catch(e){}});
+}
+</script>
+</body>
+</html>
