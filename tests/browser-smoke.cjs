@@ -82,6 +82,11 @@ const server=http.createServer((request,response)=>{
     assert.ok(saveBar.top>=0&&saveBar.bottom<=saveBar.viewport+1,'保存按钮不在首屏可见区域: '+JSON.stringify(saveBar));
     // geo.js 必须被真正加载:地图跳转与定位都挂在这个模块上
     assert.equal(await evaluate('TanJiGeo.mapUrl({query:"万象城 3 层"}).startsWith("https://maps.apple.com/")'),true);
+    // 触摸手感:整页要像原生 App,双击不能缩放、拖动不能把文字刷蓝
+    const touch=await evaluate(`(()=>{const html=getComputedStyle(document.documentElement),body=getComputedStyle(document.body);return {touchAction:html.touchAction,userSelect:body.userSelect||body.webkitUserSelect,viewport:document.querySelector('meta[name=viewport]').content}})()`);
+    assert.equal(touch.touchAction,'manipulation','html 的 touch-action 必须是 manipulation,否则双击会缩放');
+    assert.match(touch.userSelect,/none/,'body 必须禁止文字选中(否则滑动会刷蓝一片)');
+    assert.match(touch.viewport,/user-scalable=no/,'viewport 必须禁用手势缩放');
     await fill('#f-store','安全 <b>咖啡</b>');await fill('#f-price','1000');await fill('#f-deposit','200');
     await fill('#f-date','2026-11-22');await click('[data-act="save-order"]');
     assert.equal(await evaluate('db.orders.length'),1);
@@ -128,7 +133,7 @@ const server=http.createServer((request,response)=>{
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
+    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','touch feel locked','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
     await send('Browser.close');
   }finally{
     if(socket)socket.close();

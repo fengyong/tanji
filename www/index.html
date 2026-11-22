@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <title>探记 TanJi · 探店达人的行程与收款</title>
 <link rel="manifest" href="manifest.webmanifest"/>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
@@ -20,7 +20,20 @@
   window.sqlite3InitModule=sqlite3InitModule;
 </script>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+  /*
+   * 触摸手感:整页按原生 App 处理
+   * - touch-action:manipulation 干掉双击缩放(以及随之而来的 300ms 判定)；
+   * - -webkit-touch-callout:none 干掉长按/双击弹出的「拷贝·查询」气泡和放大镜；
+   * - user-select 在 body 上关掉,避免双击/拖动时整片文字被刷蓝；
+   * - overscroll-behavior 关掉整页橡皮筋和下拉刷新,滚动只发生在自己的容器里。
+   * 需要复制的内容(导出文本、结构说明、输入框)单独放开。
+   */
+  html{-webkit-text-size-adjust:100%;touch-action:manipulation}
+  html,body{overscroll-behavior:none}
+  body{-webkit-touch-callout:none}
+  img,video,svg{-webkit-user-drag:none}
+  pre,code,textarea,input,[contenteditable="true"],.schema-pre,.selectable{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
   :root{
     --bg:#F2F2F7; --card:#FFFFFF; --ink:#1C1C1E; --sub:#8E8E93; --line:#E7E7EC;
     --brand:#FF6A2B; --brand-soft:#FFF1E9;
@@ -36,7 +49,7 @@
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
     background:linear-gradient(155deg,#ECEAF3 0%,#E4E8EF 100%);
     min-height:100vh;display:flex;align-items:center;justify-content:center;padding:26px 16px;
-    color:var(--ink);user-select:none;
+    color:var(--ink);-webkit-user-select:none;user-select:none;
   }
   input,textarea{user-select:text}
   .stage{display:flex;flex-direction:column;align-items:center;gap:16px}
