@@ -6,6 +6,7 @@ import {workChip,payChip,isOver,overdueDays,snoozed,owedOf} from '../derived.js'
 import {accMatch,accBar,accTint,accOrderTag,accChipbarHTML} from '../accounts.js';
 import {priceCell,stepBtn} from '../detail.js';
 import {headBtns} from '../stats.js';
+import {workOf} from '../derived.js';
 
 /* ================= 渲染:订单 ================= */
 function chipMatch(o){

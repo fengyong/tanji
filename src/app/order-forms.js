@@ -1,5 +1,5 @@
 /* ================= 新建预约 + 编辑订单 + 随手拍输入(P0 §3) ================= */
-import {$,esc,fmtHM,TODAY,validDateTime} from './util.js';
+import {$,esc,fmtHM,TODAY,validDateTime,nowStr} from './util.js';
 import {db,Store,save,Notify,needMain,needSub} from './storage.js';
 import {ui,showTab,renderAll} from './ui.js';
 import {moneyCents,byId,gpsText,hasAnyReceipt,paymentSpec,hasReceipt,unDep,unFin} from './derived.js';

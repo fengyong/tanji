@@ -1,11 +1,10 @@
 /* ================= 启动(P0 §3:组合根) ================= */
 import {isNative} from './env.js';
-import {$,TODAY,validDateTime,fmtMoney,nowStr} from './util.js';
+import {$,TODAY} from './util.js';
 import {ui,renderAll,showTab,refreshVisible,registerRenderers,registerDetailRerender,markDailySynced} from './ui.js';
 import {Store,save,loadState,persistFull,acquireWriter,storageKey,setStorageStatus,Notify,nativeOpen,previewImport,backupDocument,db as liveDb} from './storage.js';
-import {demoSeed} from './demo.js';
-import {accMatch,accChipbarHTML} from './accounts.js';
-import {isOver,snoozed,overdueDays,workOf,storeOf} from './derived.js';
+import {accMatch} from './accounts.js';
+import {isOver,snoozed,overdueDays} from './derived.js';
 import {buildSqliteBytes} from './sqlite-bytes.js';
 import {closeSheets,showSheet,toast} from './sheets.js';
 import {download} from './export.js';
@@ -26,8 +25,8 @@ import {renderStats} from './views/stats.js';
 /* P0 偏差 #1–#3(见 DEVIATIONS.md):storage.js / ui.js / derived.js 的函数体是
    逐字节搬运,仍按经典脚本时代的全局晚绑定调用下列符号;§3/§5 又禁止它们
    import 这些符号。在组合根统一挂回 globalThis —— 恢复原语义,不新增行为。 */
-Object.assign(globalThis,{accMatch,isOver,snoozed,overdueDays,ui,validDateTime,fmtMoney,buildSqliteBytes,demoSeed,closeSheets,showSheet,renderAll,showTab,toast,download,
-  mark,nowStr,workOf,storeOf,accChipbarHTML,
+Object.assign(globalThis,{accMatch,isOver,snoozed,overdueDays,ui,buildSqliteBytes,closeSheets,showSheet,renderAll,showTab,toast,download,
+  mark,
   renderTrip,statsFor,backupDocument,previewImport});
 /* 冒烟测试与 WKWebView 调试控制台依赖 Store.ready / Store.blocked / db.orders —
    经典脚本时代它们是天然全局,拆层后在这里挂回(见 DEVIATIONS #4)。

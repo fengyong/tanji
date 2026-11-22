@@ -1,5 +1,7 @@
 /* P0 §3 机械改动 1:CAP/isNative 上移 env.js,本模块改从那里 import。 */
 import {CAP,isNative} from './env.js';
+import {fmtMoney,validDateTime} from './util.js';
+import {demoSeed} from './demo.js';
 export let db={orders:[],payments:[],threshold:15};
 export const Store={sqlite3:null,mode:'demo',revision:0,queue:Promise.resolve(),ready:false,busy:false,blocked:false,lockedOut:false,backup:null,status:'正在读取本机数据…',pending:null};
 export async function acquireWriter(){

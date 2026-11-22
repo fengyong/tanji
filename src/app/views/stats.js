@@ -6,6 +6,7 @@ import {ui} from '../ui.js';
 import {owedOf,workOf,METHOD_CLS} from '../derived.js';
 import {ACCS,accMulti,accAvatarHTML,accColor} from '../accounts.js';
 import {statsFor,headBtns} from '../stats.js';
+import {accChipbarHTML} from '../accounts.js';
 
 /* ================= 渲染:统计 ================= */
 function accountSectionHtml(){
