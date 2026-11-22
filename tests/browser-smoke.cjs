@@ -105,8 +105,8 @@ const server=http.createServer((request,response)=>{
     await click('#toast [data-act="toast-undo"]');
     assert.equal(await evaluate('db.payments.length'),0,'撤销后流水应移除');
     assert.equal(await evaluate('db.orders[0].depositPaidAt'),null,'撤销后已收标记应回滚');
-    await click('#detail-body [data-kind="deposit"]');await click('[data-act="confirm-pay"]');
-    assert.equal(await evaluate('db.payments.length'),1,'重新记一次,后续断言依赖这笔流水');
+  await click('#detail-body [data-kind="deposit"]');await click('[data-act="confirm-pay"]');
+  assert.equal(await evaluate('db.payments.length'),1,'重新记一次,后续断言依赖这笔流水');
     // 收完定金转为"待尾款",催收跟进才出现:记一笔,详情页要立刻出现时间线
     await click('#detail-body [data-act="remind-open"]');
     assert.equal(await evaluate("document.querySelector('#sheet-remind').classList.contains('show')"),true,'再催一次应打开记录弹层');
@@ -122,8 +122,34 @@ const server=http.createServer((request,response)=>{
     assert.ok(editBar.found&&!editBar.inScrollArea&&editBar.bottom<=editBar.viewport+1,'编辑弹层的保存按钮必须常驻可见: '+JSON.stringify(editBar));
     await fill('#e-price','1200');await click('[data-act="save-edit"]');
     assert.equal(await evaluate('db.orders[0].price'),1000);
-    await click('#sheet-edit [data-act="close-sheet"]');
-    // 下拉关闭:详情页往下拖 200px 应当退出(iOS 弹层的基本手势,不能只靠点上方空白)
+  await click('#sheet-edit [data-act="close-sheet"]');
+  // P0 拆分安全网:新增订单 → 标记收款 → 导出 JSON 的全链路 —— 导出必须真的
+  // 产出下载文件,且内容与页面状态一致(不是只点了按钮、toast 亮了一下)。
+  // 此刻:工作模式、1 笔订单、1 笔定金收款、无弹层遮挡。
+  await click('.tab[data-tab="stats"]');
+  const beforeExport=Date.now();
+  await click('#v-stats [data-act="export-json"]');
+  const exported=await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('export-json 没有产出下载文件')),10000);
+    const check=()=>{
+      const files=fs.readdirSync(profile)
+        .filter(n=>n.startsWith('探记-工作备份-')&&n.endsWith('.json'))
+        .map(n=>({n,t:fs.statSync(path.join(profile,n)).mtimeMs}))
+        .filter(f=>f.t>=beforeExport);
+      if(files.length){clearTimeout(timer);resolve(path.join(profile,files[files.length-1].n))}
+      else setTimeout(check,100);
+    };
+    check();
+  });
+  // 文本导出带 UTF-8 BOM(download 有意为之),与 previewImport 同口径剥掉再解析
+  const backup=JSON.parse(fs.readFileSync(exported,'utf8').replace(/^\uFEFF/,''));
+  assert.equal(backup.app,'探记 TanJi','导出的 JSON 应是探记备份文档');
+  assert.equal(backup.orders.length,1,'导出备份应含刚新建的 1 笔订单');
+  assert.equal(backup.orders[0].store,'安全 <b>咖啡</b>','订单内容应与页面一致');
+  assert.equal(backup.payments.length,1,'导出备份应含刚标记的 1 笔定金收款');
+  assert.equal(backup.payments[0].amount,200,'收款金额应与页面一致');
+  await click('.tab[data-tab="orders"]');
+  // 下拉关闭:详情页往下拖 200px 应当退出(iOS 弹层的基本手势,不能只靠点上方空白)
     await click('#v-orders [data-act="open"]');
     await evaluate(`(()=>{const sheet=document.querySelector('#sheet-detail');const pt=y=>new Touch({identifier:1,target:sheet,clientX:200,clientY:y});const fire=(type,touches)=>sheet.dispatchEvent(new TouchEvent(type,{touches,bubbles:true,cancelable:true}));fire('touchstart',[pt(400)]);fire('touchmove',[pt(480)]);fire('touchmove',[pt(600)]);fire('touchend',[])})()`);
     assert.equal(await evaluate("document.querySelector('#sheet-detail').classList.contains('show')"),false,'下拉应该能关闭详情弹层');

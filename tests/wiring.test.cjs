@@ -105,6 +105,25 @@ test('随手拍输入在只读模式下必须拒绝写入(change 处理器绕过
   assert.ok(guardIdx < writeIdx, '只读检查必须发生在写入 photoThumb 之前');
 });
 
+/* ---------- P0 拆分安全网(2026-11-22) ---------- */
+
+test('markup 里出现的每个 data-act 都必须在事件委托里有对应 case', () => {
+  // 拆层前的接线安全网:静态枚举全部 data-act(含 JS 模板串里字面写死的),
+  // 逐个断言事件委托 switch 有对应 case —— 少一个就是"看得见点不动"的按钮。
+  // 注意 case 只在事件委托段内统计:chipMatch 里还有一个 switch(ui.chip),
+  // 它的 'wait'/'doing' 等是筛选值,不是动作,不能拿来抵数。
+  const acts = [...new Set([...index.matchAll(/data-act="([a-z0-9-]+)"/g)].map(m => m[1]))];
+  assert.ok(acts.length >= 60, `只枚举到 ${acts.length} 个 data-act,数量异常,正则或 markup 可能变了`);
+  const delegation = index.slice(index.indexOf("document.addEventListener('click'"));
+  const cases = new Set([...delegation.matchAll(/case '([a-z0-9-]+)':/g)].map(m => m[1]));
+  const missing = acts.filter(a => !cases.has(a));
+  assert.deepEqual(
+    missing,
+    [],
+    `这些 data-act 在事件委托里没有对应 case(点了没反应):${missing.join(',')}`,
+  );
+});
+
 /* ---------- 第五轮深度 review 的回归(2026-11-22) ---------- */
 
 test('前台刷新要按自然日重排每日催收汇总', () => {
