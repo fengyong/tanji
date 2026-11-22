@@ -332,6 +332,38 @@
 
     <div id="storage-status" role="status" hidden><span></span><div><button data-act="retry-storage">重试保存 / 读取</button><button data-act="export-json">导出备份</button><button data-act="export-checkpoint">导出替换前备份</button></div></div>
     <input id="import-file" type="file" accept=".json,application/json" hidden>
+    <div class="sheet" id="sheet-account">
+      <div class="grabber"></div>
+      <div class="sheet-head"><span class="sheet-title" id="account-title">新建账号</span><button class="sheet-close" data-act="close-sheet" aria-label="取消">×</button></div>
+      <div class="sheet-body">
+        <div class="avpick">
+          <span id="a-avatar-preview"></span>
+          <div><div class="btn2">
+            <button class="btn tint" data-act="pick-avatar" style="padding:9px 14px">从相册选图</button>
+            <button class="btn ghost" data-act="remove-avatar" style="padding:9px 14px">移除头像</button>
+          </div><div class="rsub" style="margin:6px 0 0">自动裁圆压缩到小尺寸,仅存本机</div></div>
+        </div>
+        <div class="frow"><label>昵称 *</label><input id="a-name" placeholder="如:大王叫我逛深圳"></div>
+        <div class="frow"><label>手机号</label><input id="a-phone" type="tel" placeholder="13800006678"></div>
+        <div class="frow"><label>抖音账号</label><input id="a-douyin" placeholder="抖音号(或主页链接)"></div>
+        <div style="padding:12px 2px 0"><div style="font-size:14px;font-weight:600">标识色 <span class="rsub" style="font-weight:400;margin-left:4px">新账号自动分配,可点色板自定义</span></div>
+          <div class="pal" id="a-pal"></div>
+          <div class="rsub" style="margin-top:6px">蜜橙 · 雾蓝 · 抹茶 · 香芋 · 杏黄 · 玫瑰 · 黛青 · 卵石灰</div></div>
+        <div class="ferr" id="a-err">请填写昵称</div>
+        <div style="padding:14px 0 4px"><button class="btn primary" data-act="save-account">保存账号</button></div>
+        <div style="padding:0 0 8px"><button class="btn danger-ghost" id="a-delete" data-act="delete-account" style="display:none">删除账号</button></div>
+      </div>
+    </div>
+    <div class="sheet" id="sheet-assign">
+      <div class="grabber"></div>
+      <div class="sheet-head"><span class="sheet-title">批量改挂未指定订单</span><button class="sheet-close" data-act="close-sheet" aria-label="取消">×</button></div>
+      <div class="sheet-body">
+        <div class="rsub" style="margin:4px 2px 10px">把这批历史订单一次性挂到某个账号名下;个别挂错的之后在订单编辑里单独改。</div>
+        <div class="acc-sel" id="assign-list"></div>
+        <div style="padding:14px 0 4px"><button class="btn primary" data-act="assign-run">改挂全部未指定订单</button></div>
+      </div>
+    </div>
+    <input type="file" id="avatar-file" accept="image/*" hidden>
     <div class="sheet" id="sheet-import">
       <div class="grabber"></div>
       <div class="sheet-head"><span class="sheet-title">恢复 JSON 备份</span><button class="sheet-close" data-act="close-sheet" aria-label="取消导入">×</button></div>
@@ -371,6 +403,7 @@
       <div class="sheet-body">
         <div class="frow"><label>品名/商家</label><input id="f-store" placeholder="如:澄川咖啡·滨江店"></div>
         <div class="frow"><label>地点</label><input id="f-location" placeholder="如:万象城 3 层 / 具体地址"></div>
+        <div id="f-acc-block"></div>
         <div class="frow"><label>类型</label>
           <select id="f-cat">
             <option>餐饮</option><option>咖啡</option><option>烧烤</option><option>火锅</option><option>茶饮</option><option>甜品</option>
@@ -384,7 +417,7 @@
             <option value="douyin">抖音商单(平台结算)</option>
           </select>
         </div>
-        <div class="frow"><label>服务商</label><input id="f-channel" placeholder="如:蜂向/小爱/金城/食物,直客可空"></div>
+        <div id="f-prov-block"></div>
         <div class="frow"><label>组队</label><input id="f-partner" placeholder="组队/出镜搭档,如:花花;单人拍摄可空"></div>
         <div class="frow"><label>出片要求</label><div style="display:flex;gap:22px;align-items:center;padding:6px 2px">
           <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="f-need-main" checked style="width:17px;height:17px;accent-color:var(--brand)"> 正片</label>
@@ -474,7 +507,7 @@ function daysBetween(fromStr){
 function greeting(){const h=new Date().getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
 
 /* ================= UI 状态(先于数据定义,fmtMoney 依赖) ================= */
-const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1}};
+const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1},accFilter:null,editAccountId:null,draftAvatar:null,draftColor:0,draftProv:'',draftAccId:null,assignAcc:null};
 
 /* iOS 原生版(买断付费,App Store)的落地页地址。
    空字符串 = 还没上架,「关于」里显示为「即将上架」而不是死链;
@@ -566,20 +599,30 @@ function buildSqliteBytes(state=db){
       channel TEXT, partner TEXT,
       location TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
       review_result TEXT DEFAULT '', published_at TEXT,
+      account_id INTEGER,
       note TEXT, created_at TEXT, updated_at TEXT);
     CREATE TABLE IF NOT EXISTS payments(
       id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
       paid_at TEXT, method TEXT, note TEXT);
+    CREATE TABLE IF NOT EXISTS accounts(
+      id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT, douyin TEXT,
+      color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
-    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     state.orders.forEach(o=>{
       so.bind([o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
                o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.channel||null,o.partner||null,
                o.location||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,
-               o.note||null,null,null]);
+               o.accountId||null,o.note||null,null,null]);
       so.step();so.reset();
     });
     so.finalize();
+    const sa=d.prepare('INSERT INTO accounts VALUES (?,?,?,?,?,?,?)');
+    (state.accounts||[]).forEach(a=>{
+      sa.bind([a.id,a.name,a.phone||null,a.douyin||null,a.color??0,a.avatar||null,a.createdAt||null]);
+      sa.step();sa.reset();
+    });
+    sa.finalize();
     const sp=d.prepare('INSERT INTO payments (order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?)');
     state.payments.forEach(p=>{
       sp.bind([p.oid,p.kind,p.amount,p.at,p.method,p.note||null]);sp.step();sp.reset();
@@ -659,6 +702,150 @@ function workChip(o){return `<span class="chip ${WORK_CLS[workOf(o)]}">${workOf(
 /* 工作流 v0.5:拍摄完成超 24h 仍未出齐(按该单正/副片配置)→ 红色角标;正/副片 = 长片/短片 */
 function deliverLate(o){return !!o.shotAt&&!deliveredAll(o)&&Date.now()-new Date(o.shotAt).getTime()>=864e5}
 const REVIEW_LABEL={pass:'送审合格',fail:'送审不合格'};
+
+/* ================= 多账号体系 v0.6 ================= */
+const ACC_COLORS=[
+  {name:'蜜橙',bg:'#FFF3EC',ink:'#E85D1F'},
+  {name:'雾蓝',bg:'#EEF4FF',ink:'#3E7BFA'},
+  {name:'抹茶',bg:'#EDF7EF',ink:'#339966'},
+  {name:'香芋',bg:'#F4EEFB',ink:'#8E5CD9'},
+  {name:'杏黄',bg:'#FFF6E3',ink:'#C97C10'},
+  {name:'玫瑰',bg:'#FCEFF2',ink:'#CE5478'},
+  {name:'黛青',bg:'#EDF5F6',ink:'#3D8CA0'},
+  {name:'卵石灰',bg:'#F2F2F6',ink:'#67676F'},
+];
+const PRESET_PROVIDERS=['蜂向','小爱','金城','食物','直客'];
+const ACCS=()=>db.accounts||[];
+const accMulti=()=>ACCS().length>=2;
+const accById=id=>ACCS().find(a=>a.id===+id);
+const accColor=a=>ACC_COLORS[(a&&a.color!=null?a.color:0)%8];
+const accMatch=o=>ui.accFilter==null||o.accountId===ui.accFilter;
+const providerList=()=>[...new Set([...PRESET_PROVIDERS,...(db.providers||[])])];
+const accTint=o=>o&&accMulti()&&o.accountId!=null?`background:${accColor(accById(o.accountId)).bg};border-radius:14px`:'';
+const accOrderTag=o=>accMulti()?accTagHTML(accById(o.accountId)):'';
+function accAvatarHTML(a,style=''){
+  const c=accColor(a);
+  if(a&&a.avatar)return `<span class="acc-avatar" style="background:${c.bg};${style}"><img src="${a.avatar}" alt=""></span>`;
+  return `<span class="acc-avatar" style="background:${c.bg};color:${c.ink};${style}">${esc(a&&a.name?a.name.slice(0,1):'·')}</span>`;
+}
+function accTagHTML(a){
+  if(!a)return '<span class="acc-tag">未指定</span>';
+  const c=accColor(a);
+  const av=a.avatar?`<img class="tav" src="${a.avatar}" alt="">`:`<span class="tav" style="background:rgba(255,255,255,.72)">${esc(a.name.slice(0,1))}</span>`;
+  return `<span class="acc-tag" style="color:${c.ink};background:${c.bg}">${av}${esc(a.name)}</span>`;
+}
+function accChipbarHTML(){
+  if(!accMulti())return '';
+  const chip=(label,id)=>{
+    const on=ui.accFilter===id;
+    const a=id!=null?accById(id):null;
+    const c=a?accColor(a):null;
+    const style=a?(on?`background:${c.ink};color:#fff;font-weight:700`:`color:${c.ink};background:${c.bg};font-weight:600`):(on?'background:var(--ink);color:#fff':'');
+    return `<span class="chip acc-chip${on?' on':''}" data-act="acc-filter" data-id="${id==null?'':id}" style="${style}">${label}</span>`;
+  };
+  let html=chip('全部',null);
+  for(const a of ACCS())html+=chip(a.name,a.id);
+  return `<div class="chipbar">${html}</div>`;
+}
+function renderAccPick(elId,sel){
+  const el=$('#'+elId);if(!el)return;
+  if(!accMulti()){el.innerHTML='';return}
+  el.innerHTML=`<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">账号 <span style="color:var(--red)">*</span></div>
+    <div class="acc-sel">${ACCS().map(a=>{const c=accColor(a);const n=db.orders.filter(o=>o.accountId===a.id).length;
+      return `<button type="button" class="acc-opt ${sel===a.id?'sel':''}" data-act="acc-pick" data-id="${a.id}" style="${sel===a.id?`border-color:${c.ink};background:${c.bg}`:''}">
+        <span class="acc-dot"></span>${accAvatarHTML(a,'width:30px;height:30px;font-size:14px;border-radius:10px')}
+        <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${n} 单</span></button>`}).join('')}</div>
+    <div class="rsub" style="margin:6px 2px 0">点整行即选中;只建 1 个账号时此区块不出现,订单自动归属</div></div>`;
+}
+function renderProvPick(elId,val){
+  const el=$('#'+elId);if(!el)return;
+  el.innerHTML=`<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">服务商 <span class="rsub" style="font-weight:400;margin-left:4px">预设点选,或直接输入</span></div>
+    <div class="chiprow" style="margin:8px 0 0">${providerList().map(p=>`<span class="chip prov-chip ${val===p?'on':'c-gray'}" data-act="prov-pick" data-v="${esc(p)}">${esc(p)}</span>`).join('')}</div>
+    <div class="frow" style="border-bottom:none;padding:9px 0 0"><input id="${elId}-input" placeholder="输入自定义服务商…保存后自动记入预设" value="${esc(val&&!providerList().includes(val)?val:'')}" style="text-align:left;font-size:14px"></div></div>`;
+  const input=el.querySelector('input');
+  input.addEventListener('input',()=>{ui.draftProv=input.value.trim();el.querySelectorAll('.prov-chip').forEach(c=>c.classList.remove('on'))});
+}
+function chanFromDraft(){
+  const v=(ui.draftProv||'').trim()||'直客';
+  if(!providerList().includes(v))db.providers=[...new Set([...(db.providers||[]),v])];
+  return v;
+}
+async function copyText(text){
+  try{
+    if(isNative&&CAP&&CAP.Clipboard){await CAP.Clipboard.write({string:text});return true}
+    if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);return true}
+    const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok;
+  }catch(e){return false}
+}
+function openAccount(id){
+  ui.editAccountId=id==null?null:+id;
+  const a=id!=null?accById(id):null;
+  ui.draftAvatar=a&&a.avatar||null;
+  ui.draftColor=a?a.color:ACCS().length%8;
+  $('#account-title').textContent=a?'编辑账号':'新建账号';
+  $('#a-name').value=a?a.name:'';$('#a-phone').value=a?a.phone||'':'';$('#a-douyin').value=a?a.douyin||'':'';
+  $('#a-err').style.display='none';
+  $('#a-delete').style.display=a?'':'none';
+  renderAvatarPreview();renderPal();
+  showSheet('sheet-account');
+}
+function renderAvatarPreview(){
+  const c=ACC_COLORS[ui.draftColor%8];
+  $('#a-avatar-preview').innerHTML=ui.draftAvatar
+    ?`<span class="bigav" style="background:${c.bg}"><img src="${ui.draftAvatar}" alt=""></span>`
+    :`<span class="bigav" style="background:${c.bg};color:${c.ink}">${esc($('#a-name').value.trim().slice(0,1)||'·')}</span>`;
+}
+function renderPal(){
+  $('#a-pal').innerHTML=ACC_COLORS.map((c,i)=>`<span class="sw ${ui.draftColor%8===i?'sel':''}" data-act="pal-pick" data-i="${i}" title="${c.name}"></span>`).join('');
+}
+function saveAccount(){
+  const name=$('#a-name').value.trim();
+  const err=$('#a-err');
+  if(!name){err.textContent='请填写昵称';err.style.display='block';return}
+  err.style.display='none';
+  const base={name,phone:$('#a-phone').value.trim(),douyin:$('#a-douyin').value.trim(),color:ui.draftColor%8};
+  if(ui.draftAvatar)base.avatar=ui.draftAvatar;
+  if(ui.editAccountId!=null){
+    Object.assign(accById(ui.editAccountId),base);toast('已保存账号');
+  }else{
+    const maxId=ACCS().reduce((m,x)=>Math.max(m,x.id),0);
+    db.accounts=[...ACCS(),{id:maxId+1,createdAt:nowStr(),...base}];
+    toast('已添加账号');
+  }
+  save();closeSheets();renderAll();
+}
+function deleteAccount(){
+  const a=accById(ui.editAccountId);if(!a)return;
+  const n=db.orders.filter(o=>o.accountId===a.id).length;
+  if(!confirm(`删除「${a.name}」?其名下 ${n} 笔订单将变为「未指定」,可再改挂。`))return;
+  db.accounts=ACCS().filter(x=>x.id!==a.id);
+  db.orders.forEach(o=>{if(o.accountId===a.id)o.accountId=null});
+  if(ui.accFilter===a.id)ui.accFilter=null;
+  save();closeSheets();renderAll();toast('已删除账号');
+}
+function initAvatarInput(){
+  const input=$('#avatar-file');
+  input.addEventListener('change',()=>{
+    const file=input.files&&input.files[0];input.value='';
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const side=Math.min(img.width,img.height);
+          const size=128,cv=document.createElement('canvas');cv.width=cv.height=size;
+          cv.getContext('2d').drawImage(img,(img.width-side)/2,(img.height-side)/2,side,side,0,0,size,size);
+          ui.draftAvatar=cv.toDataURL('image/jpeg',0.82);
+          renderAvatarPreview();toast('头像已就绪,保存后生效');
+        }catch(e){toast('这张图处理不了,换一张试试')}
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 const byId=id=>db.orders.find(o=>o.id===id);
 const storeOf=id=>{const o=byId(id);return o?o.store:''};
 
@@ -708,8 +895,8 @@ function download(name,content,type){
 }
 function q(v){const text=String(v??'');return `"${(typeof v==='string'&&/^[\s]*[=+@-]/.test(text)?"'"+text:text).replace(/"/g,'""')}"`}
 function exportCsv(){
-  const head=['ID','品名/商家','类型','结算方式','服务商','组队','地点','联系方式','总价','定金','预约时间','实际拍摄','提审时间','副片发出','正片发出','出片要求','送审结果','发布时间','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
-  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.channel||'',o.partner||'',o.location||'',o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
+  const head=['ID','品名/商家','类型','结算方式','服务商','组队','账号','地点','联系方式','总价','定金','预约时间','实际拍摄','提审时间','副片发出','正片发出','出片要求','送审结果','发布时间','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
+  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.channel||'',o.partner||'',(accById(o.accountId)||{}).name||'',o.location||'',o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
     [needMain(o)?'正片':'',needSub(o)?'副片':''].filter(Boolean).join('+')||'未配置',
     o.reviewResult?REVIEW_LABEL[o.reviewResult]:'',o.publishedAt||'',workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',o.note].map(q).join(','));
   const phead=['序号','订单ID','商家','类型','金额','到账时间','收款方式'];
@@ -752,8 +939,18 @@ CREATE TABLE orders (
   deliver_sub    INTEGER DEFAULT 0, <span class="c">-- 出片要求:1=需要副片</span>
   review_result  TEXT DEFAULT '',   <span class="c">-- 送审结果:''待审 / pass 合格 / fail 不合格</span>
   published_at   TEXT,              <span class="c">-- 发布时间(里程碑可改)</span>
+  account_id     INTEGER,           <span class="c">-- 所属账号(accounts.id,空=未指定)</span>
   note           TEXT,
   created_at     TEXT, updated_at TEXT
+);
+CREATE TABLE accounts (
+  id         INTEGER PRIMARY KEY,
+  name       TEXT NOT NULL,  <span class="c">-- 昵称(必填)</span>
+  phone      TEXT,           <span class="c">-- 手机号(选填,一键拷贝用)</span>
+  douyin     TEXT,           <span class="c">-- 抖音账号(选填)</span>
+  color      INTEGER DEFAULT 0, <span class="c">-- 标识色序号(轻柔色板 0-7,列表底色随它)</span>
+  avatar     TEXT,           <span class="c">-- 头像 dataURL(相册选图自动裁圆压缩,仅存本机)</span>
+  created_at TEXT
 );
 CREATE TABLE payments (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -794,9 +991,11 @@ function updateConflict(){
 function openNew(){
   $('#f-store').value='';$('#f-price').value='';$('#f-deposit').value='';
   $('#f-contact').value='';$('#f-note').value='';$('#f-settle').value='private';
-  $('#f-channel').value='';$('#f-partner').value='';$('#f-location').value='';
+  $('#f-partner').value='';$('#f-location').value='';
   $('#f-need-main').checked=true;$('#f-need-sub').checked=false;
   $('#f-date').value=TODAY;$('#f-time').value='10:00';$('#f-err').style.display='none';
+  ui.draftProv='';ui.draftAccId=ACCS().length?ACCS()[0].id:null;
+  renderAccPick('f-acc-block',ui.draftAccId);renderProvPick('f-prov-block','');
   updateConflict();
   showSheet('sheet-new');
 }
@@ -808,6 +1007,7 @@ function saveOrder(){
   if(priceCents===null||depositCents===null||depositCents>priceCents){fail('总价和定金须为有效非负金额，最多两位小数，定金不能超过总价');return}
   const needMain=$('#f-need-main').checked,needSub=$('#f-need-sub').checked;
   if(!needMain&&!needSub){fail('出片要求至少要勾选正片或副片');return}
+  if(accMulti()&&ui.draftAccId==null){fail('请选择账号');return}
   const date=$('#f-date').value||TODAY,time=$('#f-time').value||'10:00',appt=`${date}T${time}`;
   const settleVia=$('#f-settle').value;
   if(!validDateTime(appt)){fail('请填写有效的预约日期和时间');return}
@@ -817,7 +1017,8 @@ function saveOrder(){
   if(!Number.isSafeInteger(id)||id<1){fail('订单编号超出安全范围或已有异常编号，无法新建');return}
   const o={id,store,cat:$('#f-cat').value,
     contact:$('#f-contact').value.trim(),price:priceCents/100,deposit:depositCents/100,settleVia,
-    channel:$('#f-channel').value.trim()||'直客',partner:$('#f-partner').value.trim(),
+    channel:chanFromDraft(),partner:$('#f-partner').value.trim(),
+    accountId:ACCS().length?(accMulti()?ui.draftAccId:ACCS()[0].id):null,
     location:$('#f-location').value.trim(),deliverMain:needMain,deliverSub:needSub,reviewResult:'',publishedAt:null,
     appt,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
     depositPaidAt:null,finalPaidAt:null,remindAt:null,note:$('#f-note').value.trim()};
@@ -827,9 +1028,9 @@ function saveOrder(){
 }
 
 /* ================= 编辑订单(全环节可改) ================= */
-const EDIT_FIELDS=['e-store','e-cat','e-settle','e-channel','e-partner','e-location','e-date','e-time','e-price','e-deposit','e-contact','e-note'];
+const EDIT_FIELDS=['e-store','e-cat','e-settle','e-partner','e-location','e-date','e-time','e-price','e-deposit','e-contact','e-note'];
 const EDIT_CHECKS=['e-need-main','e-need-sub'];
-function editDraft(){return JSON.stringify([EDIT_FIELDS.map(id=>$('#'+id).value),EDIT_CHECKS.map(id=>$('#'+id).checked)])}
+function editDraft(){return JSON.stringify([EDIT_FIELDS.map(id=>$('#'+id).value),EDIT_CHECKS.map(id=>$('#'+id).checked),ui.draftProv,ui.draftAccId])}
 function renderEditReceipts(o){
   const locked=hasAnyReceipt(o);
   $('#e-price').readOnly=locked;$('#e-deposit').readOnly=locked;
@@ -863,7 +1064,8 @@ function openEdit(oid){
     <div class="frow"><label>品名/商家</label><input id="e-store" value="${esc(o.store||'')}"></div>
     <div class="frow"><label>类型</label><select id="e-cat">${catOpts.map(c=>`<option ${c===o.cat?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
     <div class="frow"><label>结算方式</label><select id="e-settle"><option value="private" ${o.settleVia!=='douyin'?'selected':''}>私收(微信/支付宝/银行卡)</option><option value="douyin" ${o.settleVia==='douyin'?'selected':''}>抖音商单(平台结算)</option></select></div>
-    <div class="frow"><label>服务商</label><input id="e-channel" value="${esc(o.channel||'')}" placeholder="如:蜂向/小爱/金城/食物"></div>
+    <div id="e-acc-block"></div>
+    <div id="e-prov-block"></div>
     <div class="frow"><label>组队</label><input id="e-partner" value="${esc(o.partner||'')}" placeholder="组队/出镜搭档,单人拍摄可空"></div>
     <div class="frow"><label>地点</label><input id="e-location" value="${esc(o.location||'')}" placeholder="如:万象城 3 层"></div>
     <div class="frow"><label>预约日期</label><input id="e-date" type="date" value="${esc((o.appt||'').slice(0,10))}"></div>
@@ -887,6 +1089,8 @@ function openEdit(oid){
     <div class="btn2" id="e-payments"></div>
     <div class="rsub" style="margin-top:6px;line-height:1.5">补记前请先保存修改；按已保存金额记一笔，平台单使用抖音商单，私收默认微信。撤销仅用于纠正错误收款，会同时移除对应流水。</div>
     <div style="padding:16px 0 4px"><button class="btn primary" data-act="save-edit" data-oid="${esc(o.id)}">保存修改</button></div>`;
+  ui.draftProv=o.channel||'直客';ui.draftAccId=o.accountId??(ACCS().length?ACCS()[0].id:null);
+  renderAccPick('e-acc-block',ui.draftAccId);renderProvPick('e-prov-block',ui.draftProv);
   renderEditReceipts(o);ui.editSnapshot=editDraft();
   updateEditConflict();
   ['e-date','e-time'].forEach(id=>{
@@ -914,9 +1118,11 @@ function saveEdit(){
   if(!['private','douyin'].includes(settleVia)){toast('请选择有效的结算方式');return}
   const needMain=$('#e-need-main').checked,needSub=$('#e-need-sub').checked;
   if(!needMain&&!needSub){toast('出片要求至少要勾选正片或副片');return}
+  if(accMulti()&&ui.draftAccId==null){toast('请选择账号');return}
   o.store=store;o.cat=$('#e-cat').value;o.settleVia=settleVia;
-  o.channel=$('#e-channel').value.trim()||'直客';o.partner=$('#e-partner').value.trim();
+  o.channel=chanFromDraft();o.partner=$('#e-partner').value.trim();
   o.location=$('#e-location').value.trim();
+  o.accountId=ACCS().length?(accMulti()?ui.draftAccId:ACCS()[0].id):null;
   o.deliverMain=needMain;o.deliverSub=needSub;o.reviewResult=$('#e-review').value;
   o.appt=appt;o.price=priceCents/100;o.deposit=depositCents/100;
   o.contact=$('#e-contact').value.trim();o.note=$('#e-note').value.trim();
@@ -1041,6 +1247,7 @@ function openDetail(id){
     <div class="info-grid">
       <div class="ig"><div class="k">预约时间</div><div class="v">${esc(fmtD(o.appt))} ${esc(fmtHM(o.appt))}</div></div>
       <div class="ig"><div class="k">实际拍摄</div><div class="v">${esc(fmtDT(o.shotAt))}</div></div>
+      ${accMulti()?`<div class="ig"><div class="k">账号</div><div class="v" style="display:flex;align-items:center;gap:6px">${accTagHTML(accById(o.accountId))}<button class="mini-btn" data-act="copy-account" data-id="${o.accountId??''}">拷贝</button></div></div>`:''}
       <div class="ig"><div class="k">地点</div><div class="v">${esc(o.location||'—')}</div></div>
       <div class="ig"><div class="k">发布时间</div><div class="v">${esc(fmtDT(o.publishedAt))}</div></div>
       <div class="ig"><div class="k">服务商</div><div class="v">${esc(o.channel||'直客')}</div></div>
@@ -1123,13 +1330,14 @@ let toastTimer;
 function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
 
 /* ================= 统计 ================= */
-function statsFor(period){
+function statsFor(period,list){
   refreshClock();
+  const orders=list||db.orders;
   const start=new Date(now.getFullYear(),now.getMonth(),period==='M'?1:now.getDate()-(+period-1));
   const inWin=t=>t&&new Date(t)>=start&&new Date(t)<=now;
-  const deals=db.orders.filter(o=>inWin(o.appt));
-  const paid=db.payments.filter(p=>inWin(p.at));
-  const done=db.orders.filter(o=>workOf(o)==='已交付'&&inWin(o.shortAt>o.longAt?o.shortAt:o.longAt));
+  const deals=orders.filter(o=>inWin(o.appt));
+  const paid=(list?db.payments.filter(p=>orders.some(o=>o.id===p.oid)):db.payments).filter(p=>inWin(p.at));
+  const done=orders.filter(o=>workOf(o)==='已交付'&&inWin(o.shortAt>o.longAt?o.shortAt:o.longAt));
   return {start,deals,paid,done,
     dealSum:deals.reduce((s,o)=>s+Math.round(o.price*100),0)/100,
     paidSum:paid.reduce((s,p)=>s+Math.round(p.amount*100),0)/100};
@@ -1146,14 +1354,15 @@ function headBtns(share){
 
 /* ================= 渲染:首页 ================= */
 function renderHome(){
-  const overAll=db.orders.filter(isOver);
+  const flt=db.orders.filter(accMatch);
+  const overAll=flt.filter(isOver);
   const over=overAll.filter(o=>!snoozed(o));
   const overSum=over.reduce((s,o)=>s+owedOf(o),0);
   const maxOver=over.length?Math.max(...over.map(overdueDays)):0;
-  const todays=db.orders.filter(o=>o.appt.slice(0,10)===TODAY&&!o.shotAt).sort((a,b)=>a.appt.localeCompare(b.appt));
-  const sending=db.orders.filter(o=>['后期中','发片中'].includes(workOf(o))).sort((a,b)=>(a.shotAt||'').localeCompare(b.shotAt||''));
-  const m=statsFor('M');
-  const totOwed=db.orders.reduce((s,o)=>s+owedOf(o),0);
+  const todays=flt.filter(o=>o.appt.slice(0,10)===TODAY&&!o.shotAt).sort((a,b)=>a.appt.localeCompare(b.appt));
+  const sending=flt.filter(o=>['后期中','发片中'].includes(workOf(o))).sort((a,b)=>(a.shotAt||'').localeCompare(b.shotAt||''));
+  const m=statsFor('M',flt);
+  const totOwed=flt.reduce((s,o)=>s+owedOf(o),0);
 
   let alertCard;
   if(over.length){
@@ -1180,10 +1389,10 @@ function renderHome(){
 
   const todayRows=todays.length?todays.map(o=>{
     const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
-    return `<div class="row" data-act="open" data-oid="${o.id}">
+    return `<div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">预约</div></div>
       <div class="rmain"><div class="rname">${esc(o.store)}</div>
-        <div class="chiprow">${workChip(o)}${depChip||payChip(o)}<span class="chip c-gray">${esc(o.cat)}</span></div></div>
+        <div class="chiprow">${accOrderTag(o)}${workChip(o)}${depChip||payChip(o)}<span class="chip c-gray">${esc(o.cat)}</span></div></div>
       <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div></div>
       <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
     </div>`;}).join('')
@@ -1196,9 +1405,9 @@ function renderHome(){
       deliveredAll(o)&&!o.publishedAt?'待发布':''].filter(Boolean)
       .map(t=>`<span class="chip c-orange">${t}</span>`).join('');
     const late=deliverLate(o)?`<span class="chip c-red">超24h</span>`:'';
-    return `<div class="row" data-act="open" data-oid="${o.id}">
+    return `<div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">拍摄于 ${fmtD(o.shotAt)} · ${fmtMoney(o.price)}</div></div>
-      <div style="display:flex;gap:5px;flex-shrink:0">${late}${miss}</div>
+      <div style="display:flex;gap:5px;flex-shrink:0">${accOrderTag(o)}${late}${miss}</div>
     </div>`;}).join('')
     : `<div class="empty">没有待发片的订单 🎉</div>`;
 
@@ -1212,6 +1421,7 @@ function renderHome(){
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
       </div>
     </div>
+    ${accChipbarHTML()}
     ${alertCard}
     <div class="sec-title">今日拍摄 <span class="more" data-act="tab" data-tab="trip">行程 ›</span></div>
     <div class="card rows">${todayRows}</div>
@@ -1312,17 +1522,17 @@ function chipMatch(o){
 }
 function renderOrders(){
   const q=ui.q.trim();
-  const all=db.orders.filter(chipMatch).filter(o=>!q||o.store.toLowerCase().includes(q.toLowerCase()))
+  const all=db.orders.filter(accMatch).filter(chipMatch).filter(o=>!q||o.store.toLowerCase().includes(q.toLowerCase()))
     .sort((a,b)=>(b.shotAt||b.appt).localeCompare(a.shotAt||a.appt));
-  const cnt=k=>db.orders.filter(o=>{const t=ui.chip;ui.chip=k;const r=chipMatch(o);ui.chip=t;return r}).length;
+  const cnt=k=>db.orders.filter(accMatch).filter(o=>{const t=ui.chip;ui.chip=k;const r=chipMatch(o);ui.chip=t;return r}).length;
   const chips=[['all','全部'],['wait','待拍摄'],['doing','进行中'],['unpaid','待收款'],['over','逾期'],['done','已完结']]
     .map(([k,l])=>`<button class="fchip ${ui.chip===k?'on':''}" data-act="chip" data-chip="${k}">${l} <b>${cnt(k)}</b></button>`).join('');
   const rows=all.length?all.map(o=>`
-    <div class="row" data-act="open" data-oid="${o.id}">
+    <div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain">
         <div class="rname">${esc(o.store)}</div>
         <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${esc(o.cat)}${o.partner?' · 出镜 '+esc(o.partner):''}</div>
-        <div class="chiprow">${workChip(o)}${payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
+        <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
       </div>
       <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div>
         <div class="rsub" style="${owedOf(o)>0?'color:var(--red);font-weight:700':''}">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div>
@@ -1335,6 +1545,7 @@ function renderOrders(){
       <div style="display:flex;gap:8px;align-items:center">${headBtns(false)}
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button></div>
     </div>
+    ${accChipbarHTML()}
     <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
       <input id="q-input" placeholder="搜索商家名称" value="${esc(ui.q)}"></div>
     <div class="chips">${chips}</div>
@@ -1345,11 +1556,11 @@ function renderOrders(){
 
 /* ================= 渲染:收款 ================= */
 function renderPay(){
-  const rows0=db.orders.filter(o=>owedOf(o)>0);
+  const rows0=db.orders.filter(accMatch).filter(o=>owedOf(o)>0);
   const unDepSum=rows0.reduce((s,o)=>s+unDep(o),0);
   const unFinSum=rows0.reduce((s,o)=>s+unFin(o),0);
   const dySum=rows0.filter(o=>o.settleVia==='douyin').reduce((s,o)=>s+unFin(o),0);
-  const overAll=db.orders.filter(isOver);
+  const overAll=db.orders.filter(accMatch).filter(isOver);
   const over=overAll.filter(o=>!snoozed(o));
   const overSum=over.reduce((s,o)=>s+unFin(o),0);
 
@@ -1366,25 +1577,27 @@ function renderPay(){
       :isDy?'<span class="chip c-blue">平台结算</span>'
       :isOver(o)?(sn?`<span class="chip c-gray">已设提醒 · ${fmtD(o.remindAt)}再催</span>`:`<span class="chip c-red">逾期 · 欠 ${d} 天</span>`)
       :`<span class="chip ${d>7?'c-orange':'c-gray'}">${o.shotAt?'欠款 '+d+' 天':'未拍摄 · 尚未起算账期'}</span>`;
-    return `<div class="row" data-act="open" data-oid="${o.id}">
+    return `<div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain"><div class="rname">${esc(o.store)}</div>
         <div class="rsub">${due.sub} ${fmtMoney(due.amt)}</div>
-        <div class="chiprow">${chip}${!isDep&&unDep(o)>0?`<span class="chip c-gray">另待定金 ${fmtMoney(unDep(o))}</span>`:''}</div>
+        <div class="chiprow">${accOrderTag(o)}${chip}${!isDep&&unDep(o)>0?`<span class="chip c-gray">另待定金 ${fmtMoney(unDep(o))}</span>`:''}</div>
       </div>
       <button class="mini-btn green" data-act="open-pay" data-oid="${o.id}" data-kind="${due.kind}">${due.btn}</button>
     </div>`;}).join('')
     : `<div class="empty"><div class="e-ic">✅</div>该区间暂无待收款</div>`;
 
-  const flow=[...db.payments].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8).map(p=>`
-    <div class="row">
+  const flow=[...db.payments].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8).map(p=>{
+    const po=db.orders.find(x=>x.id===p.oid);
+    return `<div class="row" style="${accTint(po)}">
       <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} · ${esc(storeOf(p.oid))}</div>
-        <div class="rsub">${esc(p.kind)} · ${fmtD(p.at)} ${fmtHM(p.at)}</div></div>
+        <div class="rsub">${esc(p.kind)} · ${fmtD(p.at)} ${fmtHM(p.at)}${accMulti()?` · ${accTagHTML(po?accById(po.accountId):null)}`:''}</div></div>
       <span class="chip ${METHOD_CLS[p.method]||'c-gray'}">${esc(p.method)}</span>
-    </div>`).join('');
+    </div>`;}).join('');
 
   $('#v-pay').innerHTML=`
     <div class="htop-row"><div><div class="eyebrow">资金线 · 账期自实际拍摄日起算</div><h1 class="big">收款</h1></div>
     <div style="display:flex;gap:8px">${headBtns(false)}</div></div>
+    ${accChipbarHTML()}
     <div class="card" style="padding:16px;margin-bottom:12px">
       <div style="font-size:12px;color:var(--sub)">待收款总额</div>
       <div style="font-size:32px;font-weight:800;letter-spacing:.3px;margin:4px 0 2px">${fmtMoney(unDepSum+unFinSum)}</div>
@@ -1406,8 +1619,32 @@ function renderPay(){
 }
 
 /* ================= 渲染:统计 ================= */
+function accountSectionHtml(){
+  const accs=ACCS();
+  if(!accs.length)return `<div class="menu-row" data-act="open-account">
+    <span class="menu-ic" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 19.5c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/></svg></span>
+    <div class="menu-t"><div class="menu-name">添加账号</div><div class="menu-sub">多账号达人:订单挂账号、资料一键拷贝去报名;单账号数据自动归属,界面零打扰</div></div>
+    <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg></div>`;
+  let html='';
+  for(const a of accs){
+    const c=accColor(a);const n=db.orders.filter(o=>o.accountId===a.id).length;
+    html+=`<div class="row" style="background:${c.bg};border-radius:14px;align-items:center;gap:12px">
+      ${accAvatarHTML(a)}
+      <div style="flex:1;min-width:0"><div class="rname" style="font-size:14.5px">${esc(a.name)}</div>
+        <div class="rsub">抖音:${esc(a.douyin||'—')} · 手机 ${esc(a.phone||'—')} · ${n} 单</div></div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="mini-btn" data-act="copy-account" data-id="${a.id}">拷贝</button>
+        <button class="mini-btn" style="background:rgba(0,0,0,.06);color:#55555e" data-act="open-account" data-id="${a.id}">编辑</button></div>
+    </div>`;
+  }
+  const unassigned=accMulti()?db.orders.filter(o=>o.accountId==null).length:0;
+  if(unassigned)html+=`<div class="row" style="align-items:center;gap:10px">
+    <div class="rmain"><div class="rsub" style="color:var(--orange)">${unassigned} 笔订单未指定账号(含历史单)</div></div>
+    <button class="mini-btn" data-act="assign-open">批量改挂</button></div>`;
+  return html;
+}
 function renderStats(){
-  const st=statsFor(ui.period);
+  const st=statsFor(ui.period,db.orders.filter(accMatch));
   const avg=st.deals.length?Math.round(st.dealSum/st.deals.length):0;
   let days=[];
   if(ui.period==='M'){const e=new Date(now.getFullYear(),now.getMonth(),now.getDate());for(let d=new Date(st.start);d<=e;d.setDate(d.getDate()+1))days.push(toISO(d))}
@@ -1415,8 +1652,8 @@ function renderStats(){
   const daily=days.map(d=>st.paid.filter(p=>p.at.slice(0,10)===d).reduce((s,p)=>s+Math.round(p.amount*100),0)/100);
   const mx=Math.max(...daily,1);
   const bars=daily.map((v,i)=>`<div class="bar ${v?'':'zero'}" title="${days[i]} 实收 ${fmtMoney(v)}"><i style="height:${Math.max(3,Math.round(v/mx*100))}%"></i></div>`).join('');
-  const totOwed=db.orders.reduce((s,o)=>s+owedOf(o),0);
-  const sending=db.orders.filter(o=>['后期中','发片中'].includes(workOf(o))).length;
+  const totOwed=db.orders.filter(accMatch).reduce((s,o)=>s+owedOf(o),0);
+  const sending=db.orders.filter(accMatch).filter(o=>['后期中','发片中'].includes(workOf(o))).length;
   const segP=[['7','近7天'],['30','近30天'],['M','本月']].map(([k,l])=>`<button class="${ui.period===k?'on':''}" data-act="period" data-period="${k}">${l}</button>`).join('');
 
   const byM=Object.create(null);st.paid.forEach(p=>{byM[p.method]=(byM[p.method]||0)+p.amount});
@@ -1433,6 +1670,7 @@ function renderStats(){
   $('#v-stats').innerHTML=`
     <div class="htop-row"><div><div class="eyebrow">实时统计 · 打开即刷新</div><h1 class="big">统计</h1></div>
     <div style="display:flex;gap:8px">${headBtns(false)}</div></div>
+    ${accChipbarHTML()}
     <div class="seg" style="margin-bottom:14px">${segP}</div>
     <div class="mini-grid">
       <div class="mini"><div class="mv">${fmtMoney(st.dealSum)}</div><div class="ml">成交额 · ${st.deals.length} 单</div></div>
@@ -1461,6 +1699,8 @@ function renderStats(){
       <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">待发片订单</div><div class="rsub">后期中 / 发片中</div></div>
         <div class="rside"><div class="rprice" style="color:var(--orange)">${sending} 单</div></div></div>
     </div>
+    <div class="sec-title">我的账号 <span class="more" data-act="open-account">+ 添加 ›</span></div>
+    <div class="card rows">${accountSectionHtml()}</div>
     <div class="sec-title">数据管理(本机 SQLite 存储)</div>
     <div class="card rows">
       <div class="menu-row" data-act="open-schema">
@@ -1553,7 +1793,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
   if(!Store.ready||Store.busy){toast('正在读写数据，请稍候');return}
-  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
+  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
   refreshClock();
   switch(act){
     case 'tab':showTab(t.dataset.tab);break;
@@ -1575,6 +1815,38 @@ document.addEventListener('click',e=>{
     case 'mark-submit':mark(oid,'submittedAt','已标记提审 ✓');break;
     case 'mark-short':mark(oid,'shortAt','已标记发副片 ✓');break;
     case 'mark-long':mark(oid,'longAt','已标记发正片 ✓');break;
+    case 'acc-filter':ui.accFilter=t.dataset.id===''?null:+t.dataset.id;renderAll();break;
+    case 'acc-pick':ui.draftAccId=+t.dataset.id;renderAccPick('f-acc-block',ui.draftAccId);renderAccPick('e-acc-block',ui.draftAccId);break;
+    case 'prov-pick':ui.draftProv=t.dataset.v;{const ctx=t.closest('[id$="-block"]');if(ctx)renderProvPick(ctx.id,ui.draftProv);}break;
+    case 'pal-pick':ui.draftColor=+t.dataset.i;renderPal();renderAvatarPreview();break;
+    case 'open-account':openAccount(t.dataset.id!=null?+t.dataset.id:null);break;
+    case 'save-account':saveAccount();break;
+    case 'delete-account':deleteAccount();break;
+    case 'pick-avatar':$('#avatar-file').click();break;
+    case 'remove-avatar':ui.draftAvatar=null;renderAvatarPreview();break;
+    case 'copy-account':{
+      const a=accById(t.dataset.id);
+      if(!a){toast('该订单未指定账号,无资料可拷');break}
+      copyText(accountCopyText(a)).then(ok=>toast(ok?`已拷贝「${a.name}」资料 ✓`:'拷贝失败,请手动长按复制'));
+      break;
+    }
+    case 'assign-open':{
+      ui.assignAcc=ACCS()[0]?ACCS()[0].id:null;
+      $('#assign-list').innerHTML=ACCS().map(a=>{const c=accColor(a);
+        return `<button type="button" class="acc-opt ${ui.assignAcc===a.id?'sel':''}" data-act="assign-pick" data-id="${a.id}" style="${ui.assignAcc===a.id?`border-color:${c.ink};background:${c.bg}`:''}">
+          <span class="acc-dot"></span>${accAvatarHTML(a,'width:30px;height:30px;font-size:14px;border-radius:10px')}
+          <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${db.orders.filter(o=>o.accountId===a.id).length} 单</span></button>`}).join('');
+      showSheet('sheet-assign');break;
+    }
+    case 'assign-pick':ui.assignAcc=+t.dataset.id;{const list=$('#assign-list');list.querySelectorAll('.acc-opt').forEach(el=>{const sel=+el.dataset.id===ui.assignAcc;el.classList.toggle('sel',sel);el.style.borderColor=sel?accColor(accById(ui.assignAcc)).ink:'';el.style.background=sel?accColor(accById(ui.assignAcc)).bg:'';});}break;
+    case 'assign-run':{
+      const n=db.orders.filter(o=>o.accountId==null).length;
+      if(!n){toast('没有未指定的订单');break}
+      if(ui.assignAcc==null){toast('先选一个账号');break}
+      db.orders.forEach(o=>{if(o.accountId==null)o.accountId=ui.assignAcc});
+      save();closeSheets();renderAll();toast(`已把 ${n} 笔订单改挂到「${accById(ui.assignAcc).name}」`);
+      break;
+    }
     case 'set-review':{
       const o=byId(oid),v=t.dataset.v;
       if(!o||!['pass','fail'].includes(v))break;
@@ -1671,6 +1943,7 @@ $('#f-date').value=TODAY;
   const had=await loadState();
   renderAll();showTab('home');
   Notify.syncDaily();
+  initAvatarInput();
   if(!had&&!Store.blocked)await save();
   initSqlite().then(s=>{if(s){Store.sqlite3=s;if(!Store.blocked&&!Store.busy)persistFull()}else if(!isNative)toast('SQLite 引擎未能加载，JSON 保存和备份仍可用')});
 })();

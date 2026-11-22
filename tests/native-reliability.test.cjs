@@ -157,7 +157,7 @@ const order=overrides=>({
   appt:'2026-11-01T10:00',shotAt:'2026-11-01T11:00',
   submittedAt:null,shortAt:null,longAt:null,
   depositPaidAt:null,finalPaidAt:null,remindAt:null,
-  location:'',deliverMain:true,deliverSub:true,reviewResult:'',publishedAt:null,
+  location:'',deliverMain:true,deliverSub:true,reviewResult:'',publishedAt:null,accountId:null,
   note:'',...overrides,
 });
 
@@ -475,4 +475,69 @@ test('工作流:送审结果/发布时间经备份往返保留,非法值被拒',
   assert.equal(a.run('validateState(backupDocument()).orders[0].publishedAt'),'2026-11-03T09:00');
   assert.throws(()=>a.run(`validateState({orders:[order({reviewResult:'weird'})],payments:[]})`),'非法送审结果应被拒');
   assert.throws(()=>a.run(`validateState({orders:[order({publishedAt:'2026-13-40T10:00'})],payments:[]})`),'非法发布时间应被拒');
+});
+
+/* ---------- 账号体系 v0.6 ---------- */
+
+test('账号:资料与头像随备份往返,订单挂账号可读回',async()=>{
+  const a=app();
+  const av='data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+  setState(a,[order({accountId:1})]);
+  a.run(`db.accounts=[{id:1,name:'大王叫我逛深圳',phone:'13800006678',douyin:'dawang',color:0,avatar:'${av}',createdAt:'2026-11-22T10:00:00.000Z'}];db.providers=['自定义MCN'];`);
+  assert.equal(await a.run('save()'),true);
+  const accRow=a.run(`Store.conn.db.prepare("SELECT name,avatar FROM accounts WHERE mode='work'").all()`);
+  assert.equal(accRow.length,1,'accounts 表应落一行');
+  assert.equal(accRow[0].name,'大王叫我逛深圳');
+  assert.equal(accRow[0].avatar,av,'头像 dataURL 应原样落库');
+  assert.equal(await a.run('loadState()'),true);
+  assert.equal(a.run('db.accounts.length'),1);
+  assert.equal(a.run('db.accounts[0].avatar'),av);
+  assert.equal(a.run('db.orders[0].accountId'),1);
+  assert.equal(a.run("db.providers.includes('自定义MCN')"),true,'自定义服务商应记入预设');
+});
+
+test('账号:悬空 accountId 归一为未指定,非法资料被拒',()=>{
+  const a=app();
+  setState(a,[order({accountId:99})]);
+  assert.equal(a.run('validateState(db).orders[0].accountId'),null,'指向不存在账号应归一为 null');
+  assert.throws(()=>a.run(`validateState({orders:[],payments:[],accounts:[{id:1,name:''}]})`),'空昵称应被拒');
+  assert.throws(()=>a.run(`validateState({orders:[],payments:[],accounts:[{id:1,name:'x',avatar:'http://x/y.png'}]})`),'非 dataURL 头像应被拒');
+  assert.equal(a.run("validateState({orders:[],payments:[]}).accounts.length"),0,'旧备份无 accounts 键时默认空');
+});
+
+test('账号:旧库迁移后 accounts 表自动建出,orders 补 account_id 列',async()=>{
+  const device=newDevice();
+  device.db.exec(`CREATE TABLE orders(
+    mode TEXT NOT NULL, id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
+    price REAL NOT NULL, deposit REAL DEFAULT 0,
+    appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
+    deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+    channel TEXT, partner TEXT, note TEXT, created_at TEXT, updated_at TEXT,
+    PRIMARY KEY(mode,id))`);
+  device.db.exec(`CREATE TABLE payments(mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`);
+  device.db.exec(`CREATE TABLE settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`);
+  const a=app(device);
+  setState(a);
+  assert.equal(await a.run('save()'),true);
+  const tables=a.run(`Store.conn.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name)`);
+  assert.ok(tables.includes('accounts'),'迁移后应有 accounts 表');
+  const cols=a.run(`Store.conn.db.prepare("PRAGMA table_info(orders)").all().map(r=>r.name)`);
+  assert.ok(cols.includes('account_id'),'orders 应补 account_id 列');
+});
+
+test('账号:一键拷贝文本跳过空字段',()=>{
+  const a=app();
+  assert.equal(a.run(`accountCopyText({name:'大西瓜',douyin:'daxigua',phone:''})`),'昵称:大西瓜\n抖音:daxigua');
+  assert.equal(a.run(`accountCopyText({name:'只有昵称'})`),'昵称:只有昵称');
+});
+
+test('账号:备份文档包含 accounts/providers',async()=>{
+  const a=app();
+  setState(a,[order({accountId:1})]);
+  a.run(`db.accounts=[{id:1,name:'A号',color:1}];`);
+  await a.run('save()');
+  const doc=a.json('backupDocument()');
+  assert.equal(doc.accounts.length,1);
+  assert.deepEqual(doc.providers,[]);
+  assert.equal(a.json(`validateState(${JSON.stringify({orders:[order({accountId:42})],payments:[],accounts:[],providers:[]})}).orders[0].accountId`),null,'导入含悬空引用的备份应安全归一');
 });

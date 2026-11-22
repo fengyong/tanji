@@ -71,6 +71,34 @@ function validateState(input){
   const text=(value,label,fallback='')=>{if(value==null)return fallback;if(typeof value!=='string')throw new Error(`${label}必须是文本`);return value};
   const dates=['shotAt','submittedAt','shortAt','longAt','depositPaidAt','finalPaidAt','remindAt','publishedAt'];
   const ids=new Set();
+  // 账号体系:昵称必填,手机/抖音/头像/标识色可选;头像为本地压缩后的 dataURL。
+  // 订单 accountId 指向不存在的账号(如旧备份里删过账号)时归一为 null(未指定),不报错。
+  const accountIds=new Set();
+  const accounts=(Array.isArray(input.accounts)?input.accounts:[]).map((account,index)=>{
+    const label=`第 ${index+1} 个账号`;
+    if(!account||!Number.isSafeInteger(account.id)||account.id<1||accountIds.has(account.id))throw new Error(`${label}的 ID 无效或重复`);
+    if(typeof account.name!=='string'||!account.name.trim())throw new Error(`${label}缺少昵称`);
+    accountIds.add(account.id);
+    const clean={id:account.id,name:account.name,
+      phone:text(account.phone,`${label}的手机号`),douyin:text(account.douyin,`${label}的抖音账号`),
+      color:Number.isSafeInteger(account.color)?Math.max(0,Math.min(7,account.color)):index%8,
+      createdAt:text(account.createdAt,`${label}的创建时间`)||null};
+    if(account.avatar!=null){
+      if(typeof account.avatar!=='string'||(!account.avatar.startsWith('data:image/')&&account.avatar!==''))throw new Error(`${label}的头像数据无效`);
+      if(account.avatar.length>200000)throw new Error(`${label}的头像图片过大`);
+      clean.avatar=account.avatar;
+    }
+    return clean;
+  });
+  const seenProviders=new Set();
+  const providers=(Array.isArray(input.providers)?input.providers:[]).filter(p=>{
+    if(typeof p!=='string')throw new Error('服务商预设必须是文本');
+    const v=p.trim();
+    if(!v||seenProviders.has(v))return false;
+    seenProviders.add(v);
+    return true;
+  });
+
   const orders=input.orders.map((order,index)=>{
     const label=`第 ${index+1} 笔订单`;
     if(!order||!Number.isSafeInteger(order.id)||order.id<1||ids.has(order.id))throw new Error(`${label}的 ID 无效或重复`);
@@ -83,7 +111,8 @@ function validateState(input){
     if(order.reviewResult!=null&&!['','pass','fail'].includes(order.reviewResult))throw new Error(`${label}的送审结果无效`);
     const clean={id:order.id,store:order.store,price:Math.round(order.price*100)/100,deposit:Math.round(order.deposit*100)/100,appt:order.appt,settleVia:order.settleVia||'private',
       location:text(order.location,`${label}的地点`),deliverMain:order.deliverMain!==false,deliverSub:order.deliverSub!==false,
-      reviewResult:order.reviewResult||''};
+      reviewResult:order.reviewResult||'',
+      accountId:order.accountId!=null&&accountIds.has(order.accountId)?order.accountId:null};
     for(const field of ['cat','contact','channel','partner','note'])clean[field]=text(order[field],`${label}的${field}`,field==='cat'?'其他':field==='channel'?'直客':'');
     for(const field of dates){if(order[field]!=null&&!validDateTime(order[field]))throw new Error(`${label}的${field}时间无效`);clean[field]=order[field]??null}
     return clean;
@@ -98,7 +127,7 @@ function validateState(input){
   // notifyEnabled 是原生端的每日催收通知开关，必须跟着数据一起活过重启，
   // 否则用户关掉提醒后重启 App 又会被静默打开。
   const notifyEnabled=input.notifyEnabled===undefined?true:input.notifyEnabled!==false;
-  return {orders,payments,threshold,notifyEnabled};
+  return {orders,payments,threshold,notifyEnabled,accounts,providers};
 }
 function setStorageStatus(message){
   if(Store.lockedOut)message='当前为只读：请关闭其他探记标签页后刷新重试；浏览器须支持安全写入锁。';
@@ -241,7 +270,15 @@ async function replaceData(state){
     return true;
   }finally{Store.busy=false}
 }
-function backupDocument(state=db){return {app:'探记 TanJi',version:'0.4',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,orders:cloneState(state.orders),payments:cloneState(state.payments)}}
+function backupDocument(state=db){return {app:'探记 TanJi',version:'0.4',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,accounts:cloneState(state.accounts||[]),providers:cloneState(state.providers||[]),orders:cloneState(state.orders),payments:cloneState(state.payments)}}
+/* 账号资料一键拷贝文本:昵称/抖音/手机三行,空字段自动跳过(报名表、给服务商用) */
+function accountCopyText(account){
+  const lines=[];
+  if(account.name)lines.push(`昵称:${account.name}`);
+  if(account.douyin)lines.push(`抖音:${account.douyin}`);
+  if(account.phone)lines.push(`手机:${account.phone}`);
+  return lines.join('\n');
+}
 async function previewImport(file){
   if(!file)return;
   try{
@@ -285,7 +322,7 @@ async function exportCheckpoint(){
 
 /* --- 原生:Capacitor SQLite(双数据集:mode 列;settings 以 mode:suffix 为键) --- */
 const NATIVE_DB='tanji';
-const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','deliver_main','deliver_sub','review_result','published_at','note','created_at','updated_at'];
+const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','deliver_main','deliver_sub','review_result','published_at','account_id','note','created_at','updated_at'];
 async function nativeOpen(){
   if(Store.conn)return Store.conn;
   const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
@@ -303,21 +340,28 @@ async function nativeOpen(){
   channel TEXT, partner TEXT,
   location TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
   review_result TEXT DEFAULT '', published_at TEXT,
+  account_id INTEGER,
   note TEXT, created_at TEXT, updated_at TEXT,
   PRIMARY KEY(mode,id))`,values:[]},
     {statement:`CREATE TABLE IF NOT EXISTS payments(
   mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`,values:[]},
+    {statement:`CREATE TABLE IF NOT EXISTS accounts(
+  mode TEXT NOT NULL,
+  id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
+  color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
+  PRIMARY KEY(mode,id))`,values:[]},
     {statement:`CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`,values:[]},
   ],true);
-  // 旧库升级:v0.4 及之前的库没有工作流新列。重复 ADD COLUMN 会报 duplicate column,
-  // 逐条吞掉即可;新库建表已含这些列,ALTER 同样报重复,一起吞。
+  // 旧库升级:v0.5 及之前的库没有工作流/账号新列与新表。重复 ADD COLUMN 会报 duplicate
+  // column,逐条吞掉即可;新库建表已含这些列,ALTER 同样报重复,一起吞。
   for(const stmt of [
     'ALTER TABLE orders ADD COLUMN location TEXT',
     'ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1',
     'ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 0',
     `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
     'ALTER TABLE orders ADD COLUMN published_at TEXT',
+    'ALTER TABLE orders ADD COLUMN account_id INTEGER',
   ]){try{await conn.execute(stmt,false)}catch(e){/* 列已存在,忽略 */}}
   Store.conn=conn;
   return conn;
@@ -329,6 +373,7 @@ function rowToOrder(mode,r){
     settleVia:r.settle_via||'private',remindAt:r.remind_at??null,channel:r.channel||'直客',partner:r.partner??'',
     location:r.location??'',deliverMain:r.deliver_main!==0,deliverSub:r.deliver_sub!==0,
     reviewResult:r.review_result||'',publishedAt:r.published_at??null,
+    accountId:r.account_id??null,
     note:r.note??''};
 }
 async function nativePersistSnapshot(payload){
@@ -338,7 +383,9 @@ async function nativePersistSnapshot(payload){
       {statement:'DELETE FROM orders WHERE mode=?',values:[payload.mode]},
       {statement:'DELETE FROM payments WHERE mode=?',values:[payload.mode]},
     ];
-    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.location||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,o.note||null,ts,ts]}));
+    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.location||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,o.accountId||null,o.note||null,ts,ts]}));
+    set.push({statement:'DELETE FROM accounts WHERE mode=?',values:[payload.mode]});
+    (payload.accounts||[]).forEach(a=>set.push({statement:'INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?)',values:[payload.mode,a.id,a.name,a.phone||null,a.douyin||null,a.color??0,a.avatar||null,a.createdAt||ts]}));
     payload.payments.forEach(p=>set.push({statement:'INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)',values:[payload.mode,p.oid,p.kind,p.amount,p.at,p.method||null,p.note||null]}));
     const doc={...cloneState(payload),savedAt:ts};
     set.push({statement:'INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)',values:[payload.mode,'json',JSON.stringify(doc)]});

@@ -24,8 +24,8 @@ function app({mockDisk=true}={}){
   run('Store.ready=true;Store.mode="work";');
   return {run,context,local,disk,elements,element,events,texts,tick:milliseconds=>{time+=milliseconds},json:code=>JSON.parse(run('JSON.stringify('+code+')'))};
 }
-const order=overrides=>({id:1,store:'测试店',cat:'餐饮',contact:'',channel:'直客',partner:'',price:1000,deposit:200,settleVia:'private',appt:'2026-11-01T10:00',shotAt:'2026-11-01T11:00',submittedAt:null,shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,location:'',deliverMain:true,deliverSub:true,reviewResult:'',publishedAt:null,note:'',...overrides});
-function setState(a,orders=[order()],payments=[]){a.run(`db=${JSON.stringify({orders,payments,threshold:15,notifyEnabled:true})}`)}
+const order=overrides=>({id:1,store:'测试店',cat:'餐饮',contact:'',channel:'直客',partner:'',price:1000,deposit:200,settleVia:'private',appt:'2026-11-01T10:00',shotAt:'2026-11-01T11:00',submittedAt:null,shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,location:'',deliverMain:true,deliverSub:true,reviewResult:'',publishedAt:null,accountId:null,note:'',...overrides});
+function setState(a,orders=[order()],payments=[]){a.run(`db=${JSON.stringify({orders,payments,threshold:15,notifyEnabled:true,accounts:[],providers:[]})}`)}
 function seedForm(a,prefix,values={}){
   const base={store:'新店',cat:'餐饮',price:'1000',deposit:'200',date:'2026-11-22',time:'10:00',contact:'',note:'',channel:'直客',partner:'',settle:'private','need-main':true,'need-sub':false,...values};
   for(const [key,value] of Object.entries(base)){
@@ -40,7 +40,7 @@ test('newer synchronous snapshot wins before IndexedDB commit',async()=>{
   const a=app();setState(a);await a.run('save()');const old=a.disk.get('tanji_v3_work_json');a.run('db.orders[0].store="刚刚修改";save()');a.disk.set('tanji_v3_work_json',old);a.context.readDisk=async key=>({ok:true,value:key==='tanji_v3_work_json'?old:null});a.run('idb.get=readDisk');await a.run('loadState()');assert.equal(a.run('db.orders[0].store'),'刚刚修改');
 });
 test('legacy localStorage wins over stale legacy IDB and retains empty arrays',async()=>{
-  const a=app();a.local.set('tanji_v2',JSON.stringify({orders:[],payments:[],threshold:30}));a.disk.set('json',{orders:[order()],payments:[],threshold:15});await a.run('loadState()');assert.deepEqual(a.json('db'),{orders:[],payments:[],threshold:30,notifyEnabled:true});assert.equal(a.run('Store.mode'),'work');
+  const a=app();a.local.set('tanji_v2',JSON.stringify({orders:[],payments:[],threshold:30}));a.disk.set('json',{orders:[order()],payments:[],threshold:15});await a.run('loadState()');assert.deepEqual(a.json('db'),{orders:[],payments:[],threshold:30,notifyEnabled:true,accounts:[],providers:[]});assert.equal(a.run('Store.mode'),'work');
 });
 test('storage failure reports unsaved data and does not claim success',async()=>{
   const a=app();setState(a);a.run('localStorage.setItem=()=>{throw new Error("quota")};idb.setMany=async()=>false');assert.equal(await a.run('save()'),false);assert.match(a.run('Store.status'),/保存失败/);assert.equal(a.run('db.orders.length'),1);

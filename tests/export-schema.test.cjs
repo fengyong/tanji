@@ -156,7 +156,7 @@ test('每个 INSERT 的值个数必须与目标表的列数一致', () => {
   }
 });
 
-test('orders 表的列数与 v0.5 新增字段符合预期', () => {
+test('orders 表的列数与 v0.5/v0.6 新增字段符合预期', () => {
   const names = tables.get('orders')[0].names;
   // native 分支已上 v0.5 工作流(多 5 列);main 分支仍是 v0.4,按各自基准校验
   const isWorkflowV05 = names.includes('location');
@@ -164,9 +164,13 @@ test('orders 表的列数与 v0.5 新增字段符合预期', () => {
     assert.equal(names.length, 20, `main 分支 orders 表当前是 ${names.length} 列,预期 20`);
     return;
   }
-  assert.equal(names.length, 25, `orders 表当前是 ${names.length} 列,预期 25`);
+  const hasAccounts = names.includes('account_id');
+  assert.equal(names.length, hasAccounts ? 26 : 25, `orders 表当前是 ${names.length} 列,预期 ${hasAccounts ? 26 : 25}`);
   for (const added of ['location', 'deliver_main', 'deliver_sub', 'review_result', 'published_at']) {
     assert.ok(names.includes(added), `orders 表缺少 v0.5 新增列 ${added}`);
+  }
+  if (hasAccounts) {
+    assert.ok(tables.has('accounts'), 'v0.6 账号体系必须有 accounts 表(导出 .db 也要带)');
   }
 });
 
