@@ -294,9 +294,10 @@ async function replaceData(state){
     if(!await persistSnapshot(next))return false;
     Store.backup=before;db=validated;closeSheets();ui.q='';ui.chip='all';ui.bucket='all';renderAll();
     // 数据被整体替换(导入/恢复/清空)后,已排的通知还指着旧数据:已删订单的备忘、
-    // 出片提醒会在半夜凭空响起来。先撤干净,再按新数据重排每日汇总与出片提醒;
+    // 出片提醒会在半夜凭空响起来。先撤掉当前模式的通知,再按新数据重排每日汇总与出片提醒;
     // 催收备忘是"设当时的时点快照",撤掉不凭空重排(与 switchMode 同口径)。
-    await Notify.cancelAll();
+    // 只撤当前模式:另一套数据(work/demo)没被替换,它的通知仍然有效。
+    await Notify.cancelMode();
     Notify.syncDaily();Notify.syncDeliver();
     return true;
   }finally{Store.busy=false}
@@ -485,8 +486,13 @@ async function nativeReadSnapshot(mode,suffix='json'){
 /* ================= 本地通知(仅 iOS 原生生效) =================
  * 每日 09:00 催收汇总(只报条数与最长天数,不含金额);
  * snooze 备忘在原生环境升级为一次性系统通知。
- * 通知 id:每日汇总=1;单订单催收=100000+orderId;出片提醒=300000+orderId。
- * 两段按 orderId 各占一段、互不重叠(要求 orderId<100000,个人记账远达不到)。 ================= */
+ * 通知 id 按「模式 × 类型」分段,work/demo 两套数据各占一段、互不覆盖:
+ *   work(base=0):      每日汇总=1;     催收备忘=100000+orderId;出片提醒=300000+orderId
+ *   demo(base=500000): 每日汇总=500001; 催收备忘=600000+orderId;出片提醒=800000+orderId
+ * 同模式内备忘段与出片段按 orderId 各占一段、互不重叠(要求 orderId<100000,个人记账远达不到)。 ================= */
+const NOTIFY_OFFSET={work:0,demo:500000};
+const notifyBase=()=>NOTIFY_OFFSET[Store.mode]||0;
+const isOurNotifyId=id=>id===1||id===500001||(id>=100000&&id<400000)||(id>=600000&&id<900000);
 
 /* ---- 出片要求(工作流 v0.5):规则实现在 logic.js,这里保留同名薄包装 ----
  * 业务规则统一收敛到 www/logic.js(纯函数),storage.js 只负责持久化与通知。 */
@@ -506,15 +512,16 @@ const Notify={
     if(!this.native())return;
     try{
       const L=CAP.LocalNotifications;
+      const base=notifyBase();
       const pend=await L.getPending();
-      const oldDaily=(pend.notifications||[]).filter(n=>+n.id===1);
+      const oldDaily=(pend.notifications||[]).filter(n=>+n.id===base+1);
       if(oldDaily.length)await L.cancel({notifications:oldDaily});
       const over=db.orders.filter(o=>isOver(o)&&!snoozed(o));
       if(!over.length||db.notifyEnabled===false)return;
       if(!await this.ensurePermission())return;
       const maxD=Math.max(...over.map(overdueDays));
       await L.schedule({notifications:[{
-        id:1,title:'探记 · 尾款催收',
+        id:base+1,title:'探记 · 尾款催收',
         body:`${over.length} 笔尾款已逾期，最长 ${maxD} 天 —— 今日安排一次跟进`,
         schedule:{on:{hour:9,minute:0},repeats:true,allowWhileIdle:true},
       }]});
@@ -526,18 +533,20 @@ const Notify={
     if(!this.native())return;
     try{
       const L=CAP.LocalNotifications;
+      const base=notifyBase();
       const pend=await L.getPending();
-      const mine=(pend.notifications||[]).filter(n=>+n.id>=300000&&+n.id<400000);
+      const mine=(pend.notifications||[]).filter(n=>+n.id>=base+300000&&+n.id<base+400000);
       if(mine.length)await L.cancel({notifications:mine});
-      if(!await this.ensurePermission())return;
       const now=Date.now();
       const list=db.orders
         .filter(o=>o.shotAt&&!deliveredAll(o))
         .map(o=>({o,at:new Date(new Date(o.shotAt).getTime()+864e5)}))
         .filter(x=>!isNaN(x.at.getTime())&&x.at.getTime()>now);
+      // 没有可排的提醒就别碰权限:保存一笔普通订单也要弹通知授权,时机莫名其妙
       if(!list.length)return;
+      if(!await this.ensurePermission())return;
       await L.schedule({notifications:list.map(({o,at})=>({
-        id:300000+o.id,title:'探记 · 出片提醒',
+        id:base+300000+o.id,title:'探记 · 出片提醒',
         body:`「${o.store}」拍摄已超 24 小时,还有片子没出齐,记得跟进`,
         schedule:{at,allowWhileIdle:true},
       }))});
@@ -546,18 +555,19 @@ const Notify={
   async scheduleSnooze(o,d){
     if(!this.native())return;
     try{
-      if(!await this.ensurePermission())return;
-      const L=CAP.LocalNotifications;
-      const pend=await L.getPending();
-      // 备忘一单同时只有一条(下面排新前先撤旧),id 用 100000+订单号独占一段即可。
-      // 不再用 100000+id*100+d:那会在订单号≥2000 时落进 300000+id 的出片提醒段,
-      // 高单号的备忘会把低单号的出片提醒顶掉(id 相同后者覆盖前者)。
-      const mine=(pend.notifications||[]).filter(n=>+n.id===100000+o.id);
-      if(mine.length)await L.cancel({notifications:mine});
       const at=new Date(o.remindAt);
       if(isNaN(at))return;
+      if(!await this.ensurePermission())return;
+      const L=CAP.LocalNotifications;
+      const base=notifyBase();
+      const pend=await L.getPending();
+      // 备忘一单同时只有一条(下面排新前先撤旧),id 用 base+100000+订单号独占一段即可。
+      // 不再用 100000+id*100+d:那会在订单号≥2000 时落进 300000+id 的出片提醒段,
+      // 高单号的备忘会把低单号的出片提醒顶掉(id 相同后者覆盖前者)。
+      const mine=(pend.notifications||[]).filter(n=>+n.id===base+100000+o.id);
+      if(mine.length)await L.cancel({notifications:mine});
       await L.schedule({notifications:[{
-        id:100000+o.id,title:'探记 · 催收跟进',
+        id:base+100000+o.id,title:'探记 · 催收跟进',
         body:`「${o.store}」尾款该跟进了（${d} 天前设置的提醒）`,
         schedule:{at,allowWhileIdle:true},
       }]});
@@ -567,15 +577,36 @@ const Notify={
     if(!this.native())return;
     try{
       const L=CAP.LocalNotifications,pend=await L.getPending();
-      const ours=(pend.notifications||[]).filter(n=>+n.id===1||+n.id>=100000);
+      const ours=(pend.notifications||[]).filter(n=>isOurNotifyId(+n.id));
       if(ours.length)await L.cancel({notifications:ours});
+    }catch(e){}
+  },
+  // 只撤当前模式的全部通知(导入/恢复/清空只替换当前模式数据,另一模式的通知指向的数据还在,不能动)
+  async cancelMode(mode=Store.mode){
+    if(!this.native())return;
+    try{
+      const base=NOTIFY_OFFSET[mode]||0;
+      const L=CAP.LocalNotifications,pend=await L.getPending();
+      const ours=(pend.notifications||[]).filter(n=>{const id=+n.id;return id===base+1||(id>=base+100000&&id<base+400000)});
+      if(ours.length)await L.cancel({notifications:ours});
+    }catch(e){}
+  },
+  // 只撤单笔备忘:清除催收提醒不能连带撤掉同单的 24h 出片提醒(两条通知语义独立)
+  async cancelSnooze(id){
+    if(!this.native())return;
+    try{
+      const base=notifyBase();
+      const L=CAP.LocalNotifications,pend=await L.getPending();
+      const mine=(pend.notifications||[]).filter(n=>+n.id===base+100000+(+id));
+      if(mine.length)await L.cancel({notifications:mine});
     }catch(e){}
   },
   async cancelOrder(id){
     if(!this.native())return;
     try{
+      const base=notifyBase();
       const L=CAP.LocalNotifications,pend=await L.getPending();
-      const mine=(pend.notifications||[]).filter(n=>+n.id===100000+(+id)||+n.id===300000+(+id));
+      const mine=(pend.notifications||[]).filter(n=>+n.id===base+100000+(+id)||+n.id===base+300000+(+id));
       if(mine.length)await L.cancel({notifications:mine});
     }catch(e){}
   },
@@ -584,12 +615,12 @@ const Notify={
     save();renderAll();
     if(db.notifyEnabled!==false)await this.syncDaily();
     else{
-      // 开关语义是「逾期催收每日提醒」(统计页文案),只撤每日汇总(id=1)。
+      // 开关语义是「逾期催收每日提醒」(统计页文案),只撤当前模式的每日汇总(base+1)。
       // 用户自设的 1/3/7 天备忘与 24h 出片提醒不受它管——连带取消会让
       // 用户明确设置的提醒静默消失,且重新开启时也不会被恢复。
       try{
         const L=CAP.LocalNotifications,pend=await L.getPending();
-        const daily=(pend.notifications||[]).filter(n=>+n.id===1);
+        const daily=(pend.notifications||[]).filter(n=>+n.id===notifyBase()+1);
         if(daily.length)await L.cancel({notifications:daily});
       }catch(e){}
     }

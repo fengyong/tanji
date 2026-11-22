@@ -86,8 +86,8 @@ npm run sync             # esbuild 打包插件桥 + cap sync ios(拷 www → io
 
 | 环境 | 读(loadState) | 写(save) | 额外 |
 |---|---|---|---|
-| Web/PWA | IndexedDB + localStorage `tanji_v3_work_json` / `tanji_v3_demo_json`(含旧键 `tanji_v2` / `tanstore_v1` 迁移)→ seed | localStorage 即时 + IndexedDB(json + 真 .db 字节)防抖 400ms | sql.js 生成 `.db` 导出 |
-| iOS 原生 | CapacitorSQLite `tanji` 库三表读出;空库时写入 seed(首装体验与 Web 一致) | `executeSet` 事务内 DELETE + 全量重插,防抖 300ms | settings 键:collect_threshold_days / notify_enabled / app_version |
+| Web/PWA | IndexedDB + localStorage `tanji_v3_work_json` / `tanji_v3_demo_json`(含旧键 `tanji_v2` / `tanstore_v1` 迁移)→ seed | localStorage 即时 + IndexedDB(json + 真 .db 字节),写入经 Store.queue 串行化(无防抖定时器,每次 save 都落盘) | sql.js 生成 `.db` 导出 |
+| iOS 原生 | CapacitorSQLite `tanji` 库三表读出;空库时写入 seed(首装体验与 Web 一致) | `executeSet` 事务内 DELETE + 全量重插,经 Store.queue 串行化(无防抖定时器) | settings 实际只写 `json` / `backup` 两键;collect_threshold_days 等仅存在于导出 .db |
 
 **表结构(v0.4 后原生库按 `mode` 分双数据集,与 Web 导出的 .db 已不同构 —— 跨端搬运请走 JSON 备份):**
 
@@ -104,7 +104,7 @@ JS 模型(camelCase)↔ 行(snake_case)映射:`rowToOrder / rowToPayment / nativ
 
 - **每日催收汇总**:每日 09:00 一条本地通知(`schedule.on={hour:9,minute:0},repeats:true`),内容只报"逾期笔数 + 最长天数",不含金额(隐私友好);`notify_enabled` 设置可关(统计页开关行,仅原生显示);阈值(`th` stepper)变更后自动重排;收款/删单后重排。
 - **1/3/7 天催收备忘 → 真·提醒**:Web v0.2 的 snooze 备忘(打开 App 查看)在原生升级为一次性本地通知,时刻与 `remind_at`(dOff(d,'09:00'))一致;重复 snooze 先取消该订单旧提醒。
-- **通知 id 约定**:每日汇总 = `1`;单订单 = `100000 + orderId*100 + 天数`。
+- **通知 id 约定**(2026-11-22 起,旧公式 `100000 + orderId*100 + 天数` 已废弃:高单号会撞进出片提醒段):按模式分段,work(base=0)每日汇总=1、备忘=`100000+orderId`、出片=`300000+orderId`;demo(base=500000)对应 500001 / `600000+orderId` / `800000+orderId`。详见 storage.js 头部 `NOTIFY_OFFSET` 与文末「深度 review 后续修复」。
 - 权限:`checkPermissions` → 不通过则 `requestPermissions`;未授权时 toast 引导。
 - Web 环境全部静默降级(snooze 仍为应用内备忘)。
 
@@ -600,3 +600,29 @@ DEVELOPMENT_TEAM=你的TeamID DEVICE_UDID=手机UDID npm run install:ios:device
 **验证**:`npm test` 111/111(新增 4 项回归:通知 id 分段、数据替换重排、
 deliver_sub 迁移缺省、计数封顶显示),冒烟 20 项 `consoleErrors` 空,
 `npm run check` 无漂移(锁文件已重新登记),`build:ios` BUILD SUCCEEDED。
+
+## 第三轮深度 review 修复(2026-11-22,fix/deep-review-followups)
+
+> 独立复审(非复核前两轮结论)发现 2 个 P2 + 若干 P3,全部在本分支修复并补回归。
+> 复审报告的实证方法:vm 沙箱加载真实页面脚本 + node:sqlite,逐条复现后再改。
+
+1. **P2 清除催收备忘误杀同单出片提醒**:`clear-remind` 原调 `cancelOrder()` 同时撤
+   `100000+id` 与 `300000+id`;新增 `Notify.cancelSnooze(id)` 只撤备忘段,处理器改接它。
+   `cancelOrder`(删单用)两段同撤的语义不变。
+2. **P2 work/demo 通知 id 同号互顶**:id 只按订单号派生,演示种子固定占 id 1-17,
+   切模式时同号通知互相覆盖。修复:`NOTIFY_OFFSET` 按模式分段——work base=0(每日汇总=1、
+   备忘 100000+、出片 300000+),demo base=500000(500001、600000+、800000+);
+   `replaceData` 改用新增的 `cancelMode()` 只撤当前模式,另一模式的通知不再被殃及。
+3. **P3 通知权限时机**:`syncDeliver` 先算可排列表、确有提醒才请求权限;
+   `scheduleSnooze` 先校验 remindAt 合法性再请求权限。启动补 `syncDeliver()` 自愈。
+4. **P3 里程碑乱序**:`mark()` 加前置依赖守卫(拍摄→提审→发片→出齐→发布),
+   非当前下一步的圆点 `disabled`,挡住"未拍摄就发布"的脏数据。
+5. **P3 其余**:新建订单号 ≥100000 显式拦截(守护通知分段);收款 tab 角标跟随账号筛选;
+   Info.plist 锁竖屏(UI 无横屏适配);表单类型补「露营」(demo 种子已用);
+   `build:ios` 前置 `npm run sync`,纯 checkout 不再能打进旧生成物。
+6. **文档订正**:README 测试数(115)、本笔记 §四 settings 键与"防抖"过时表述、§5.1 旧 id 公式。
+
+**验证**:`npm test` **115/115**(新增 4 项:备忘/出片独立撤销、双模式 id 隔离、
+权限按需请求、里程碑乱序守卫),冒烟 20 项 `consoleErrors` 空,
+`npm run check` 无漂移(按 main @ d74ffd4 重新登记锁),`plutil -lint` Info.plist OK。
+**未做**:sw.js precache 补全属 main 分支事务;站点部署(隐私/支持页 404)需外部操作。

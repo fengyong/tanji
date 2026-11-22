@@ -362,11 +362,90 @@ test('清除催收备忘应撤销已排程的本地通知',async()=>{
   await a.run('loadState()');
   a.run("db.orders[0].remindAt='2026-11-25T09:00';Notify.scheduleSnooze(db.orders[0],1);");
   await tick();
-  assert.equal(a.device.pending.filter(n=>+n.id>=100000).length,1,'备忘应排一个一次性通知');
+  assert.equal(a.device.pending.filter(n=>+n.id>=100000&&+n.id<300000).length,1,'备忘应排一个一次性通知');
 
-  a.run("db.orders[0].remindAt=null;Notify.cancelOrder(db.orders[0].id);");
+  // 处理器(clear-remind)走的是 cancelSnooze:只撤备忘段
+  a.run("db.orders[0].remindAt=null;Notify.cancelSnooze(db.orders[0].id);");
   await tick();
-  assert.equal(a.device.pending.filter(n=>+n.id>=100000).length,0,'清除备忘后不应残留通知');
+  assert.equal(a.device.pending.filter(n=>+n.id>=100000&&+n.id<300000).length,0,'清除备忘后不应残留通知');
+});
+
+test('清除单笔催收备忘只撤备忘段,同单的 24h 出片提醒必须保留',async()=>{
+  const a=app();
+  setState(a,[order({id:5,shotAt:'2026-11-22T10:00'})]);
+  await a.run('save()');
+  await a.run('Notify.syncDeliver()');
+  a.run("db.orders[0].remindAt='2026-11-25T09:00';Notify.scheduleSnooze(db.orders[0],3);");
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===100005).length,1,'备忘 100005 在排');
+  assert.equal(a.device.pending.filter(n=>+n.id===300005).length,1,'出片提醒 300005 在排');
+
+  a.run('Notify.cancelSnooze(5);');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===100005).length,0,'备忘应被撤掉');
+  assert.equal(a.device.pending.filter(n=>+n.id===300005).length,1,'出片提醒不能被清除备忘连带撤掉');
+
+  // 删单仍是两段一起撤(cancelOrder 语义不变)
+  a.run('Notify.cancelOrder(5);');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===300005).length,0,'删单时出片提醒仍要一起撤');
+});
+
+test('双模式通知分段:work/demo 同订单号互不覆盖,切换模式不撤另一模式的通知',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  setState(a,[order({id:2,store:'工作单',shotAt:'2026-11-22T09:00'})]);
+  await a.run('save()');
+  await a.run('Notify.syncDeliver()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'work 的出片提醒落在 300002');
+
+  // 切到 demo:演示种子的 id=2(澄川咖啡,今日拍摄)同样满足出片提醒条件,
+  // 旧实现会用同号 300002 把 work 的通知顶掉;分段后应排到 800002
+  await a.run('switchMode("demo")');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'work 的通知不能被 demo 同订单号顶掉');
+  const demoDeliver=a.device.pending.find(n=>+n.id===800002);
+  assert.ok(demoDeliver,'demo 的出片提醒应落在 800002 段');
+  assert.match(demoDeliver.body,/澄川咖啡/);
+  assert.equal(a.device.pending.filter(n=>+n.id===500001).length,1,'demo 每日汇总应落在 500001');
+
+  // 切回 work:work 段重排,demo 段原样保留
+  await a.run('switchMode("work")');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===800002).length,1,'切回 work 后 demo 的通知不能被撤');
+  assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'work 的出片提醒仍在排');
+  assert.equal(a.device.pending.filter(n=>+n.id===500001).length,1,'demo 的每日汇总也不受影响');
+});
+
+test('没有可排的出片提醒时不请求通知权限,有需求时才请求',async()=>{
+  const a=app();
+  a.run('globalThis.__req=0;CAP.LocalNotifications.checkPermissions=async()=>({display:"prompt"});CAP.LocalNotifications.requestPermissions=async()=>{globalThis.__req++;return{display:"granted"}};');
+  setState(a,[order()]);                       // 无 shotAt,没有任何通知需求
+  await a.run('Notify.syncDeliver()');
+  await tick();
+  assert.equal(a.run('globalThis.__req'),0,'保存普通订单不应弹通知授权');
+
+  a.run('db.orders[0].shotAt="2026-11-22T10:00"');
+  await a.run('Notify.syncDeliver()');
+  await tick();
+  assert.equal(a.run('globalThis.__req'),1,'真有提醒要排时才请求权限');
+});
+
+test('里程碑不能乱序:前置节点未完成时拒绝标记,不产生早于拍摄的发布时间',()=>{
+  const a=app();
+  setState(a,[order({shotAt:null,submittedAt:null,shortAt:null,longAt:null,publishedAt:null})]);
+  assert.equal(a.run('mark(1,"publishedAt","x")'),false,'未拍摄不能标记发布');
+  assert.equal(a.run('db.orders[0].publishedAt'),null);
+  assert.equal(a.run('mark(1,"submittedAt","x")'),false,'未拍摄不能标记提审');
+  assert.equal(a.run('db.orders[0].submittedAt'),null);
+
+  assert.equal(a.run('mark(1,"shotAt","x")'),true,'按顺序:先拍摄');
+  assert.equal(a.run('mark(1,"submittedAt","x")'),true,'再提审');
+  assert.equal(a.run('mark(1,"longAt","x")'),true,'发正片');
+  assert.equal(a.run('mark(1,"publishedAt","x")'),false,'双片单只出正片不算出齐,不能发布');
+  assert.equal(a.run('mark(1,"shortAt","x")'),true,'补发副片');
+  assert.equal(a.run('mark(1,"publishedAt","x")'),true,'出齐后才能发布');
 });
 
 test('删除订单应撤销该订单残留的一次性通知',async()=>{

@@ -68,10 +68,10 @@ npm run sync            # 打包插件桥 + cap sync ios(www → ios/App/App/pub
 npm run sync:web        # 从 main 同步 Web 资产(纯资产自动拷;index.html/storage.js 只检测漂移,人工合并)
 npm run check           # main/native 漂移校验(指纹锁 scripts/web-sync.lock.json + esbuild 产物比对)
 npm run check:update    # 人工合并/有意改动后重新登记锁基线(只做这一件事,不碰文件)
-npm test                # 回归测试(node --test:原生 32 + Web 39 + 导出表结构 5 + 规则 8 + 定位 5 + 接线 3,共 111)
+npm test                # 回归测试(node --test:原生 42 + Web 49 + 导出表结构 5 + 规则 11 + 定位 5 + 接线 3,共 115)
 npm run test:smoke      # 浏览器端到端冒烟(需本机 Chrome,可用 CHROME_BIN 指定)
 npm run serve           # 本地起 Web 版预览(python3 http.server,http://localhost:8765)
-npm run build:ios       # xcodebuild 模拟器构建(不签名)
+npm run build:ios       # 先 npm run sync 再 xcodebuild 模拟器构建(不签名),避免纯 checkout 缺生成物
 npm run build:ios:device# xcodebuild 真机 Release 构建(不签名,产物不能装机)
 npm run install:ios:device # 免费 Apple ID 真机安装(需 DEVELOPMENT_TEAM/DEVICE_UDID,7 天有效)
 npm run open:ios        # 用 Xcode 打开 iOS 工程

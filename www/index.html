@@ -546,7 +546,7 @@
           <select id="f-cat">
             <option>餐饮</option><option>咖啡</option><option>烧烤</option><option>火锅</option><option>茶饮</option><option>甜品</option>
             <option>烘焙</option><option>美发</option><option>健身</option><option>民宿</option>
-            <option>零售</option><option>体验馆</option><option>服饰</option><option>快餐</option><option>其他</option>
+            <option>零售</option><option>体验馆</option><option>露营</option><option>服饰</option><option>快餐</option><option>其他</option>
           </select>
         </div>
         <div class="frow"><label>结算方式</label>
@@ -1173,6 +1173,8 @@ function saveOrder(){
   const maxId=db.orders.reduce((max,x)=>Number.isSafeInteger(x.id)&&x.id>0?Math.max(max,x.id):NaN,0);
   const id=maxId+1;
   if(!Number.isSafeInteger(id)||id<1){fail('订单编号超出安全范围或已有异常编号，无法新建');return}
+  // 通知 id 分段要求 orderId<100000(见 storage.js NOTIFY_OFFSET),个人记账远达不到,到顶直接拦下
+  if(id>=100000){fail('订单编号已达上限(99999),请先导出备份并联系支持');return}
   const o={id,store,cat:$('#f-cat').value,
     contact:$('#f-contact').value.trim(),price:priceCents/100,deposit:depositCents/100,settleVia,
     channel:chanFromDraft(),partner:$('#f-partner').value.trim(),
@@ -1216,7 +1218,7 @@ function toggleReceipt(oid,kind){
 function openEdit(oid){
   const o=byId(oid);if(!o)return;
   ui.editId=oid;ui.payCtx=null;
-  const cats=['咖啡','餐饮','烧烤','火锅','茶饮','甜品','烘焙','美发','健身','民宿','零售','体验馆','服饰','快餐','其他'];
+  const cats=['咖啡','餐饮','烧烤','火锅','茶饮','甜品','烘焙','美发','健身','民宿','零售','体验馆','露营','服饰','快餐','其他'];
   const catOpts=[...new Set([o.cat||'其他',...cats])];
   $('#edit-body').innerHTML=`
     <div class="frow"><label>品名/商家</label><input id="e-store" value="${esc(o.store||'')}"></div>
@@ -1291,9 +1293,15 @@ function saveEdit(){
 
 /* ================= 状态操作 ================= */
 function rerenderDetail(){if(ui.detail!=null&&ui.editId==null&&byId(ui.detail))openDetail(ui.detail)}
+/* 里程碑前置依赖:时间线只能向前走,不允许跳过中间节点直接标记,
+   否则会出现"未拍摄就已发布"这类发布时间早于拍摄的脏数据。 */
+const MILE_PRE={shotAt:null,submittedAt:'shotAt',shortAt:'submittedAt',longAt:'submittedAt'};
 function mark(id,key,label){
   const o=byId(id);
   if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key)||o[key])return false;
+  const pre=MILE_PRE[key];
+  if(pre&&!o[pre]){toast(`请先完成「${MILE_LABEL[pre]}」再标记「${MILE_LABEL[key]}」`);return false}
+  if(key==='publishedAt'&&!deliveredAll(o)){toast('正片/副片出齐后才能标记发布');return false}
   o[key]=nowStr();save();renderAll();rerenderDetail();Notify.syncDeliver();toast(label);
   return true;
 }
@@ -1423,7 +1431,9 @@ function mileStep(oid,key,label,time,done,nowFlag){
   const photo=key==='shotAt'&&done&&target&&target.photoThumb
     ? `<img src="${target.photoThumb}" alt="">`
     : (done?'✓':(nowFlag?'·':''));
-  return `<button class="mstep ${big} ${done?'done':''} ${!done&&nowFlag?'now':''}" data-act="mile" data-oid="${esc(oid)}" data-key="${esc(key)}" style="background:none;border:none;padding:0;--c:${tone.c};--soft:${tone.soft}">
+  // 只有已完成(可点进去清除)和当前下一步可点;更远的未来节点禁用,从 UI 上挡住乱序标记
+  const clickable=done||nowFlag;
+  return `<button class="mstep ${big} ${done?'done':''} ${!done&&nowFlag?'now':''}" ${clickable?'':'disabled aria-disabled="true"'} data-act="mile" data-oid="${esc(oid)}" data-key="${esc(key)}" style="background:none;border:none;padding:0;${clickable?'':'opacity:.45;'}--c:${tone.c};--soft:${tone.soft}">
     <div class="mdotwrap"><div class="mdot">${photo}</div></div>
     <div class="mlab">${esc(label)}</div><div class="mtime">${done?esc(fmtDT(time)):(nowFlag?'点击标记':'')}</div></button>`;
 }
@@ -2166,7 +2176,8 @@ function showTab(t){
 function renderAll(){
   refreshClock();setStorageStatus(Store.status);
   renderHome();renderTrip();renderOrders();renderPay();renderStats();
-  const n=db.orders.filter(o=>isOver(o)&&!snoozed(o)).length;
+  // 角标跟随当前账号筛选:拆账号查看时,数字必须只数当前账号的逾期单
+  const n=db.orders.filter(accMatch).filter(o=>isOver(o)&&!snoozed(o)).length;
   const b=$('#pay-bdg');b.style.display=n?'flex':'none';b.textContent=n;
 }
 
@@ -2280,7 +2291,7 @@ document.addEventListener('click',e=>{
       break}
     case 'snooze':{const o=byId(oid);if(o){const d=+t.dataset.d;o.remindAt=dOff(d,'09:00');save();renderAll();rerenderDetail();Notify.scheduleSnooze(o,d);toast(`已备忘:${d} 天后(${fmtD(o.remindAt)})提醒催收 ✓`)}break}
     case 'notify-toggle':Notify.toggle();break;
-    case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();Notify.cancelOrder(oid);toast('已清除催收提醒')}break}
+    case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();Notify.cancelSnooze(oid);toast('已清除催收提醒')}break}
     case 'remind-open':openRemind(oid);break;
     case 'remind-quick':{const el=$('#remind-note');if(el){el.value=t.dataset.v||'';if(el.focus)el.focus()}break}
     case 'remind-save':saveRemind();break;
@@ -2369,6 +2380,7 @@ $('#f-date').value=TODAY;
   const had=await loadState();
   renderAll();showTab('home');
   Notify.syncDaily();
+  Notify.syncDeliver();
   initAvatarInput();
   initShotInput();
   initSheetGestures();
