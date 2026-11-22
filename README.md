@@ -22,6 +22,7 @@ www/                Web 资源(与 main 分支 Web 版同源;纯资产同步,ind
   vendor/           sql.js WASM(导出真 .db 字节)
 src/cap-plugins.js  插件桥源文件
 ios/App/            cap add ios 生成的 Xcode 工程(SPM,Capacitor 8)
+AGENTS.md           项目必读文档(动手前先读,含两条提交推送硬规则)
 docs/               v0.1 原型归档 + 研发笔记 + 交互评估 + 上架清单 + 多账号原型(docs/proto) + 视觉探索(design-preview)
 ```
 
@@ -31,13 +32,30 @@ docs/               v0.1 原型归档 + 研发笔记 + 交互评估 + 上架清�
 - **Xcode 16+**(构建 iOS;2026-11-22 起 Xcode 27.2 已装并实测通过,模拟器 GUI 在 `Xcode.app/Contents/Applications/DeviceHub.app`)
 - 无需 CocoaPods:Capacitor 8 默认 Swift Package Manager
 
-## 提交与推送
+## 提交与推送（必读）
 
-推送必须走自己的 SSH 别名地址（`origin` 在本机是 `drax-ola` 身份、无写权限；HTTPS 到 github.com 不通）：
+**两条硬规则**，任何一次提交和推送都必须满足，完整版见 [`AGENTS.md`](AGENTS.md)：
 
-```bash
-git push git@github-<你的GitHub用户名>:fengyong/tanji.git HEAD:refs/heads/<你的分支>
-```
+1. **提交标题必须以 agent 名称 / 模型名称开头**
+
+   ```bash
+   git commit -m "mimocode/M31.1-flash feat(native): 一句话说清做了什么"
+   ```
+
+   格式：`<agent名称>/<模型名称> <类型>(<作用域>): <一句话摘要>`。前缀取值 `mimocode/M31.1-flash`
+   （MiniMax Code / MiniMax-M3.1-Flash，本项目当前在用）；换 agent 或换模型就写当次实际用的那个。
+   前缀必须在标题行**开头**，不能写成 `feat(native): mimocode/M31.1-flash ...`。
+
+2. **推送一律用 `fengyong` 账号**
+
+   ```bash
+   git push git@github-fengyong:fengyong/tanji.git HEAD:refs/heads/<分支>
+   ```
+
+   `origin` 在本机是 `drax-ola` 身份、对 `fengyong/tanji` 无写权限；HTTPS 到 github.com 不通；
+   本机 `~/.gitconfig` 的 `insteadOf` 全局改写让「改 remote / 换 HTTPS / 加 `-u」全部无效。
+   `~/.ssh/config` 里已配好 `Host github-fengyong` 别名，用 `ssh -T git@github-fengyong` 校验
+   应回 `Hi fengyong!`。
 
 首次配置、提交前自检、PR 目标分支、CI 触发条件与四类 push 报错的排查见
 [docs/git-push-guide.md](docs/git-push-guide.md)。
@@ -50,7 +68,7 @@ npm run sync            # 打包插件桥 + cap sync ios(www → ios/App/App/pub
 npm run sync:web        # 从 main 同步 Web 资产(纯资产自动拷;index.html/storage.js 只检测漂移,人工合并)
 npm run check           # main/native 漂移校验(指纹锁 scripts/web-sync.lock.json + esbuild 产物比对)
 npm run check:update    # 人工合并/有意改动后重新登记锁基线(只做这一件事,不碰文件)
-npm test                # 回归测试(node --test:原生 32 + Web 39 + 导出表结构 5 + 规则 8 + 定位 5 + 接线 3,共 92)
+npm test                # 回归测试(node --test:原生 32 + Web 39 + 导出表结构 5 + 规则 8 + 定位 5 + 接线 3,共 111)
 npm run test:smoke      # 浏览器端到端冒烟(需本机 Chrome,可用 CHROME_BIN 指定)
 npm run serve           # 本地起 Web 版预览(python3 http.server,http://localhost:8765)
 npm run build:ios       # xcodebuild 模拟器构建(不签名)
