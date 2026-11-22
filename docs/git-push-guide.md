@@ -3,7 +3,7 @@
 > 面向所有参与探记 TanJi 的同学。目标是：**看完能自己把改动安全地送上 GitHub**，
 > 不再出现「push 被拒 / 超时 / 分不清该推哪个分支 / 推完 CI 红」这类来回折腾。
 >
-> 最后核对：2026-11-22（对应 `fix/native-persistence-review` → `native-app` 的提交流程）。
+> 最后核对：2026-11-22（`native-app` 转为独立开发主线；短分支快进合入后直接推送）。
 
 ---
 
@@ -26,7 +26,7 @@ git push git@github-<你的GitHub用户名>:fengyong/tanji.git HEAD:refs/heads/<
 | 分支 | 作用 | 谁能推 |
 |---|---|---|
 | `main` | Web / PWA 版（线上部署即此分支），免费体验入口 | 维护者；改动走 PR 或直接提交 |
-| `native-app` | iOS 原生版基线（Capacitor 壳 + 原生 SQLite/通知） | 维护者；合入走 PR |
+| `native-app` | **iOS 原生版的独立开发主线**（Capacitor 壳 + 原生 SQLite/通知）；短分支完成后快进合入此分支并推送，不再绕道 `main` 走 PR | 维护者 |
 | `fix/*` `feat/*` | 具体需求/修复的短分支，从 `native-app`（或 `main`）切出 | 各自负责人 |
 | `lab` | 点子实验室，独立部署 | 维护者 |
 
@@ -36,7 +36,7 @@ git push git@github-<你的GitHub用户名>:fengyong/tanji.git HEAD:refs/heads/<
 2. **不要跨分支 merge**。需要别人的改动时用 `rebase`，不要 `git merge <别的分支>`——
    历史上出过把 `dev` merge 进 feature 分支、导致 PR 里混进上百个无关提交的事故。
 
-当前 native 侧开发分支示例：`fix/native-persistence-review`，PR 目标 `native-app`。
+当前 native 侧开发分支示例：`fix/native-persistence-review`，完成后**快进合入 `native-app` 并推送**（`git merge --ff-only` + `git push`），不再开 PR 到 `main`。
 
 ---
 

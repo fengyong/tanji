@@ -328,7 +328,7 @@ npm run check              # 再确认一遍
 - `tests/logic.test.cjs` —— 业务规则规格 **8 项**(正副片四种配置、四态推进、资金线、逾期起算、24h 边界、排期 ±120、统计窗口、分制金额)。
 - `tests/geo.test.cjs` —— 到店定位规格 **5 项**(坐标串解析边界、超长串拒绝、展示格式、地图链接优先文本、无地点才用坐标)。
 - `tests/wiring.test.cjs` —— 接线一致性 **3 项**(插件桥全局名与消费端读的名字一致、www 脚本加载顺序、保存按钮不在滚动区)。
-- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 步 + 保存条常驻 + geo 加载,共 15 项检查,需本机 Chrome)。
+- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 步 + 保存条常驻 + geo 加载 + 触摸手感 + 下拉关闭,共 17 项检查,需本机 Chrome)。
 
 合计 `npm test` **92 项**(32 + 39 + 5 + 8 + 5 + 3)。
 
@@ -461,3 +461,36 @@ DEVELOPMENT_TEAM=你的TeamID DEVICE_UDID=手机UDID npm run install:ios:device
 
 - 首次启动若提示「不受信任的开发者」:设置 → 通用 → VPN与设备管理 → 信任你的证书;
 - **7 天后** App 打不开是正常过期:重跑同一条命令覆盖安装即可,**沙盒数据保留**;千万别卸载再装(卸载=删沙盒=丢数据)。
+
+## 真机点验与体验修正(2026-11-22 晚)
+
+真机环境:iPhone 15 Pro / iOS 27.2.1 / `com.olatanji.app` / 免费个人团队签名(`DEVELOPMENT_TEAM=YC9UFHH73D`)。
+主链路跑通后按实际手感改了三处,**都是"模拟器验不出来、一上手就露馅"的类型**。
+
+### 1. 网页手感 → 原生手感
+
+- **现象**:双击放大、按住文字横向拖动把整片刷蓝、长按弹「拷贝/查询」、整页橡皮筋回弹。
+- **根因**:`viewport` 允许缩放且没声明 `touch-action`;`*` 上没有禁 `-webkit-touch-callout`。
+- **改法**:`viewport` 加 `maximum-scale=1,user-scalable=no`;`html{touch-action:manipulation}`;`*`/`body` 禁 callout 与 user-select;`html,body{overscroll-behavior:none}`;`img,svg` 禁拖拽。
+- **保留可复制**:`pre / textarea / input / .schema-pre / .selectable` 单独放开。
+- **护栏**:冒烟 `touch feel locked` 三项断言(`touch-action` / `user-select` / viewport)。
+
+### 2. 弹层没有退出方式 → 下拉关闭 + ✕
+
+- **现象**:点开订单后没有任何手势能退出,只能精确点上方的空白处。
+- **根因**:`#sheet-detail` 只有 `grabber`,没有 `sheet-head` 与关闭按钮;所有弹层都没有手势。
+- **改法**:`initSheetGestures()` —— 弹层跟手位移,松手 >110px 关闭、否则弹回;只在「头部/把手起手」或「列表已滚到顶」时接管,横向/向上手势放行给滚动,结束时清掉行内 `transform`(否则下次打开错位)。详情弹层补 `sheet-head`(标题+✕)。表单弹层(新建/编辑/账号/导入)只允许从头部拖,起手落在输入框内直接放弃。
+- **护栏**:冒烟 `sheet drag to dismiss`(合成 touch 拖 200px,断言弹层关闭且 `ui.detail` 清空)。
+
+### 3. 多账号整行底色 → 3px 账号色条
+
+- **现象**:多账号时每行铺一块账号底色,被卡片 `padding:14px` 与 `.row` 的 0.5px 分隔线切出"白框套色块",账号越多越脏。
+- **改法**:`accTint()` 只输出自定义属性 `--acc:<ink>`,`accBar()` 给行加 `.acc-bar`,CSS 用 `::before` 在行首画 3px 竖条;覆盖首页今日拍摄 / 待发片 / 订单列表 / 行程当日 / 收款流水五处。账号 chip 与迷你头像保留,识别性不受影响。
+
+### 4. 真机已确认 / 待确认
+
+- ✅ 随手拍:相机权限、烘焙淡底图、金额格铺图、自动写拍摄时间 + GPS
+- ✅ 打卡:首页行内一次点击完成,并顺手记定位
+- ✅ 待发片行内按钮、保存条常驻、下拉关闭
+- ⏳ GPS 坐标在国内的偏移(Apple 地图会纠偏,但高德/百度不认 WGS84)、导航跳转、底部安全区
+- ⏳ 免费签名到期日 **2026-11-29** 前后需重装(同一命令,数据保留)
