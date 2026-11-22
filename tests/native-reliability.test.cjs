@@ -539,5 +539,10 @@ test('账号:备份文档包含 accounts/providers',async()=>{
   const doc=a.json('backupDocument()');
   assert.equal(doc.accounts.length,1);
   assert.deepEqual(doc.providers,[]);
+  // 版本号必须与数据结构一起走:v0.6 起才有 accounts/providers,导出的文档要标 0.6,
+  // 且必须能被当前代码读回;未知版本仍要拒绝(白名单只增不减)。
+  assert.equal(doc.version,'0.6','备份文档版本应与数据结构同步为 0.6');
+  assert.equal(a.json(`validateState({version:'0.6',orders:[],payments:[]}).threshold`),15,'0.6 备份必须能导入');
+  assert.throws(()=>a.run(`validateState({version:'0.7',orders:[],payments:[]})`),/暂不支持这个备份版本/,'未知版本必须拒绝');
   assert.equal(a.json(`validateState(${JSON.stringify({orders:[order({accountId:42})],payments:[],accounts:[],providers:[]})}).orders[0].accountId`),null,'导入含悬空引用的备份应安全归一');
 });

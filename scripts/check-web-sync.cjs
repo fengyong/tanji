@@ -24,7 +24,7 @@
  *     - native 侧变了              →  未登记的私自改动，CI 必须失败
  *     - 两侧都变了                →  重新同步过，但锁文件没更新，CI 必须失败
  *
- * 只有显式跑 `npm run sync:web -- --update` 重写锁文件，CI 才会放行。
+ * 只有显式跑 `npm run check:update` 重写锁文件，CI 才会放行。
  * 这样"同步"从一个靠记性的动作，变成一个 CI 可验证的状态。
  *
  * 另外还校验：
@@ -247,7 +247,7 @@ function main() {
   if (!args.update) {
     if (!lock) {
       console.error('✗ 缺少 scripts/web-sync.lock.json —— 无法校验漂移。');
-      console.error('  首次建立基线请执行： npm run sync:web -- --update');
+      console.error('  首次建立基线请执行： npm run check:update');
       process.exit(1);
     }
 

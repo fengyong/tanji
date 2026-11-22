@@ -4,16 +4,19 @@
 
 技术决策与完整研发记录见 [docs/native-app-notes.md](docs/native-app-notes.md)。
 
+> 当前开发分支:`fix/native-persistence-review`(PR 目标 `native-app`)。代码、App 内页脚、导出 `.db`、
+> 备份文档与本文档的版本号统一为 **v0.6**。
+
 ## 目录结构
 
 ```
-www/                Web 资源(与 main 分支 Web 版 v0.2 同步)
+www/                Web 资源(与 main 分支 Web 版同源;纯资产同步,index.html/storage.js 含原生适配层与 v0.5/v0.6 专属改动)
   index.html        UI + 双轨状态机 + 平台自适应持久化 + 原生桥接
   cap-plugins.js    esbuild 打包的 Capacitor 插件桥(window.TanjiCap)
   vendor/           sql.js WASM(导出真 .db 字节)
 src/cap-plugins.js  插件桥源文件
 ios/App/            cap add ios 生成的 Xcode 工程(SPM,Capacitor 8)
-docs/               v0.1 原型归档 + 研发笔记
+docs/               v0.1 原型归档 + 研发笔记 + 上架清单 + 多账号原型(docs/proto)
 ```
 
 ## 环境要求
@@ -29,8 +32,12 @@ npm run build:plugins   # esbuild 打包 src/cap-plugins.js → www/cap-plugins.
 npm run sync            # 打包插件桥 + cap sync ios(www → ios/App/App/public)
 npm run sync:web        # 从 main 同步 Web 资产(纯资产自动拷;index.html/storage.js 只检测漂移,人工合并)
 npm run check           # main/native 漂移校验(指纹锁 scripts/web-sync.lock.json + esbuild 产物比对)
-npm test                # 回归测试(node --test:原生路径 18 项 + Web 39 项)
+npm run check:update    # 人工合并/有意改动后重新登记锁基线(只做这一件事,不碰文件)
+npm test                # 回归测试(node --test:原生路径 29 项 + Web 39 项 + 导出表结构 5 项,共 73)
+npm run test:smoke      # 浏览器端到端冒烟(需本机 Chrome,可用 CHROME_BIN 指定)
 npm run serve           # 本地起 Web 版预览(python3 http.server,http://localhost:8765)
+npm run build:ios       # xcodebuild 模拟器构建(不签名)
+npm run build:ios:device# xcodebuild 真机 Release 构建(不签名)
 npm run open:ios        # 用 Xcode 打开 iOS 工程
 ```
 

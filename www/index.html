@@ -471,8 +471,8 @@
   </div>
 
   <div class="caption">
-    <b>探记 TanJi · v0.4</b>(探店达人的行程与收款)<br>
-    新建预约 / 时段冲突提醒 / 标记拍摄·提审·发片 / 收定金·尾款(记录渠道) / 1·3·7 天催收备忘 / 隐私模式 / 今日行程分享图 / 本机 SQLite 存储 + 导出 — 添加到主屏幕可当独立 App 用
+    <b>探记 TanJi · v0.6</b>(探店达人的行程与收款)<br>
+    新建预约 / 时段冲突提醒 / 标记拍摄·提审·出片·送审·发布 / 收定金·尾款(记录渠道) / 1·3·7 天催收备忘 / 24 小时未出片提醒 / 多账号分账与资料拷贝 / 隐私模式 / 今日行程分享图 / 本机 SQLite 存储 + 导出 — 添加到主屏幕可当独立 App 用
   </div>
 </div>
 
@@ -630,7 +630,7 @@ function buildSqliteBytes(state=db){
     sp.finalize();
     const ss=d.prepare('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)');
     ss.bind(['collect_threshold_days',String(state.threshold)]);ss.step();ss.reset();
-    ss.bind(['app_version','0.4']);ss.step();ss.reset();
+    ss.bind(['app_version','0.6']);ss.step();ss.reset();
     ss.bind(['exported_at',nowStr()]);ss.step();ss.reset();
     ss.finalize();
     const bytes=s.capi.sqlite3_js_db_export(d.pointer);
@@ -914,7 +914,11 @@ function exportDb(){
   download(`探记-${TODAY}.db`,bytes,'application/octet-stream');
   toast('已导出 SQLite 数据库 ✓');
 }
-const SCHEMA=`<span class="c">-- 探记 TanJi · 本机 SQLite 结构(v0.2)</span>
+const SCHEMA=`<span class="c">-- 探记 TanJi · 本机 SQLite 结构(v0.6 · 单数据集视图)</span>
+<span class="c">-- 注意:App 内真实库在同一个 .db 里用 mode 列区分 work/demo 两套数据,
+--       orders/accounts 主键为 (mode,id),payments 带 mode,settings 主键为 (scope,key);
+--       本页与「导出 .db」展示的是去掉 mode 的单数据集视图。
+--       跨设备搬运请用 JSON 备份(统计页可导入),不要直接对拷 .db。</span>
 CREATE TABLE orders (
   id             INTEGER PRIMARY KEY,
   store          TEXT NOT NULL,  <span class="c">-- 品名/商家名称</span>
@@ -955,13 +959,14 @@ CREATE TABLE accounts (
 CREATE TABLE payments (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id INTEGER REFERENCES orders(id),
-  kind     TEXT,  <span class="c">-- deposit 定金 / final 尾款 / extra 追加</span>
+  kind     TEXT,  <span class="c">-- 实际存中文标签:'定金' / '尾款'(与 method 一样只作记录,不做支付)</span>
   amount   REAL, paid_at TEXT,
   method   TEXT,   <span class="c">-- 微信 / 支付宝 / 银行卡 / 抖音商单 / 其他(仅记录,不做支付)</span>
   note     TEXT
 );
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-<span class="c">-- collect_threshold_days = 15 · app_version = 0.2</span>
+<span class="c">-- 导出视图；App 内真实表是 settings(scope,key)：scope=mode，key=json / backup</span>
+<span class="c">-- collect_threshold_days = 15 · app_version = 0.6</span>
 
 <span class="c">-- 常用查询:长期未收尾款(私收单)</span>
 SELECT store, price - deposit AS due,
@@ -1747,7 +1752,7 @@ function renderStats(){
       <div class="menu-row" data-act="clear-data" role="button" tabindex="0">
         <div class="menu-t"><div class="menu-name" style="color:var(--red)">清空当前${Store.mode==='demo'?'演示':'工作'}数据</div><div class="menu-sub">需确认；清空前自动备份，不影响另一套数据</div></div>
       </div>
-      <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0;white-space:normal">探记 TanJi v0.4 · 数据仅存本机，请定期导出备份</div>
+      <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0;white-space:normal">探记 TanJi v0.6 · 数据仅存本机，请定期导出备份</div>
     </div>
     <div class="sec-title">关于</div>
     <div class="card rows">

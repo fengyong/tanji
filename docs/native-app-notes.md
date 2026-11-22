@@ -1,7 +1,7 @@
 # 探记 TanJi · iOS 原生版研发笔记(native-app 分支)
 
 > 本文档记录本地 App 版的技术路线决策、搭建步骤、环境问题与实测清单。持续更新。
-> 分支:`native-app`(独立 git worktree:`/Users/fengyong/drax-glm/tanji-native`)。Base:Web v0.2。
+> 分支:`native-app`(当前开发分支 `fix/native-persistence-review`,独立 git worktree:`/Users/ola/drax-toolbox/tanji-native`)。Base:Web v0.2,现已同步到 v0.4 并叠加 v0.5/v0.6。
 
 ## 一、路线决策(阶段 1 结论)
 
@@ -29,6 +29,7 @@
 
 1. 单人研发 + 快速验证阶段,目标是尽快真机可用、与 Web 版同步迭代;Capacitor 让 UI/状态机 100% 复用,增量成本只有存储适配器与原生桥接。
 2. 数据层目标一致:两条路线最终都是本机 SQLite(orders/payments/settings),A 路线建出的 `.db` 与 v0.2 Web 导出的 `.db` 表结构同构,后续若升级路线 B,数据文件可直接迁移,不留死路。
+   (**此结论已被后续演进推翻**:v0.4 起原生库按 `mode` 分双数据集、v0.6 再加 `accounts` 表,与单数据集导出 `.db` 已不同构 —— 见第四节与「仍未解决」;跨端搬运请走 JSON 备份。)
 3. 路线 B 不废弃,作为"体验升级预留项"。触发条件(任一):WebView 性能不可接受 / 需要深度系统集成(Widget、Live Activity)/ 社区 SQLite 插件停止维护。
 
 **实际执行补充(阶段 4.5)**:main 分支完成 v0.2(隐私模式、预约冲突提醒、今日行程分享图、1/3/7 天催收备忘、收款渠道)后,已同步进 worktree 并把原生适配层移植到 v0.2 底座——Web 与 App 现在是同一份 UI 代码。
@@ -56,7 +57,7 @@ tanji-native/
 ├── capacitor.config.json      # appId com.tanji.app / appName 探记 / webDir www
 ├── package.json               # scripts: build:plugins / sync / open:ios / serve
 ├── src/cap-plugins.js         # esbuild 入口:@capacitor/core + 4 插件 → window.TanjiCap
-├── www/                       # Web 资源(与 main v0.2 同步)
+├── www/                       # Web 资源(main 同源:v0.4 已同步,v0.5/v0.6 为 native 专属改动)
 │   ├── index.html             # UI/状态机(与 main 同源)+ 平台自适应持久化 + 原生桥接
 │   ├── cap-plugins.js         # esbuild 产物(45KB,IIFE)
 │   ├── vendor/sqlite3.mjs+was # sql.js WASM(生成真 .db 字节;Web 与原生 WKWebView 都可用)
@@ -84,14 +85,15 @@ npm run sync             # esbuild 打包插件桥 + cap sync ios(拷 www → io
 
 | 环境 | 读(loadState) | 写(save) | 额外 |
 |---|---|---|---|
-| Web/PWA | IndexedDB `json` → localStorage `tanji_v2`(含 tanstore_v1 v0.1 迁移)→ seed | localStorage 即时 + IndexedDB(json + 真 .db 字节)防抖 400ms | sql.js 生成 `.db` 导出 |
+| Web/PWA | IndexedDB + localStorage `tanji_v3_work_json` / `tanji_v3_demo_json`(含旧键 `tanji_v2` / `tanstore_v1` 迁移)→ seed | localStorage 即时 + IndexedDB(json + 真 .db 字节)防抖 400ms | sql.js 生成 `.db` 导出 |
 | iOS 原生 | CapacitorSQLite `tanji` 库三表读出;空库时写入 seed(首装体验与 Web 一致) | `executeSet` 事务内 DELETE + 全量重插,防抖 300ms | settings 键:collect_threshold_days / notify_enabled / app_version |
 
 **表结构(v0.4 后原生库按 `mode` 分双数据集,与 Web 导出的 .db 已不同构 —— 跨端搬运请走 JSON 备份):**
 
-- `orders`:id, store, category, contact, price, deposit, appt_at, shot_at, submitted_at, short_sent_at, long_sent_at, deposit_paid_at, final_paid_at, **settle_via**(TEXT DEFAULT 'private'——private 私收 / douyin 抖音商单平台结算不催收), **remind_at**(催收备忘 1/3/7 天), note, created_at, updated_at
-- `payments`:id(AUTOINCREMENT), order_id, kind(定金/尾款/extra), amount, paid_at, method(微信/支付宝/银行卡/抖音商单/其他,仅记录标签), note
-- `settings`:key/value
+- `orders`(26 列,主键 `(mode,id)`):mode, id, store, category, contact, price, deposit, appt_at, shot_at, submitted_at, short_sent_at, long_sent_at, deposit_paid_at, final_paid_at, **settle_via**(TEXT DEFAULT 'private'——private 私收 / douyin 抖音商单平台结算不催收), **remind_at**(催收备忘 1/3/7 天), channel(服务商), partner(组队), location / deliver_main / deliver_sub / review_result / published_at(v0.5 工作流), **account_id**(v0.6 所属账号), note, created_at, updated_at
+- `payments`:mode, id(AUTOINCREMENT), order_id, kind(**实际存中文「定金」/「尾款」**), amount, paid_at, method(微信/支付宝/银行卡/抖音商单/其他,仅记录标签), note
+- `accounts`(v0.6,主键 `(mode,id)`):mode, id, name, phone, douyin, color(0-7 色板序号), avatar(dataURL), created_at
+- `settings`:`(scope,key) → value`;scope=mode,key=`json`(完整状态快照,**恢复数据只认它**) / `backup`(替换前备份)
 
 JS 模型(camelCase)↔ 行(snake_case)映射:`rowToOrder / rowToPayment / nativePersist`。注意 `settle_via` 读取时 `r.settle_via || 'private'`(旧行可能为 NULL)。
 
@@ -188,7 +190,7 @@ npm run check              # 再确认一遍
 ## 八、已知问题 / 风险
 
 - ~~**Xcode 未装**~~ 已解除(2026-11-22 装机 Xcode 27.2):模拟器构建/安装/启动/SQLite 读写回环实测通过,见六·五。
-- **全量重写持久化**:nativePersist 采用"DELETE + 全量重插"事务,百单量级无感;千单以上可改增量 UPSERT(v0.3)。
+- **全量重写持久化**:nativePersist 采用"DELETE + 全量重插"事务,百单量级无感;千单以上可改增量 UPSERT(v0.6 之后仍未做)。
 - **sw.js/vendor 随包**:原生包体内含 PWA 资产(sw.js、manifest、icons)约 1.7MB;不碍事,后续可用 `capacitor.config.json` 的排除或拆分目录精简。
 - **每日通知文案**:固定 09:00 时刻,如需"仅在工作日提醒"或随人习惯漂移,后续用 `schedule.on.weekday` 扩展。
 - **privacy 状态未持久化**:与 Web v0.2 行为一致(会话级),如需记忆可写入 settings(两侧都留好了 key-value 通道)。
@@ -202,6 +204,8 @@ npm run check              # 再确认一遍
 - `feat:` 原生桥接 v0.1(通知 + Filesystem/Share 导出)
 - `feat:` 同步 Web v0.2 底座并移植原生适配(settle_via/remind_at、snooze→通知、分享图/.db→Share)
 - `docs:` 本笔记 + README
+- `fix:` 修复原生持久化 7 个严重缺陷并补齐原生路径回归(`5dfe92b`)
+- `feat:` 工作流 v0.5 + 多账号 v0.6(`4f7651a`);原型与研发记录(`e0612ca`);漂移锁重登记(`02a8d27`)
 
 ## v0.4 同步记录(2026-11-21)
 
@@ -311,15 +315,18 @@ npm run check              # 再确认一遍
 ### 仍未解决 / 待决策
 
 - **原生库与导出 .db 表结构不同构**:原生库 `orders`/`payments` 带 `mode` 列(双数据集),而导出 .db 用的是 Web 版表结构(无 mode)。README 与本笔记第四节的「同构/可互换打开」表述已按实情更正 —— **跨端搬运请用 JSON 备份**。
-- **`orders`/`payments` 两张表只写不读**:真实数据源是 `settings` 里的 JSON 文档,`rowToOrder()` 是死代码。两张表每次保存都要 DELETE+全量重插,属冗余写放大。`payments.order_id` 不含 mode,跨数据集有歧义——当前无触发点。
+- **`orders`/`payments`/`accounts` 三张表只写不读**:真实数据源是 `settings` 里的 JSON 文档,`rowToOrder()` 是死代码。三张表每次保存都要 DELETE+全量重插,属冗余写放大;`settings.json` 若损坏,表数据不参与恢复(与「表级兜底」的注释承诺有落差)。`payments.order_id` 不含 mode,跨数据集有歧义——当前无触发点。
 - ~~**原生端没有 Web 那样的双副本兜底**~~ —— 已修复:localStorage 镜像改为**每次保存都写**(不再只在 SQLite 成功时写),`nativeReadSnapshot` 同时读 SQLite 与镜像并按修订号取较新的一份;SQLite 整个不可读时退回镜像并暂停写入(uncertain),避免用旧镜像盖掉新数据。
 - ~~**Xcode 仍未安装**~~ 已解除(2026-11-22):以上原生路径修复已在模拟器上编译通过并实测(见六·五)。
 
 ### 新增测试
 
-- `tests/native-reliability.test.cjs` —— 原生路径回归(18 项),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
+- `tests/native-reliability.test.cjs` —— 原生路径回归(**29 项**),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
 - `tests/web-reliability.test.cjs` —— 移植自 main 的 39 项 Web 回归,指向 `www/`。
-- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 项)。
+- `tests/export-schema.test.cjs` —— 导出表结构护栏 5 项(列数/占位符/accounts 表一致性)。
+- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 步,需本机 Chrome)。
+
+合计 `npm test` **73 项**(29 + 39 + 5)。
 
 ```sh
 node --test tests/native-reliability.test.cjs

@@ -35,16 +35,19 @@ App 内不需要任何购买逻辑。这意味着:**服务器、云开发、备�
 
 ### 1. 分支同步机制 ⚠️ 最高优先级
 
-当前 `native-app/www/` 是 `main` 根目录 web 资源的**手工拷贝**。两边目前逐字节一致,
-但那是手工同步的结果,不是机制保证。
+`native-app/www/` 与 `main` 根目录的 web 资源同源,但**已不再逐字节一致**:
+纯资产(sw.js / manifest / privacy.html / support.html / icons / vendor)保持同步,
+index.html 与 storage.js 上叠了原生适配层,且 native 侧还有 v0.5(v0.6 多账号)的专属功能改动,
+两侧内容指纹由锁文件分别登记,**不再要求相同**——这是有意的,不是漏同步。
 
 同步方向是 **main → native**(main 是唯一真源)。需要:
 
 - [x] 加 `npm run sync:web`(2026-11-22,`scripts/sync-web-assets.cjs`):纯资产(sw.js/manifest/privacy.html/support.html/icons/vendor)从 main 自动拷贝;
       index.html/storage.js 因织入原生适配层**不做盲拷**——main 侧有新改动时列出 diff 摘要并中止,人工合并后再跑一次。
-      基线锁 `scripts/web-sync.lock.json` 已建立(main @ `1d1c28f`)。
-- [x] 加 CI 校验(2026-11-22,`.github/workflows/ci.yml`):native 分支跑 `npm run check` 同款漂移校验 + 原生回归 + 隐私清单合规;
-      main 分支跑单元回归 + 浏览器端到端冒烟
+      基线锁 `scripts/web-sync.lock.json` 已建立(当前 main @ `93cfa31`,native 侧指纹在 v0.5/v0.6 后已重登记)。
+      注意:`sync:web` 成功后脚本会**自动**刷新锁基线,漂移登记仍是 `npm run check:update`。
+- [x] 加 CI 校验(2026-11-22,`.github/workflows/ci.yml`):push 到 `native-app` 或 PR 目标为 `native-app` 时,
+      跑 `npm run check` 同款漂移校验 + 原生回归 + 隐私清单合规;`main` 分支跑单元回归 + 浏览器端到端冒烟
 - [ ] `sw.js` 的 `VERSION` 在发布前必须 bump(否则老用户拿不到新版本)
 
 不做这件事,native 的 `www/` 会慢慢和 Web 版分叉,最终 App Store 版本出现"只有原生版有的 bug"。
@@ -58,7 +61,7 @@ App 内不需要任何购买逻辑。这意味着:**服务器、云开发、备�
 | **隐私政策 URL** | 必填,必须可访问 | ✅ 页面已建(`privacy.html`),⏳ **待部署站点**使线上可访问 |
 | **支持页 URL** | 必填 | ✅ 同上(`support.html`),⏳ 待部署 |
 | **App Privacy 营养标签** | 必填,且**必须与 `PrivacyInfo.xcprivacy` 一致** | 不一致会被自动化扫描直接拒。纯本地 → 「不收集数据」 |
-| **账号删除** | 仅当 App 支持账号创建时需要 | 纯本地版**无账号 → 不需要** ✅ |
+| **账号删除** | 仅当 App 支持账号创建(注册/登录)时需要 | **无登录体系 → 不需要** ✅。注意 App 内 v0.6 的「我的账号」是达人自己的抖音号资料(纯本地记录、不注册不上传),不是 App 账号;提审备注里要写清这一点,避免被当成账号体系追问 |
 | **Paid Apps Agreement** | 付费 App 必须签 | App Store Connect → Agreements |
 | **银行与税务信息** | 付费 App 必须填完整 | 不填会阻塞销售 |
 | **图标** | 1024×1024 PNG,**不允许 alpha 通道**,不预切圆角 | |
@@ -146,7 +149,7 @@ const APP_STORE_URL='';   // 上架后填 https://apps.apple.com/app/id<数字>
 
 ## 五、执行顺序建议
 
-1. ~~**原生版编译闭环**~~ ✅ 2026-11-22 完成:Xcode 27.2 编译 BUILD SUCCEEDED,`App.app` 已装进 iPhone 18 Pro 模拟器跑起来,
+1. ~~**原生版编译闭环**~~ ✅ 2026-11-22 完成:Xcode 27.2 编译 BUILD SUCCEEDED,`App.app` 已装进 iPhone 17 / iOS 27.2 模拟器跑起来,
    SQLite 落盘 / 双副本镜像 / 通知授权弹窗 / 重启持久化逐项验证通过
 2. ~~**同步脚本 + CI 校验**~~ ✅ 2026-11-22 完成:`npm run sync:web` / `npm run check` + `.github/workflows/ci.yml`
 3. ~~**隐私清单 + 隐私政策页 + 支持页**~~ ✅ 2026-11-22 全部就位

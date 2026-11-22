@@ -29,7 +29,10 @@ jobs:
   native:
     name: Native (iOS) 回归 + main/native 漂移校验
     runs-on: ubuntu-latest
-    if: github.ref_name == 'native-app'
+    # push 到 native-app，或 PR 的目标分支是 native-app 时都要跑。
+    # PR 事件下 github.ref_name 是 "123/merge" 而不是分支名，只判 ref_name 会让
+    # PR 阶段的原生回归与漂移校验被静默跳过。
+    if: github.ref_name == 'native-app' || github.base_ref == 'native-app'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,7 +65,8 @@ jobs:
   privacy:
     name: iOS 隐私清单合规
     runs-on: ubuntu-latest
-    if: github.ref_name == 'native-app'
+    # 同 native job：PR 目标为 native-app 时也要查，否则上架合规检查只在合入后才跑
+    if: github.ref_name == 'native-app' || github.base_ref == 'native-app'
     steps:
       - uses: actions/checkout@v4
 

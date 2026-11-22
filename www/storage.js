@@ -63,7 +63,9 @@ function localWrite(key,value){
 }
 function validateState(input){
   if(!input||typeof input!=='object'||!Array.isArray(input.orders)||!Array.isArray(input.payments))throw new Error('备份必须包含订单与收款流水数组');
-  if(input.version&&!['0.2','0.3','0.4'].includes(input.version))throw new Error('暂不支持这个备份版本');
+  // 版本白名单只增不减:0.2~0.4 是老 Web 版备份(无工作流/账号字段,缺省值兜底),
+  // 0.5 起带正/副片与送审发布字段,0.6 起带 accounts/providers。旧备份必须继续可导入。
+  if(input.version&&!['0.2','0.3','0.4','0.5','0.6'].includes(input.version))throw new Error('暂不支持这个备份版本');
   if(input.v!==undefined&&input.v!==2&&input.v!==3)throw new Error('暂不支持这个数据版本');
   const threshold=input.threshold??input.collectThresholdDays??15;
   if(![7,15,30,45].includes(threshold))throw new Error('催收阈值应为 7、15、30 或 45 天');
@@ -270,7 +272,7 @@ async function replaceData(state){
     return true;
   }finally{Store.busy=false}
 }
-function backupDocument(state=db){return {app:'探记 TanJi',version:'0.4',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,accounts:cloneState(state.accounts||[]),providers:cloneState(state.providers||[]),orders:cloneState(state.orders),payments:cloneState(state.payments)}}
+function backupDocument(state=db){return {app:'探记 TanJi',version:'0.6',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,accounts:cloneState(state.accounts||[]),providers:cloneState(state.providers||[]),orders:cloneState(state.orders),payments:cloneState(state.payments)}}
 /* 账号资料一键拷贝文本:昵称/抖音/手机三行,空字段自动跳过(报名表、给服务商用) */
 function accountCopyText(account){
   const lines=[];
