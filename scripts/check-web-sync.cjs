@@ -269,19 +269,19 @@ function main() {
           `${item.main}（${item.note}）\n` +
             `      main 已更新但 native 未同步。\n` +
             `      处理：把 main 的改动同步到 ${item.native}，` +
-            `然后执行 npm run sync:web -- --update 重新登记。`
+            `然后执行 npm run check:update 重新登记。`
         );
       } else if (!mainChanged && nativeChanged) {
         problems.push(
           `${item.main}（${item.note}）\n` +
             `      native 侧被改动了但未登记。\n` +
-            `      处理：确认这是有意的原生专属改动后，执行 npm run sync:web -- --update 重新登记。`
+            `      处理：确认这是有意的原生专属改动后，执行 npm run check:update 重新登记。`
         );
       } else {
         problems.push(
           `${item.main}（${item.note}）\n` +
             `      两侧都更新了，但锁文件没有同步更新。\n` +
-            `      处理：确认 native 已吸收 main 的最新改动后，执行 npm run sync:web -- --update 重新登记。`
+            `      处理：确认 native 已吸收 main 的最新改动后，执行 npm run check:update 重新登记。`
         );
       }
     }

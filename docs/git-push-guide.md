@@ -188,7 +188,7 @@ git push git@github-fengyong:fengyong/tanji.git HEAD:refs/heads/feat/my-change
 ### 4.1 通用（两条都跑）
 
 ```bash
-npm test          # 111 项：原生 32 + Web 39 + 导出表结构 5 + 规则 8 + 定位 5 + 接线 3 + …
+npm test          # 135 项：原生 53 + Web 52 + 导出表结构 5 + 规则 12 + 定位 5 + 接线 8 + …
 npm run check     # main/native 漂移校验 + cap-plugins 构建产物比对
 ```
 

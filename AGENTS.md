@@ -3,7 +3,7 @@
 > **任何 AI agent 或新同学在改这个仓库之前，先读完这一页。**
 > 两条硬规则违反其一，这次提交/推送就不算数。
 
-仓库：`fengyong/tanji` ｜ 当前分支：`native-app`（iOS 原生版独立主线）
+仓库：`fengyong/tanji` ｜ 主线分支：`native-app`（iOS 原生版独立主线；需求从它切 `fix/*`，别在主线上直接开发）
 配套详情：[`docs/git-push-guide.md`](docs/git-push-guide.md)（提交与推送）
 装机指南：[`docs/device-install.md`](docs/device-install.md)（真机安装 · 免费 Apple ID · 故障对照表 · 模拟器）
 
@@ -67,7 +67,7 @@ docs/               研发笔记 + 交互评估 + 上架清单 + 原型
 ## 常用命令
 
 ```bash
-npm test                # 124 项回归（node --test），全绿才算能提交
+npm test                # 135 项回归（node --test），全绿才算能提交
 npm run test:smoke      # 浏览器端到端冒烟（需本机 Chrome）
 npm run check           # main/native 漂移校验（指纹锁 scripts/web-sync.lock.json）
 npm run check:update    # 有意改了共享文件后重登记锁基线

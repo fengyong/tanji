@@ -132,3 +132,20 @@ test('金额:分制解析拒绝非法输入',()=>{
   assert.equal(L.orderMoney({price:'1000',deposit:'2000'}),null,'定金大于报价不合法');
   assert.deepEqual(L.orderMoney({price:'1000',deposit:'200'}),{price:100000,deposit:20000,final:80000});
 });
+
+test('统计:只要副片、不要正片的单也要计入「已交付完结」',()=>{
+  const now=new Date('2026-11-22T12:00');
+  // 交付要求只有副片:shortAt 有值、longAt 恒为 null
+  const subOnly=order({id:1,price:1000,deposit:0,appt:'2026-11-20T10:00',
+    shotAt:'2026-11-20T11:00',submittedAt:'2026-11-20T12:00',
+    deliverMain:false,deliverSub:true,shortAt:'2026-11-20T18:00',longAt:null});
+  assert.equal(L.workOf(subOnly),'已交付','这类单在列表/筛选里就是「已交付」');
+  const m=L.statsFor({orders:[subOnly],payments:[],period:'M',now});
+  // 旧写法 `o.shortAt>o.longAt?o.shortAt:o.longAt` 在 longAt=null 时恒落到 null,
+  // 这类单会被悄悄漏掉 —— 统计页的「已交付完结」永久少算。
+  assert.equal(m.done.length,1,'统计页「已交付完结」不能漏计单副片订单');
+  assert.equal(L.lastDeliveredAt(subOnly),'2026-11-20T18:00','最后交付时间应取副片发出时间');
+  // 两片都要时取较晚的那个
+  const both=order({shortAt:'2026-11-18T18:00',longAt:'2026-11-20T18:00'});
+  assert.equal(L.lastDeliveredAt(both),'2026-11-20T18:00');
+});

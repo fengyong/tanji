@@ -322,15 +322,17 @@ npm run check              # 再确认一遍
 
 ### 新增测试
 
-- `tests/native-reliability.test.cjs` —— 原生路径回归(**32 项**),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
-- `tests/web-reliability.test.cjs` —— 移植自 main 的 39 项 Web 回归,指向 `www/`。
-- `tests/export-schema.test.cjs` —— 导出表结构护栏 5 项(列数/占位符/accounts 表一致性)。
-- `tests/logic.test.cjs` —— 业务规则规格 **8 项**(正副片四种配置、四态推进、资金线、逾期起算、24h 边界、排期 ±120、统计窗口、分制金额)。
-- `tests/geo.test.cjs` —— 到店定位规格 **5 项**(坐标串解析边界、超长串拒绝、展示格式、地图链接优先文本、无地点才用坐标)。
-- `tests/wiring.test.cjs` —— 接线一致性 **3 项**(插件桥全局名与消费端读的名字一致、www 脚本加载顺序、保存按钮不在滚动区)。
-- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 步 + 保存条常驻 + geo 加载 + 触摸手感 + 下拉关闭,共 17 项检查,需本机 Chrome)。
+> 计数随每轮 review 增长,下面这行以 `npm test` 实际输出为准(2026-11-22 第五轮后为 **135** 项)。
 
-合计 `npm test` **92 项**(32 + 39 + 5 + 8 + 5 + 3)。
+- `tests/native-reliability.test.cjs` —— 原生路径回归(**53 项**),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
+- `tests/web-reliability.test.cjs` —— 移植自 main 的 Web 回归(**52 项**),指向 `www/`。
+- `tests/export-schema.test.cjs` —— 导出表结构护栏 5 项(列数/占位符/accounts 表一致性)。
+- `tests/logic.test.cjs` —— 业务规则规格 **12 项**(正副片四种配置、四态推进、资金线、逾期起算、24h 边界、排期 ±120、统计窗口、分制金额、单副片单计入已交付)。
+- `tests/geo.test.cjs` —— 到店定位规格 **5 项**(坐标串解析边界、超长串拒绝、展示格式、地图链接优先文本、无地点才用坐标)。
+- `tests/wiring.test.cjs` —— 接线一致性 **8 项**(插件桥全局名与消费端读的名字一致、www 脚本加载顺序、保存按钮不在滚动区、清催收接 cancelSnooze、随手拍只读拦截、日切重排汇总、挂起前刷盘、里程碑不置 disabled)。
+- `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(共 20 项检查,需本机 Chrome)。
+
+合计 `npm test` **135 项**(53 + 52 + 5 + 12 + 5 + 8)。
 
 ### 业务规则层(www/logic.js)
 
@@ -690,3 +692,57 @@ deliver_sub 迁移缺省、计数封顶显示),冒烟 20 项 `consoleErrors` 空
 冒烟 20 项 `consoleErrors` 空,`npm run check` 无漂移。
 **未修(移交)**:隐私/支持页线上仍 404(部署事务,上架硬阻断);sw.js 缓存策略
 (VERSION 停在 v0.4.1、logic/geo/imaging 永不重验)属 main 分支事务。
+
+## 第五轮深度 review 修复(2026-11-22,mimocode/M31.1-Flash)
+
+> 一份**独立深度 review 报告**的落地:全量通读 `www/index.html`(2391 行)/`storage.js`(631)/
+> `logic.js`(190)/`geo.js`/`imaging.js`,三路并行专项审计(通知生命周期 / 测试防线 / 文档一致性),
+> 再用 `tests/native-reliability.test.cjs` 的内存沙箱**逐条实证复现**每一条结论。
+> 报告在仓库外:`/Users/ola/drax-toolbox/tanji-native-deep-review-2026-11-22.md`。
+> 上一轮(第四轮)已修 4 条,本轮处理剩余 12 条;测试 124 → 135。
+
+### 本轮修的(10 条)
+
+| 编号 | 问题 | 修复 | 位置 |
+|---|---|---|---|
+| **P1-1** | **随手拍打卡拍的单永远收不到 24h 出片提醒** | `initShotInput` 写 `shotAt` 后补 `Notify.syncDeliver()`。`shotAt` 全仓只有两个写入点(`mark()` 有排、`initShotInput` 没有),而随手拍是首页「打卡」的主入口 —— 最主流的打卡路径恰好是唯一漏排的那条 | `www/index.html` `initShotInput` |
+| **P1-3** | 每日 09:00 催收汇总是**冻结快照**(`repeats:true`,body 在排程那刻算死;订单跨阈值是「时间推移」,没有任何数据事件会触发重排) | 加 `syncDailyOnNewDay()`:按自然日节流重排。接在 `refreshVisible` 里(排在「正在输入就跳过」之前),启动时记当天 | `www/index.html` `refreshVisible` |
+| **P2-1** | 统计页「已交付完结」**永久漏计只拍副片、不要正片**的订单 | `logic.js` 取「最后交付时间」改用 `lastDeliveredAt()`(正副片都算取较晚的;都不要求时退回提审)。旧写法 `o.shortAt>o.longAt?…` 在 `longAt=null` 时恒落到 null | `www/logic.js` |
+| **P2-3** | 导入带 `remindAt` 的订单后**该单从催收清单消失且永远不会被提醒**(数据里留着 remindAt → 被 snoozed 排除;通知却撤了不重排) | `replaceData` 撤完当前模式通知后,按仍有效的 `remindAt` 重排 `scheduleSnooze`;`scheduleSnooze` 的 `d` 改为可选(重排时不知道当初设于几天前,改用日期说明白) | `www/storage.js` |
+| **P2-4** | 账号筛选在**行程页完全失效**、**收款流水也不筛**(同一屏两个口径) | `renderTrip`/`renderPay` 接入 `accMatch`;流水按 `accOrderIds()` 过滤;行程页补账号筛选条 | `www/index.html` |
+| **P2-5** | localStorage 第二副本写失败**被静默吞掉**(双副本悄悄退化成单副本,用户不知情) | 原生分支检查 `localWrite` 返回值,失败时横幅提示「第二副本保存失败(本机存储空间可能已满)」 | `www/storage.js` |
+| **P2-6** | **没有 App 生命周期刷盘**:点完「确认收款」立刻上滑杀 App,那一笔可能没落盘 | `visibilitychange(hidden)` 与 `pagehide` 时排干待写队列。没装 `@capacitor/app`(会多一个原生依赖),用 Web 标准事件兜 | `www/index.html` |
+| **P3-1** | 里程碑未来节点置 `disabled` → `mark()` 里「请先完成 X 再标记 Y」**永远点不到**,用户只看到"点了没反应" | 改用 `aria-disabled` + 变暗表达「还没到这一步」,点击交给前置守卫解释原因 | `www/index.html` `mileStep` |
+| **P3-2** | `MILE_PRE` 缺 `publishedAt` → 导入态(正副片都不要求)可在未拍摄时标发布 | 补 `publishedAt:'submittedAt'` | `www/index.html` |
+| **P3-5** | 隐私模式被编辑弹层绕过(`#e-price`/`#e-deposit` 直接输出真实金额) | 隐私模式下金额输入框留空 + `data-masked="1"` + readonly;取值回落原值(`moneyFieldValue`),保存照常成功 | `www/index.html` `openEdit`/`saveEdit` |
+
+**顺带修的两处文档/工具坑**:
+- `scripts/check-web-sync.cjs` 三处报错让用户跑 `npm run sync:web -- --update` —— **该命令不存在**
+  (`sync-web-assets.cjs` 只认 `--ref`,且 main 侧有改动时会 exit 1 中止)。照报错文本走会卡住。
+  改成文档一致的 `npm run check:update`。
+- `Info.plist` 的 `CFBundleDevelopmentRegion` 由 `en` 改为 `zh_CN`:App 全中文,留 `en` 会被
+  App Store 判成英文应用(上架主语言、系统授权弹窗语言)。
+
+### 验证
+
+- `npm test` **135/135**(新增 11 条:随手拍排提醒 1、导入重排备忘 1、镜像失败提示 1、日切重排 1、
+  统计单副片单 1、账号筛选覆盖行程/流水 1、隐私模式遮蔽 1、里程碑未提审不许发布 1、
+  接线 3 条)。**逐条做过变异验证**:去掉对应修复后该条测试必红(10/10 通过)。
+  变异验证中还抓出我自己两个假绿灯:接线测试的正则匹配到了注释而不是代码(P2-6)、
+  以及 P1-3 只跑了行为测试没跑接线测试。
+- `npm run test:smoke` 20 项,`consoleErrors` 空。
+- `npm run check` 无漂移(锁按新 `index.html`/`storage.js` 重登记)。
+- `npm run build:ios` BUILD SUCCEEDED。
+
+### 本轮**未**修(留待下一轮,需设计决定)
+
+- **P2-7 每次 `save()` 全量深拷贝 + 全表重写**:300 单含随手拍 ≈ 3.64MB/次,
+  到 500 单逼近 iOS localStorage 5MB 配额。短期可把 `photoThumb` 从全量快照剥离,
+  中期改增量写 + 去掉 `settings` 里的冗余 JSON 副本。改动面大,单独一轮。
+- **P3-4 `Notify.*` 全部 fire-and-forget**,`syncDeliver` 是无串行化的「读-改-写」,
+  两次并发可交叉成「A 先 schedule、B 后 cancel」。需要一条串行队列包住 `Notify.*`。
+- **P3-8 `sw.js` 缓存策略**:`VERSION` 停在 `tanji-v0.4.1`,`logic.js`/`geo.js`/`imaging.js`/
+  `cap-plugins.js` 走 cache-first 且永不 revalidate。属 main(Web/PWA)线事务,不在 native-app 修。
+- **P3-9 `logic.js` 导出的 `pad`/`toISO`/`nowStr` 在应用里从未被调用**,`index.html` 又重写了一遍,
+  「唯一真源」在第一行就破了。
+- **P2「隐私/支持页线上 404」**:部署事务,上架硬阻断,需发版流程配合。

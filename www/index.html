@@ -623,6 +623,17 @@ function refreshClock(){
   const previous=TODAY;now=new Date();TODAY=toISO(now);
   if(previous!==TODAY&&ui.selDay===previous){ui.selDay=TODAY;ui.vMon={y:now.getFullYear(),m:now.getMonth()+1}}
 }
+/* 每日 09:00 催收汇总是一条 repeats:true 的重复通知,body 在排程那一刻就冻结了。
+   订单跨过催收阈值是「时间推移」而不是「数据变化」,没有任何数据事件会触发重排 ——
+   订单拍完第 16 天时,汇总里仍然不计入它(上次同步时没逾期的话,连通知都不存在)。
+   这里按自然日节流补排一次:跨零点、或 App 整夜开着从后台回到前台时重排,
+   保证 09:00 响的那条用的是当天口径,而不是昨天冻结的那份。 */
+let lastDailySyncDay='';
+function syncDailyOnNewDay(){
+  if(lastDailySyncDay===TODAY)return;
+  lastDailySyncDay=TODAY;
+  Notify.syncDaily();
+}
 function dOff(days,hm='10:00'){const t=new Date();t.setDate(t.getDate()+days);return `${toISO(t)}T${hm}`}
 function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function validDateTime(value){return TanJiLogic.validDateTime(value)}
@@ -800,7 +811,10 @@ function isOver(o){return TanJiLogic.isOver(o,db.payments,db.threshold,now)}
 function remindLogOf(o){return TanJiLogic.remindLogOf(o)}
 function lastRemind(o){return TanJiLogic.lastRemind(o)}
 function expectOverdue(o){return TanJiLogic.expectOverdue(o,db.payments,now)}
-function upcoming7(){return TanJiLogic.upcomingByDay(db.orders,TODAY,7)}
+/* 账号筛选是全局口径:首页/订单/收款/统计/行程都只数当前账号的数据。
+   上面的 accMatch 按订单筛,流水要按「这张单属于哪个账号」筛,不能直接拿 db.payments。 */
+const accOrderIds=()=>new Set(db.orders.filter(accMatch).map(o=>o.id));
+function upcoming7(){return TanJiLogic.upcomingByDay(db.orders.filter(accMatch),TODAY,7)}
 
 const WORK_CLS={'待拍摄':'c-blue','后期中':'c-purple','发片中':'c-orange','已交付':'c-green'};
 const PAY_CLS={'待定金':'c-gray','待尾款':'c-orange','平台结算':'c-blue','已逾期':'c-red','已结清':'c-green'};
@@ -971,6 +985,9 @@ function initShotInput(){
       target.photoThumb=await TanJiImage.doorThumb(file);
       if(!target.shotAt)target.shotAt=nowStr();   // 到店拍照 = 开始拍摄,不用再点一次"标记已拍摄"
       await save();renderAll();rerenderDetail();
+      // 随手拍会写 shotAt,和「标记已拍摄」是同一条路径 —— 必须同样重排出片提醒,
+      // 否则打卡拍的这一单永远收不到 24h 提醒(App 内红角标却照常显示)。
+      Notify.syncDeliver();
       toast('已随手拍 · 拍摄时间已记录');
       capturePlace(target.id);                    // 拍照当下顺手记一次位置,不阻塞上面的保存
     }catch(e){toast('这张图处理不了,换一张试试')}
@@ -1194,11 +1211,21 @@ function saveOrder(){
 /* ================= 编辑订单(全环节可改) ================= */
 const EDIT_FIELDS=['e-store','e-cat','e-settle','e-partner','e-location','e-date','e-time','e-price','e-deposit','e-contact','e-note'];
 const EDIT_CHECKS=['e-need-main','e-need-sub'];
-function editDraft(){return JSON.stringify([EDIT_FIELDS.map(id=>$('#'+id).value),EDIT_CHECKS.map(id=>$('#'+id).checked),ui.draftProv,ui.draftAccId])}
+/* 隐私模式:编辑弹层的金额输入框留空 + 占位符,取值时回落到原值。
+   (直接把值遮成 ✱✱✱ 会让 type=number 变成非法值,保存时反而报「金额不合法」) */
+const moneyFieldValue=(id,fallback)=>{
+  const el=$('#'+id);
+  if(!el)return fallback;
+  if(el.dataset.masked==='1')return fallback;
+  return el.value;
+};
+function editDraft(){return JSON.stringify([EDIT_FIELDS.map(id=>{const el=$('#'+id);return el?el.value:''}),EDIT_CHECKS.map(id=>{const el=$('#'+id);return el?el.checked:false}),ui.draftProv,ui.draftAccId])}
 function renderEditReceipts(o){
-  const locked=hasAnyReceipt(o);
-  $('#e-price').readOnly=locked;$('#e-deposit').readOnly=locked;
-  $('#e-money-help').textContent=locked?'已有收款记录或已收标记，不能修改总价和定金；请先撤销错误收款再改。':'金额最多两位小数，定金不能超过总价；支持 0 元无定金。';
+  const locked=hasAnyReceipt(o),masked=ui.privacy;
+  $('#e-price').readOnly=locked||masked;$('#e-deposit').readOnly=locked||masked;
+  $('#e-money-help').textContent=masked
+    ?'隐私模式已隐藏金额：总价与定金暂不可查看、不可修改，关掉隐私模式（右上角眼睛）后再编辑。'
+    :locked?'已有收款记录或已收标记，不能修改总价和定金；请先撤销错误收款再改。':'金额最多两位小数，定金不能超过总价；支持 0 元无定金。';
   $('#e-payments').innerHTML=['deposit','final'].map(kind=>{
     const spec=paymentSpec(kind),received=hasReceipt(o,kind),due=kind==='deposit'?unDep(o):unFin(o);
     if(!received&&due<=0)return '';
@@ -1243,8 +1270,8 @@ function openEdit(oid){
       <option value="pass" ${o.reviewResult==='pass'?'selected':''}>合格</option>
       <option value="fail" ${o.reviewResult==='fail'?'selected':''}>不合格</option>
     </select></div>
-    <div class="frow"><label>总价(¥)</label><input id="e-price" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(o.price)}"></div>
-    <div class="frow"><label>定金(¥)</label><input id="e-deposit" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(o.deposit)}"></div>
+    <div class="frow"><label>总价(¥)</label><input id="e-price" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy?'':esc(o.price)}"${ui.privacy?' placeholder="¥✱✱✱" data-masked="1" readonly':''}></div>
+    <div class="frow"><label>定金(¥)</label><input id="e-deposit" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy?'':esc(o.deposit)}"${ui.privacy?' placeholder="¥✱✱✱" data-masked="1" readonly':''}></div>
     <div class="rsub" id="e-money-help" style="margin:6px 0;line-height:1.5"></div>
     <div class="frow"><label>联系方式</label><input id="e-contact" value="${esc(o.contact||'')}"></div>
     <div class="frow"><label>备注</label><textarea id="e-note" rows="2">${esc(o.note||'')}</textarea></div>
@@ -1271,7 +1298,7 @@ function updateEditConflict(){
 function saveEdit(){
   const o=byId(ui.editId);if(!o)return;
   const store=$('#e-store').value.trim();
-  const priceCents=moneyCents($('#e-price').value),depositCents=moneyCents($('#e-deposit').value,true);
+  const priceCents=moneyCents(moneyFieldValue('e-price',o.price)),depositCents=moneyCents(moneyFieldValue('e-deposit',o.deposit),true);
   if(!store){toast('请填写商家名称');return}
   if(priceCents===null||depositCents===null||depositCents>priceCents){toast('总价和定金须为有效非负金额，最多两位小数，定金不能超过总价');return}
   if(hasAnyReceipt(o)&&(priceCents!==moneyCents(o.price)||depositCents!==moneyCents(o.deposit))){toast('已有收款记录，请先撤销错误收款，再修改总价或定金');return}
@@ -1299,7 +1326,7 @@ function saveEdit(){
 function rerenderDetail(){if(ui.detail!=null&&ui.editId==null&&byId(ui.detail))openDetail(ui.detail)}
 /* 里程碑前置依赖:时间线只能向前走,不允许跳过中间节点直接标记,
    否则会出现"未拍摄就已发布"这类发布时间早于拍摄的脏数据。 */
-const MILE_PRE={shotAt:null,submittedAt:'shotAt',shortAt:'submittedAt',longAt:'submittedAt'};
+const MILE_PRE={shotAt:null,submittedAt:'shotAt',shortAt:'submittedAt',longAt:'submittedAt',publishedAt:'submittedAt'};
 /* 时间线全序:清除上游节点时,其后的下游记录一并清掉(截断),
    否则会残留"未拍摄已发布"这类脏时间线——mark 的前置守卫只挡正向标记 */
 const MILE_ORDER=['shotAt','submittedAt','shortAt','longAt','publishedAt'];
@@ -1438,9 +1465,11 @@ function mileStep(oid,key,label,time,done,nowFlag){
   const photo=key==='shotAt'&&done&&target&&target.photoThumb
     ? `<img src="${target.photoThumb}" alt="">`
     : (done?'✓':(nowFlag?'·':''));
-  // 只有已完成(可点进去清除)和当前下一步可点;更远的未来节点禁用,从 UI 上挡住乱序标记
+  // 未来节点用变暗表达"还没到这一步",但**不置 disabled**:置了按钮就点不动,
+  // 用户只会看到"点了没反应";让点击交给 mark() 的前置守卫,至少能告诉他
+  // 「请先完成『提审』再标记『副片发出』」——比默默吞掉点击有用得多。
   const clickable=done||nowFlag;
-  return `<button class="mstep ${big} ${done?'done':''} ${!done&&nowFlag?'now':''}" ${clickable?'':'disabled aria-disabled="true"'} data-act="mile" data-oid="${esc(oid)}" data-key="${esc(key)}" style="background:none;border:none;padding:0;${clickable?'':'opacity:.45;'}--c:${tone.c};--soft:${tone.soft}">
+  return `<button class="mstep ${big} ${done?'done':''} ${!done&&nowFlag?'now':''}" ${clickable?'':'aria-disabled="true"'} data-act="mile" data-oid="${esc(oid)}" data-key="${esc(key)}" style="background:none;border:none;padding:0;${clickable?'':'opacity:.45;'}--c:${tone.c};--soft:${tone.soft}">
     <div class="mdotwrap"><div class="mdot">${photo}</div></div>
     <div class="mlab">${esc(label)}</div><div class="mtime">${done?esc(fmtDT(time)):(nowFlag?'点击标记':'')}</div></button>`;
 }
@@ -1832,11 +1861,11 @@ function renderTrip(){
   const first=new Date(y,m-1,1);
   const off=(first.getDay()+6)%7;
   const dim=new Date(y,m,0).getDate();
-  const mOrders=db.orders.filter(o=>+o.appt.slice(0,4)===y&&+o.appt.slice(5,7)===m);
+  const mOrders=db.orders.filter(accMatch).filter(o=>+o.appt.slice(0,4)===y&&+o.appt.slice(5,7)===m);
   const mSum=mOrders.reduce((s,o)=>s+o.price,0);
   // 日历头部原来只有成交额:排档期时更想知道"这个月已经收到多少"
   const mPrefix=`${y}-${pad(m)}`;
-  const mPaidSum=db.payments.filter(p=>String(p.at||'').slice(0,7)===mPrefix).reduce((s,p)=>s+p.amount,0);
+  const mPaidSum=db.payments.filter(p=>accOrderIds().has(p.oid)&&String(p.at||'').slice(0,7)===mPrefix).reduce((s,p)=>s+p.amount,0);
   const byDay={};mOrders.forEach(o=>{const k=o.appt.slice(0,10);if(!byDay[k])byDay[k]={n:0,s:0};byDay[k].n++;byDay[k].s+=o.price});
   let bFire=0,bMoney=0;Object.values(byDay).forEach(v=>{const b=dayBadge(v.n,v.s);if(b&&b.e==='🔥')bFire++;if(b&&b.e==='💰')bMoney++});
   const mBadges=(bFire?' 🔥'+bFire:'')+(bMoney?' 💰'+bMoney:'');
@@ -1850,7 +1879,7 @@ function renderTrip(){
     cells+=`<button class="mc ${iso===ui.selDay?'sel':''} ${iso===TODAY?'today':''}" data-act="day" data-day="${iso}" title="${bdg?bdg.t:''}">
       <span class="n">${d}</span><span class="d">${ds.length?'<i></i>'.repeat(Math.min(ds.length,6)):''}</span>${bdg?`<span class="bdg">${bdg.e}</span>`:''}</button>`;
   }
-  const list=db.orders.filter(o=>o.appt.slice(0,10)===ui.selDay).sort((a,b)=>a.appt.localeCompare(b.appt));
+  const list=db.orders.filter(accMatch).filter(o=>o.appt.slice(0,10)===ui.selDay).sort((a,b)=>a.appt.localeCompare(b.appt));
   const listHtml=list.length?list.map(orderRowTrip).join('')
     : `<div class="empty"><div class="e-ic">📭</div>这一天暂无拍摄安排</div>`;
   const tomorrow=dOff(1).slice(0,10);
@@ -1882,6 +1911,7 @@ function renderTrip(){
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
       </div>
     </div>
+    ${accChipbarHTML()}
     <div class="mgrid">
       <div class="mhead">
         <div class="mtitle">${y}年${m}月<span class="msum">${mOrders.length} 个档期 · 成交 ${fmtMoney(mSum)} · 已收 ${fmtMoney(mPaidSum)}${mBadges}</span></div>
@@ -1985,7 +2015,7 @@ function renderPay(){
     </div>`;}).join('')
     : `<div class="empty"><div class="e-ic">✅</div>该区间暂无待收款</div>`;
 
-  const flow=[...db.payments].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8).map(p=>{
+  const flow=[...db.payments].filter(p=>accOrderIds().has(p.oid)).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8).map(p=>{
     const po=db.orders.find(x=>x.id===p.oid);
     return `<div class="row${accBar(po)}" style="${accTint(po)}">
       <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} · ${esc(storeOf(p.oid))}</div>
@@ -2376,12 +2406,25 @@ document.addEventListener('keydown',event=>{
 function refreshVisible(){
   if(!Store.ready||Store.busy||document.visibilityState==='hidden')return;
   refreshClock();
+  // 日切重排每日催收汇总:排在 input 检查之前,否则用户正打着字,汇总就永远停在昨天的口径
+  syncDailyOnNewDay();
   if(document.activeElement?.matches('input,textarea,select'))return;
   renderAll();if($('#sheet-detail').classList.contains('show'))rerenderDetail();
 }
 document.addEventListener('visibilitychange',refreshVisible);
 addEventListener('pageshow',refreshVisible);
 setInterval(refreshVisible,60000);
+/* 切后台 / 关页前把待写队列排干。
+   原生端每次 save() 都是一次异步 SQLite 写:界面早就显示「已收 ¥XXX」了,
+   真正落盘却还在队列里 —— 用户点完「确认收款」立刻上滑杀 App,这一笔就没了。
+   这里在 visibilitychange(hidden) 与 pagehide 时等一次队列,给写盘留出机会。
+   没装 @capacitor/app(会多一个原生依赖),用 Web 标准事件兜;
+   iOS 上 App 进后台会触发 visibilitychange。 */
+async function flushPendingWrites(){
+  try{if(Store.queue)await Store.queue}catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushPendingWrites()});
+addEventListener('pagehide',flushPendingWrites);
 addEventListener('storage',event=>{
   if(event.key!==storageKey(Store.mode)||!event.newValue)return;
   try{if(JSON.parse(event.newValue).revision>Store.revision){Store.blocked=true;setStorageStatus('其他页面已更新数据，已暂停本页写入。请刷新读取最新数据。')}}catch(error){}
@@ -2396,6 +2439,7 @@ $('#f-date').value=TODAY;
   // 把旧版本升级前可能排过的演示通知撤干净——demo 段此后不可能再被新排
   Notify.cancelMode('demo');
   Notify.syncDaily();
+  lastDailySyncDay=TODAY;   // 启动这一次已经用当天口径排过,日切前不必再排
   Notify.syncDeliver();
   initAvatarInput();
   initShotInput();

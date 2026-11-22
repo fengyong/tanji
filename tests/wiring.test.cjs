@@ -104,3 +104,44 @@ test('随手拍输入在只读模式下必须拒绝写入(change 处理器绕过
   assert.ok(writeIdx > 0, 'initShotInput 里应能定位到 photoThumb 写入');
   assert.ok(guardIdx < writeIdx, '只读检查必须发生在写入 photoThumb 之前');
 });
+
+/* ---------- 第五轮深度 review 的回归(2026-11-22) ---------- */
+
+test('前台刷新要按自然日重排每日催收汇总', () => {
+  // 每日 09:00 汇总是一条 repeats:true 的通知,body 在排程那刻就冻结了。
+  // 订单跨过催收阈值是「时间推移」而不是「数据变化」,没有任何数据事件会触发重排 ——
+  // 只能靠日切这条时间轴。漏了这一步,拍完第 16 天的单永远不进汇总。
+  const m = index.match(/function refreshVisible\(\)\{[\s\S]*?\n\}/);
+  assert.ok(m, '找不到 refreshVisible(函数结构可能变了)');
+  assert.match(m[0], /syncDailyOnNewDay\(\)/, '前台刷新必须按日重排每日催收汇总');
+  // 日切重排不能排在「正在输入就跳过」之后,否则用户正打着字,汇总永远停在昨天的口径
+  const syncIdx = m[0].indexOf('syncDailyOnNewDay()');
+  const inputIdx = m[0].indexOf("activeElement");
+  assert.ok(syncIdx < inputIdx, '日切重排必须排在输入框检查之前');
+});
+
+test('切后台/关页前要排干待写队列', () => {
+  // 原生端每次 save() 都是一次异步 SQLite 写:界面早显示「已保存」了,真正落盘还在队列里。
+  // 用户点完「确认收款」立刻上滑杀 App,这一笔就没了 —— 没有挂起前刷盘就守不住。
+  // 断言要盯住真正的调用语句,不能只匹配函数名(注释里也写着这两个词,会假绿)。
+  assert.match(
+    index,
+    /addEventListener\('visibilitychange',[\s\S]{0,120}flushPendingWrites\(\)/,
+    '切后台(visibilitychange=hidden)必须排干待写队列',
+  );
+  assert.match(
+    index,
+    /addEventListener\('pagehide',\s*flushPendingWrites\)/,
+    '关页(pagehide)必须排干待写队列',
+  );
+});
+
+test('里程碑未来节点不置 disabled:前置守卫的提示必须点得到', () => {
+  // 置了 disabled,按钮就点不动,用户只会看到「点了没反应」;
+  // 而 mark() 里那句「请先完成『提审』再标记『副片发出』」是更有用的反馈。
+  // 用 aria-disabled + 变暗表达「还没到这一步」,点击交给前置守卫解释原因。
+  const m = index.match(/function mileStep\([\s\S]*?\n\}/);
+  assert.ok(m, '找不到 mileStep(函数结构可能变了)');
+  assert.doesNotMatch(m[0], /disabled aria-disabled/, '未来节点不能置 disabled(守卫提示会永远点不到)');
+  assert.match(m[0], /aria-disabled="true"/, '仍应保留 aria-disabled 表达「还没到这一步」');
+});

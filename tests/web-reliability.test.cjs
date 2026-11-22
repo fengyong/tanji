@@ -257,3 +257,49 @@ test('行程页给出未来 7 天横滑条',()=>{
   assert.equal((html.match(/class="n7d/g)||[]).length,7,'含当天共 7 格');
   assert.match(html,/未来 7 天 · 1 单/);
 });
+
+/* ---------- 第五轮深度 review 的回归(2026-11-22) ---------- */
+
+test('账号筛选要覆盖行程页与收款流水(同一屏两个口径最容易出错)',()=>{
+  const a=app();
+  setState(a,[order({id:1,store:'A账号的单',accountId:1}),order({id:2,store:'B账号的单',accountId:2})]);
+  a.run(`db.accounts=[{id:1,name:'账号A',color:0},{id:2,name:'账号B',color:1}]`);
+  a.run(`db.payments=[{oid:2,kind:'定金',amount:100,at:'2026-11-01T10:00',method:'微信'}]`);
+  a.run('ui.accFilter=1');
+  a.run('renderTrip()');
+  assert.doesNotMatch(a.element('#v-trip').innerHTML,/B账号/,'行程页不应出现别的账号的订单');
+  a.run('renderPay()');
+  assert.doesNotMatch(a.element('#v-pay').innerHTML,/B账号/,'收款流水不应出现别的账号的记录');
+  // 取消筛选后两边的单都要回来
+  a.run('ui.accFilter=null');
+  a.run('renderTrip()');
+  assert.match(a.element('#v-trip').innerHTML,/B账号/,'取消筛选后应看到全部账号');
+});
+
+test('隐私模式不能被编辑弹层绕过(截图模式不能露金额)',()=>{
+  const a=app();setState(a,[order({price:1200,deposit:300})]);
+  a.run('ui.privacy=true');
+  a.run('openEdit(1)');
+  const body=a.element('#edit-body').innerHTML;
+  assert.match(body,/id="e-price"[^>]*data-masked="1"/,'隐私模式下总价输入框应遮蔽');
+  assert.doesNotMatch(body,/id="e-price"[^>]*value="1200"/,'隐私模式下不能出现真实总价');
+  assert.doesNotMatch(body,/id="e-deposit"[^>]*value="300"/,'隐私模式下不能出现真实定金');
+  // 遮蔽状态下保存:不能报「金额不合法」,也不能把金额改掉
+  a.element('#e-price').dataset.masked='1';
+  a.element('#e-deposit').dataset.masked='1';
+  a.element('#e-store').value='测试店';
+  a.element('#e-settle').value='private';
+  a.element('#e-date').value='2026-11-01';
+  a.element('#e-time').value='10:00';
+  a.element('#e-need-main').checked=true;
+  a.run('saveEdit()');
+  assert.equal(a.run('db.orders[0].price'),1200,'遮蔽状态下保存应保持原金额');
+  assert.equal(a.run('db.orders[0].deposit'),300,'遮蔽状态下保存应保持原定金');
+});
+
+test('里程碑前置守卫:未提审不许标记发布(哪怕正副片都不要求)',()=>{
+  const a=app();
+  setState(a,[order({shotAt:null,submittedAt:null,publishedAt:null,deliverMain:false,deliverSub:false})]);
+  assert.equal(a.run("mark(1,'publishedAt','发布')"),false,'未提审不能标发布');
+  assert.equal(a.run('db.orders[0].publishedAt'),null,'publishedAt 不该被写进去');
+});

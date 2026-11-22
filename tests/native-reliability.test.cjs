@@ -969,3 +969,76 @@ test('催收跟进:满 50 条后计数如实显示,不再把第 51 次报成第 
   assert.ok(a.element('#toast').textContent.includes('已记录第 4 次催收'),'未封顶时 toast 报真实序号');
 });
 
+
+/* ---------- 第五轮深度 review 的回归(2026-11-22) ---------- */
+
+test('随手拍写入 shotAt 后必须重排出片提醒(打卡是主链路,不能只排角标不推送)',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  setState(a,[order({id:7,shotAt:null})]);
+  a.run('ui.detail=7');
+  a.run('TanJiImage.doorThumb=async()=>"data:image/jpeg;base64,AA"');
+  // initShotInput 的 change 处理器不经过 data-act 守卫,得自己把 handler 抓出来驱动
+  let handler=null;
+  const orig=a.context.document.querySelector;
+  a.context.document.querySelector=sel=>{
+    if(sel==='#shot-file')return {value:'x',files:[{name:'a.jpg',size:10,type:'image/jpeg'}],
+      addEventListener:(n,fn)=>{if(n==='change')handler=fn}};
+    return orig(sel);
+  };
+  a.run('initShotInput()');
+  a.context.document.querySelector=orig;
+  assert.ok(handler,'应能拿到随手拍的 change 处理器');
+  await handler();
+  // Notify.syncDeliver 是异步的(要 await getPending/schedule),处理器本身不等它,这里等它落定
+  for(let i=0;i<5;i++)await tick();
+  assert.ok(a.run('db.orders[0].shotAt'),'随手拍应记录拍摄时间');
+  // shotAt 是全仓仅有的两个写入点之一(另一个是 mark(),它有排提醒)——
+  // 这里漏排,打卡拍的这一单就永远收不到 24h 出片提醒,App 内红角标却照常显示。
+  assert.ok(device.pending.some(n=>+n.id===300007),
+    '随手拍后必须排 24h 出片提醒(id=300000+orderId),实测 pending='+JSON.stringify(device.pending.map(n=>n.id)));
+});
+
+test('导入带 remindAt 的订单后必须重排催收备忘(否则既不在清单、也不会提醒)',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  const withRemind=order({id:3,shotAt:'2026-01-01T11:00',remindAt:'2026-11-25T09:00'});
+  await a.run(`replaceData(${JSON.stringify({version:'0.6',threshold:15,orders:[withRemind],payments:[]})})`);
+  await tick();
+  // replaceData 撤掉当前模式全部通知(含备忘段),但数据里还留着 remindAt:
+  // 不重排的话,该单被 snoozed 排除出催收清单,同时也永远收不到提醒 —— 钱就从视野里消失了。
+  assert.ok(device.pending.some(n=>+n.id===100003),
+    '导入后应按仍有效的 remindAt 重排催收备忘(id=100000+orderId),实测 pending='+JSON.stringify(device.pending.map(n=>n.id)));
+});
+
+test('localStorage 第二副本写失败必须提示用户(双副本静默降级要看得见)',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  a.run('localStorage.setItem=()=>{throw new Error("QuotaExceededError")}');
+  setState(a,[order({id:1})]);
+  const ok=await a.run('save()');
+  assert.equal(ok,true,'SQLite 写成功,save 仍应返回 true');
+  // iOS 的 localStorage 单源配额约 5MB,订单多了写不进去是迟早的事。
+  // 镜像写失败却什么都不说,用户以为有两份保险,实际只剩一份。
+  assert.match(a.run('Store.status'),/第二副本/,
+    '镜像写失败必须在状态横幅里说清楚,实际='+JSON.stringify(a.run('Store.status')));
+});
+
+test('跨自然日要重排每日催收汇总(阈值是时间推移,不是数据变化)',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  setState(a,[order({id:1,shotAt:'2026-01-01T11:00'})]);
+  await a.run('save()');
+  await a.run('Notify.syncDaily()');
+  const first=device.pending.find(n=>+n.id===1);
+  assert.ok(first,'应排每日汇总');
+  // 每日 09:00 汇总是一条 repeats:true 的通知,body 在排程那刻就冻结了。
+  // 订单跨过 15 天阈值没有任何数据事件会触发重排,只能靠「日切」这条时间轴。
+  a.run(`db.orders.push(${JSON.stringify(order({id:2,shotAt:'2026-01-01T11:00'}))})`);
+  a.run('lastDailySyncDay="2026-01-01"');   // 假装上次排程是在很久以前
+  await a.run('syncDailyOnNewDay()');
+  await tick();
+  const after=device.pending.find(n=>+n.id===1);
+  assert.notEqual(after.body,first.body,'跨日重排后文案应反映当前数据');
+  assert.equal(a.run('lastDailySyncDay'),a.run('TODAY'),'重排后应记下当天,同一天不重复排');
+});

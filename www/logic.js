@@ -140,6 +140,15 @@
     return daysBetween(o.expectPayAt,today);
   }
 
+  /* 最后一次交付时间:正片/副片都算,取较晚的那个;两片都不要求时退回提审时间。
+   * 旧写法 `o.shortAt>o.longAt?o.shortAt:o.longAt` 在「只要副片、不要正片」的单上会落到 null
+   * (字符串与 null 比较恒为 false),这类单 workOf 判「已交付」却不进 done ——
+   * 统计页「已交付完结」会永久漏计单副片订单。 */
+  function lastDeliveredAt(o){
+    const times=[o.shortAt,o.longAt].filter(Boolean).sort();
+    return times.length?times[times.length-1]:(o.submittedAt||null);
+  }
+
   /* ---------------- 统计(窗口:period='M' 本月1日至今;其余按「近 N 天」) ---------------- */
   function statsFor({orders,payments,period,list,now}){
     const listOrders=list||orders;
@@ -147,7 +156,7 @@
     const inWin=t=>t&&new Date(t)>=start&&new Date(t)<=now;
     const deals=listOrders.filter(o=>inWin(o.appt));
     const paid=(list?payments.filter(p=>listOrders.some(o=>o.id===p.oid)):payments).filter(p=>inWin(p.at));
-    const done=listOrders.filter(o=>workOf(o)==='已交付'&&inWin(o.shortAt>o.longAt?o.shortAt:o.longAt));
+    const done=listOrders.filter(o=>workOf(o)==='已交付'&&inWin(lastDeliveredAt(o)));
     return {start,deals,paid,done,
       dealSum:deals.reduce((s,o)=>s+Math.round(o.price*100),0)/100,
       paidSum:paid.reduce((s,p)=>s+Math.round(p.amount*100),0)/100};
@@ -185,6 +194,6 @@
     // 催收跟进痕迹
     remindLogOf,remindCount,lastRemind,
     // 统计 / 排期
-    statsFor,apptOverlap,upcomingByDay,
+    statsFor,apptOverlap,upcomingByDay,lastDeliveredAt,
   };
 })(typeof globalThis!=='undefined'?globalThis:this);

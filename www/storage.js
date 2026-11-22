@@ -173,11 +173,15 @@ function persistSnapshot(payload){
       const ok=await nativePersistSnapshot(payload);
       // 无论 SQLite 写成功与否都先落一份 localStorage 镜像:它是原生端的第二副本,
       // SQLite 写失败时至少数据还在,下次启动能按修订号取回。
-      localWrite(storageKey(payload.mode),payload);
+      const localOK=localWrite(storageKey(payload.mode),payload);
       // 原生端也必须像 Web 一样把写入结果告诉用户：SQLite 写失败若静默吞掉，
       // 用户会以为账目已经存上，实际只留在内存里，一关 App 就没了。
+      // 第二副本写失败(本机存储空间可能已满)同样要说:双副本是这套存储的安全承诺,
+      // 悄悄退化成单副本,用户却以为有两份保险。
       if(Store.mode===payload.mode&&Store.revision===payload.revision&&!Store.blocked){
-        setStorageStatus(ok?'':'保存失败：改动仅在当前页面，请勿关闭，先导出 JSON 备份再重试。');
+        if(!ok)setStorageStatus('保存失败：改动仅在当前页面，请勿关闭，先导出 JSON 备份再重试。');
+        else if(!localOK)setStorageStatus('第二副本保存失败（本机存储空间可能已满）：改动已写进数据库，但备份副本没写成。请先导出 JSON 备份，并清理本机空间。');
+        else setStorageStatus('');
       }
       return ok;
     };
@@ -296,11 +300,17 @@ async function replaceData(state){
     if(!await persistSnapshot(next))return false;
     Store.backup=before;db=validated;closeSheets();ui.q='';ui.chip='all';ui.bucket='all';renderAll();
     // 数据被整体替换(导入/恢复/清空)后,已排的通知还指着旧数据:已删订单的备忘、
-    // 出片提醒会在半夜凭空响起来。先撤掉当前模式的通知,再按新数据重排每日汇总与出片提醒;
-    // 催收备忘是"设当时的时点快照",撤掉不凭空重排(与 switchMode 同口径)。
+    // 出片提醒会在半夜凭空响起来。先撤掉当前模式的通知,再按新数据重排每日汇总与出片提醒。
     // 只撤当前模式:另一套数据(work/demo)没被替换,它的通知仍然有效。
     await Notify.cancelMode();
     Notify.syncDaily();Notify.syncDeliver();
+    // 催收备忘要按新数据重排:数据里还带着 remindAt 的单,若只撤不排,
+    // 它会被 snoozed 排除出催收清单、同时永远收不到提醒 —— 这笔钱就从视野里消失了。
+    // 只排仍然有效的(remindAt 在未来);已过期的留着数据,等用户下次设置再排。
+    const stamp=TanJiLogic.nowStr();
+    for(const o of (validated.orders||[])){
+      if(o.remindAt&&o.remindAt>stamp)Notify.scheduleSnooze(o);
+    }
     return true;
   }finally{Store.busy=false}
 }
@@ -573,9 +583,13 @@ const Notify={
       // 高单号的备忘会把低单号的出片提醒顶掉(id 相同后者覆盖前者)。
       const mine=(pend.notifications||[]).filter(n=>+n.id===base+100000+o.id);
       if(mine.length)await L.cancel({notifications:mine});
+      // d = 设提醒到响铃之间隔了几天(正常路径:刚设的 1/3/7 天备忘)。
+      // d 缺省时是「导入/恢复后按 remindAt 重排」——那时不知道当初设于几天前,
+      // 硬套一个天数会写错,改用日期本身说明白。
+      const when=d!=null?`（${d} 天前设置的提醒）`:`（${String(o.remindAt||'').slice(5,10)} 设的提醒）`;
       await L.schedule({notifications:[{
         id:base+100000+o.id,title:'探记 · 催收跟进',
-        body:`「${o.store}」尾款该跟进了（${d} 天前设置的提醒）`,
+        body:`「${o.store}」尾款该跟进了${when}`,
         schedule:{at,allowWhileIdle:true},
       }]});
     }catch(e){console.warn('[TanJi] 单次提醒排程失败',e)}
