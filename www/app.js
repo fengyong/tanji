@@ -406,7 +406,7 @@ var db = { orders: [], payments: [], threshold: 15 };
 var Store = { sqlite3: null, mode: "demo", revision: 0, queue: Promise.resolve(), ready: false, busy: false, blocked: false, lockedOut: false, backup: null, status: "\u6B63\u5728\u8BFB\u53D6\u672C\u673A\u6570\u636E\u2026", pending: null };
 var afterLoad = null;
 var bytesBuilder = null;
-function registerAfterLoad(hooks) {
+function registerStorageHooks(hooks) {
   afterLoad = hooks;
 }
 function registerBytesBuilder(fn) {
@@ -751,7 +751,7 @@ async function switchMode(mode) {
     db = target.value ? validateState(target.value) : mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
     Store.revision = Math.max(Store.revision, target.value?.revision || 0);
     Store.backup = target.value?.previous || null;
-    closeSheets();
+    afterLoad && afterLoad.closeSheets();
     ui.q = "";
     ui.chip = "all";
     ui.bucket = "all";
@@ -759,7 +759,7 @@ async function switchMode(mode) {
     afterLoad && (afterLoad.renderAll(), afterLoad.showTab("home"));
     Notify.syncDaily();
     Notify.syncDeliver();
-    toast(mode === "work" ? "\u5DF2\u5207\u6362\u5230\u5DE5\u4F5C\u6570\u636E" : "\u5DF2\u5207\u6362\u5230\u72EC\u7ACB\u6F14\u793A\u6570\u636E\uFF0C\u5DE5\u4F5C\u6570\u636E\u672A\u6539\u52A8");
+    afterLoad && afterLoad.toast(mode === "work" ? "\u5DF2\u5207\u6362\u5230\u5DE5\u4F5C\u6570\u636E" : "\u5DF2\u5207\u6362\u5230\u72EC\u7ACB\u6F14\u793A\u6570\u636E\uFF0C\u5DE5\u4F5C\u6570\u636E\u672A\u6539\u52A8");
   } finally {
     Store.busy = false;
   }
@@ -776,7 +776,7 @@ async function replaceData(state) {
     if (!await persistSnapshot(next)) return false;
     Store.backup = before;
     db = validated;
-    closeSheets();
+    afterLoad && afterLoad.closeSheets();
     ui.q = "";
     ui.chip = "all";
     ui.bucket = "all";
@@ -802,65 +802,6 @@ function accountCopyText(account) {
   if (account.douyin) lines.push(`\u6296\u97F3:${account.douyin}`);
   if (account.phone) lines.push(`\u624B\u673A:${account.phone}`);
   return lines.join("\n");
-}
-async function previewImport(file) {
-  if (!file) return;
-  try {
-    if (file.size > 10 * 1024 * 1024) throw new Error("\u5907\u4EFD\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 10 MB");
-    const state = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
-    for (const order of state.orders) {
-      for (const [kind, key, expected] of [["\u5B9A\u91D1", "depositPaidAt", order.deposit], ["\u5C3E\u6B3E", "finalPaidAt", order.price - order.deposit]]) {
-        const entries = state.payments.filter((p) => p.oid === order.id && p.kind === kind);
-        const total2 = entries.reduce((sum, p) => sum + Math.round(p.amount * 100), 0);
-        if (entries.length > 1 || entries.length > 0 && !order[key] || total2 !== Math.round((order[key] ? expected : 0) * 100)) throw new Error(`\u8BA2\u5355\u300C${order.store}\u300D\u7684${kind}\u6D41\u6C34\u4E0E\u5DF2\u6536\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5148\u6838\u5BF9\u5907\u4EFD`);
-      }
-    }
-    Store.pending = state;
-    const total = state.payments.reduce((sum, p) => sum + p.amount, 0);
-    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state.orders.length} \u7B14\u8BA2\u5355\u3001${state.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
-    showSheet("sheet-import");
-  } catch (error) {
-    Store.pending = null;
-    toast(`\u4E0D\u80FD\u5BFC\u5165\uFF1A${error.message}`);
-  }
-}
-async function confirmImport() {
-  if (!Store.pending || Store.busy) return;
-  const state = Store.pending;
-  if (await replaceData(state)) {
-    Store.pending = null;
-    toast("\u5907\u4EFD\u5DF2\u6062\u590D\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
-  }
-}
-async function restoreCheckpoint() {
-  if (Store.busy || Store.blocked) return;
-  Store.busy = true;
-  let saved;
-  try {
-    saved = await readSnapshot(Store.mode, "backup");
-  } finally {
-    Store.busy = false;
-  }
-  if (saved.uncertain) {
-    toast("\u90E8\u5206\u5907\u4EFD\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u6682\u505C\u6062\u590D\uFF1B\u8BF7\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u5E76\u91CD\u8BD5");
-    return;
-  }
-  if (!saved.value) {
-    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
-    return;
-  }
-  if (!confirm(`\u6062\u590D\u66FF\u6362\u524D\u7684 ${saved.value.orders.length} \u7B14\u8BA2\u5355\u548C ${saved.value.payments.length} \u7B14\u6D41\u6C34\uFF1F\u5F53\u524D\u6570\u636E\u5C06\u4F5C\u4E3A\u65B0\u7684\u66FF\u6362\u524D\u5907\u4EFD\u4FDD\u7559\u3002`)) return;
-  if (await replaceData(saved.value)) toast("\u5DF2\u6062\u590D\u66FF\u6362\u524D\u6570\u636E");
-}
-async function exportCheckpoint() {
-  const mode = Store.mode;
-  const saved = await readSnapshot(mode, "backup");
-  if (!saved.value) {
-    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
-    return;
-  }
-  download(`\u63A2\u8BB0-${mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}-\u66FF\u6362\u524D\u5907\u4EFD.json`, JSON.stringify(backupDocument(saved.value), null, 2), "application/json");
-  toast("\u5DF2\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\uFF0C\u539F\u5B58\u50A8\u672A\u6539\u52A8");
 }
 var NATIVE_DB = "tanji";
 var ORD_COLS = ["id", "store", "category", "contact", "price", "deposit", "appt_at", "shot_at", "submitted_at", "short_sent_at", "long_sent_at", "deposit_paid_at", "final_paid_at", "settle_via", "remind_at", "channel", "partner", "location", "gps_place", "deliver_main", "deliver_sub", "review_result", "published_at", "account_id", "note", "remind_log", "expect_pay_at", "created_at", "updated_at"];
@@ -1112,7 +1053,7 @@ var Notify = {
       } catch (e) {
       }
     }
-    toast(db.notifyEnabled !== false ? "\u5DF2\u5F00\u542F\u6BCF\u65E5\u50AC\u6536\u63D0\u9192\uFF08\u6BCF\u5929 09:00\uFF09" : "\u5DF2\u5173\u95ED\u6BCF\u65E5\u50AC\u6536\u63D0\u9192");
+    afterLoad && afterLoad.toast(db.notifyEnabled !== false ? "\u5DF2\u5F00\u542F\u6BCF\u65E5\u50AC\u6536\u63D0\u9192\uFF08\u6BCF\u5929 09:00\uFF09" : "\u5DF2\u5173\u95ED\u6BCF\u65E5\u50AC\u6536\u63D0\u9192");
   }
 };
 
@@ -1171,13 +1112,89 @@ function markDailySynced(day = TODAY) {
   lastDailySyncDay = day;
 }
 
+// src/app/derived.js
+function workOf(o) {
+  return TanJiLogic.workOf(o);
+}
+function moneyCents(value, blankZero) {
+  return TanJiLogic.moneyCents(value, blankZero);
+}
+function orderMoney(o) {
+  return TanJiLogic.orderMoney(o);
+}
+function paymentSpec(kind) {
+  return TanJiLogic.paymentSpec(kind);
+}
+function hasReceipt(o, kind) {
+  return TanJiLogic.hasReceipt(o, kind, db.payments);
+}
+function hasAnyReceipt(o) {
+  return TanJiLogic.hasAnyReceipt(o, db.payments);
+}
+function unDep(o) {
+  return TanJiLogic.unDep(o, db.payments);
+}
+function unFin(o) {
+  return TanJiLogic.unFin(o, db.payments);
+}
+function owedOf(o) {
+  return TanJiLogic.owedOf(o, db.payments);
+}
+function payOf(o) {
+  return TanJiLogic.payOf(o, db.payments);
+}
+function overdueDays2(o) {
+  return TanJiLogic.overdueDays(o, db.payments, now);
+}
+function snoozed2(o) {
+  return TanJiLogic.snoozed(o, nowStr());
+}
+function isOver2(o) {
+  return TanJiLogic.isOver(o, db.payments, db.threshold, now);
+}
+function remindLogOf(o) {
+  return TanJiLogic.remindLogOf(o);
+}
+function lastRemind(o) {
+  return TanJiLogic.lastRemind(o);
+}
+function expectOverdue(o) {
+  return TanJiLogic.expectOverdue(o, db.payments, now);
+}
+var accOrderIds = () => new Set(db.orders.filter(accMatch).map((o) => o.id));
+function upcoming7() {
+  return TanJiLogic.upcomingByDay(db.orders.filter(accMatch), TODAY, 7);
+}
+var WORK_CLS = { "\u5F85\u62CD\u6444": "c-blue", "\u540E\u671F\u4E2D": "c-purple", "\u53D1\u7247\u4E2D": "c-orange", "\u5DF2\u4EA4\u4ED8": "c-green" };
+var PAY_CLS = { "\u5F85\u5B9A\u91D1": "c-gray", "\u5F85\u5C3E\u6B3E": "c-orange", "\u5E73\u53F0\u7ED3\u7B97": "c-blue", "\u5DF2\u903E\u671F": "c-red", "\u5DF2\u7ED3\u6E05": "c-green" };
+var METHODS = ["\u5FAE\u4FE1", "\u652F\u4ED8\u5B9D", "\u94F6\u884C\u5361", "\u6296\u97F3\u5546\u5355", "\u5176\u4ED6"];
+var METHOD_CLS = { "\u5FAE\u4FE1": "c-green", "\u652F\u4ED8\u5B9D": "c-blue", "\u94F6\u884C\u5361": "c-orange", "\u6296\u97F3\u5546\u5355": "c-ink", "\u5176\u4ED6": "c-gray" };
+function payChip(o) {
+  const s = payOf(o);
+  const label = isOver2(o) ? "\u5DF2\u903E\u671F" : s;
+  return `<span class="chip ${PAY_CLS[label]}">${label}</span>`;
+}
+function workChip(o) {
+  return `<span class="chip ${WORK_CLS[workOf(o)]}">${workOf(o)}</span>`;
+}
+function deliverLate(o) {
+  return TanJiLogic.deliverLate(o, Date.now());
+}
+var REVIEW_LABEL = { pass: "\u9001\u5BA1\u5408\u683C", fail: "\u9001\u5BA1\u4E0D\u5408\u683C" };
+var byId = (id) => db.orders.find((o) => o.id === id);
+var gpsText = (o) => o && o.gpsPlace && typeof TanJiGeo !== "undefined" ? TanJiGeo.label(o.gpsPlace) : "";
+var storeOf = (id) => {
+  const o = byId(id);
+  return o ? o.store : "";
+};
+
 // src/app/sheets.js
-function showSheet2(id) {
+function showSheet(id) {
   $("#mask").classList.add("show");
   document.querySelectorAll(".sheet").forEach((s) => s.classList.remove("show"));
   $("#" + id).classList.add("show");
 }
-function closeSheets2() {
+function closeSheets() {
   $("#mask").classList.remove("show");
   document.querySelectorAll(".sheet").forEach((s) => {
     s.classList.remove("show");
@@ -1244,7 +1261,7 @@ function initSheetGestures() {
       armed = false;
       sheet.style.transition = "";
       sheet.style.transform = "";
-      if (moved > 110) closeSheets2();
+      if (moved > 110) closeSheets();
       dy = 0;
     };
     sheet.addEventListener("touchend", finish, { passive: true });
@@ -1253,7 +1270,7 @@ function initSheetGestures() {
 }
 var toastTimer;
 var toastAction = null;
-function toast2(m, action) {
+function toast(m, action) {
   const el = $("#toast");
   if (!el) return;
   clearTimeout(toastTimer);
@@ -1364,7 +1381,7 @@ function openAccount(id) {
   $("#a-delete").style.display = a ? "" : "none";
   renderAvatarPreview();
   renderPal();
-  showSheet2("sheet-account");
+  showSheet("sheet-account");
 }
 function renderAvatarPreview() {
   const c = ACC_COLORS[ui2.draftColor % 8];
@@ -1389,14 +1406,14 @@ function saveAccount() {
   if (ui2.draftAvatar) base.avatar = ui2.draftAvatar;
   if (ui2.editAccountId != null) {
     Object.assign(accById(ui2.editAccountId), base);
-    toast2("\u5DF2\u4FDD\u5B58\u8D26\u53F7");
+    toast("\u5DF2\u4FDD\u5B58\u8D26\u53F7");
   } else {
     const maxId = ACCS().reduce((m, x) => Math.max(m, x.id), 0);
     db.accounts = [...ACCS(), { id: maxId + 1, createdAt: nowStr(), ...base }];
-    toast2("\u5DF2\u6DFB\u52A0\u8D26\u53F7");
+    toast("\u5DF2\u6DFB\u52A0\u8D26\u53F7");
   }
   save();
-  closeSheets2();
+  closeSheets();
   renderAll();
 }
 function deleteAccount() {
@@ -1410,9 +1427,9 @@ function deleteAccount() {
   });
   if (ui2.accFilter === a.id) ui2.accFilter = null;
   save();
-  closeSheets2();
+  closeSheets();
   renderAll();
-  toast2("\u5DF2\u5220\u9664\u8D26\u53F7");
+  toast("\u5DF2\u5220\u9664\u8D26\u53F7");
 }
 function initAvatarInput() {
   const input = $("#avatar-file");
@@ -1423,9 +1440,9 @@ function initAvatarInput() {
     try {
       ui2.draftAvatar = await TanJiImage.avatar(file);
       renderAvatarPreview();
-      toast2("\u5934\u50CF\u5DF2\u5C31\u7EEA,\u4FDD\u5B58\u540E\u751F\u6548");
+      toast("\u5934\u50CF\u5DF2\u5C31\u7EEA,\u4FDD\u5B58\u540E\u751F\u6548");
     } catch (e) {
-      toast2("\u8FD9\u5F20\u56FE\u5904\u7406\u4E0D\u4E86,\u6362\u4E00\u5F20\u8BD5\u8BD5");
+      toast("\u8FD9\u5F20\u56FE\u5904\u7406\u4E0D\u4E86,\u6362\u4E00\u5F20\u8BD5\u8BD5");
     }
   });
 }
@@ -1436,82 +1453,6 @@ function dayBadge(n, sum) {
   if (n >= 3) return { e: "\u2B50", t: "\u5FD9\u788C\u65E5" };
   return null;
 }
-
-// src/app/derived.js
-function workOf(o) {
-  return TanJiLogic.workOf(o);
-}
-function moneyCents(value, blankZero) {
-  return TanJiLogic.moneyCents(value, blankZero);
-}
-function orderMoney(o) {
-  return TanJiLogic.orderMoney(o);
-}
-function paymentSpec(kind) {
-  return TanJiLogic.paymentSpec(kind);
-}
-function hasReceipt(o, kind) {
-  return TanJiLogic.hasReceipt(o, kind, db.payments);
-}
-function hasAnyReceipt(o) {
-  return TanJiLogic.hasAnyReceipt(o, db.payments);
-}
-function unDep(o) {
-  return TanJiLogic.unDep(o, db.payments);
-}
-function unFin(o) {
-  return TanJiLogic.unFin(o, db.payments);
-}
-function owedOf(o) {
-  return TanJiLogic.owedOf(o, db.payments);
-}
-function payOf(o) {
-  return TanJiLogic.payOf(o, db.payments);
-}
-function overdueDays2(o) {
-  return TanJiLogic.overdueDays(o, db.payments, now);
-}
-function snoozed2(o) {
-  return TanJiLogic.snoozed(o, nowStr());
-}
-function isOver2(o) {
-  return TanJiLogic.isOver(o, db.payments, db.threshold, now);
-}
-function remindLogOf(o) {
-  return TanJiLogic.remindLogOf(o);
-}
-function lastRemind(o) {
-  return TanJiLogic.lastRemind(o);
-}
-function expectOverdue(o) {
-  return TanJiLogic.expectOverdue(o, db.payments, now);
-}
-var accOrderIds = () => new Set(db.orders.filter(accMatch).map((o) => o.id));
-function upcoming7() {
-  return TanJiLogic.upcomingByDay(db.orders.filter(accMatch), TODAY, 7);
-}
-var WORK_CLS = { "\u5F85\u62CD\u6444": "c-blue", "\u540E\u671F\u4E2D": "c-purple", "\u53D1\u7247\u4E2D": "c-orange", "\u5DF2\u4EA4\u4ED8": "c-green" };
-var PAY_CLS = { "\u5F85\u5B9A\u91D1": "c-gray", "\u5F85\u5C3E\u6B3E": "c-orange", "\u5E73\u53F0\u7ED3\u7B97": "c-blue", "\u5DF2\u903E\u671F": "c-red", "\u5DF2\u7ED3\u6E05": "c-green" };
-var METHODS = ["\u5FAE\u4FE1", "\u652F\u4ED8\u5B9D", "\u94F6\u884C\u5361", "\u6296\u97F3\u5546\u5355", "\u5176\u4ED6"];
-var METHOD_CLS = { "\u5FAE\u4FE1": "c-green", "\u652F\u4ED8\u5B9D": "c-blue", "\u94F6\u884C\u5361": "c-orange", "\u6296\u97F3\u5546\u5355": "c-ink", "\u5176\u4ED6": "c-gray" };
-function payChip(o) {
-  const s = payOf(o);
-  const label = isOver2(o) ? "\u5DF2\u903E\u671F" : s;
-  return `<span class="chip ${PAY_CLS[label]}">${label}</span>`;
-}
-function workChip(o) {
-  return `<span class="chip ${WORK_CLS[workOf(o)]}">${workOf(o)}</span>`;
-}
-function deliverLate(o) {
-  return TanJiLogic.deliverLate(o, Date.now());
-}
-var REVIEW_LABEL = { pass: "\u9001\u5BA1\u5408\u683C", fail: "\u9001\u5BA1\u4E0D\u5408\u683C" };
-var byId = (id) => db.orders.find((o) => o.id === id);
-var gpsText = (o) => o && o.gpsPlace && typeof TanJiGeo !== "undefined" ? TanJiGeo.label(o.gpsPlace) : "";
-var storeOf = (id) => {
-  const o = byId(id);
-  return o ? o.store : "";
-};
 
 // src/app/sqlite-bytes.js
 function buildSqliteBytes(state = db) {
@@ -1640,11 +1581,11 @@ async function nativeShareFile(name, content) {
   const res = await Filesystem.writeFile(opts);
   await Share.share({ title: name, url: res.uri, dialogTitle: "\u5206\u4EAB\u5BFC\u51FA" });
 }
-function download2(name, content, type) {
+function download(name, content, type) {
   if (isNative && CAP && CAP.Filesystem && CAP.Share) {
-    nativeShareFile(name, content).then(() => toast2("\u5DF2\u8C03\u8D77\u7CFB\u7EDF\u5206\u4EAB \u2713")).catch((e) => {
+    nativeShareFile(name, content).then(() => toast("\u5DF2\u8C03\u8D77\u7CFB\u7EDF\u5206\u4EAB \u2713")).catch((e) => {
       console.error("\u5BFC\u51FA\u5931\u8D25", e);
-      toast2("\u5BFC\u51FA\u5931\u8D25:" + (e && e.message || e));
+      toast("\u5BFC\u51FA\u5931\u8D25:" + (e && e.message || e));
     });
     return;
   }
@@ -1695,21 +1636,21 @@ function exportCsv() {
   ].map(q).join(","));
   const phead = ["\u5E8F\u53F7", "\u8BA2\u5355ID", "\u5546\u5BB6", "\u7C7B\u578B", "\u91D1\u989D", "\u5230\u8D26\u65F6\u95F4", "\u6536\u6B3E\u65B9\u5F0F"];
   const plines = db.payments.map((p, i) => [i + 1, p.oid, storeOf(p.oid), p.kind, p.amount, p.at, p.method].map(q).join(","));
-  download2(`\u63A2\u8BB0-\u5BFC\u51FA-${TODAY}.csv`, [head.map(q).join(","), ...lines, "", "", phead.map(q).join(","), ...plines].join("\n"), "text/csv;charset=utf-8");
-  toast2("\u5DF2\u5BFC\u51FA CSV(\u8BA2\u5355 + \u6D41\u6C34)\u2713");
+  download(`\u63A2\u8BB0-\u5BFC\u51FA-${TODAY}.csv`, [head.map(q).join(","), ...lines, "", "", phead.map(q).join(","), ...plines].join("\n"), "text/csv;charset=utf-8");
+  toast("\u5DF2\u5BFC\u51FA CSV(\u8BA2\u5355 + \u6D41\u6C34)\u2713");
 }
 function exportJson() {
-  download2(`\u63A2\u8BB0-${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u5907\u4EFD-${toISO(/* @__PURE__ */ new Date())}.json`, JSON.stringify(backupDocument(), null, 2), "application/json");
-  toast2("\u5DF2\u5BFC\u51FA JSON \u5907\u4EFD");
+  download(`\u63A2\u8BB0-${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u5907\u4EFD-${toISO(/* @__PURE__ */ new Date())}.json`, JSON.stringify(backupDocument(), null, 2), "application/json");
+  toast("\u5DF2\u5BFC\u51FA JSON \u5907\u4EFD");
 }
 function exportDb() {
   const bytes = buildSqliteBytes();
   if (!bytes) {
-    toast2("SQLite \u5F15\u64CE\u8FD8\u5728\u52A0\u8F7D,\u51E0\u79D2\u540E\u518D\u8BD5");
+    toast("SQLite \u5F15\u64CE\u8FD8\u5728\u52A0\u8F7D,\u51E0\u79D2\u540E\u518D\u8BD5");
     return;
   }
-  download2(`\u63A2\u8BB0-${TODAY}.db`, bytes, "application/octet-stream");
-  toast2("\u5DF2\u5BFC\u51FA SQLite \u6570\u636E\u5E93 \u2713");
+  download(`\u63A2\u8BB0-${TODAY}.db`, bytes, "application/octet-stream");
+  toast("\u5DF2\u5BFC\u51FA SQLite \u6570\u636E\u5E93 \u2713");
 }
 var SCHEMA = `<span class="c">-- \u63A2\u8BB0 TanJi \xB7 \u672C\u673A SQLite \u7ED3\u6784(v0.6 \xB7 \u5355\u6570\u636E\u96C6\u89C6\u56FE)</span>
 <span class="c">-- \u6CE8\u610F:App \u5185\u771F\u5B9E\u5E93\u5728\u540C\u4E00\u4E2A .db \u91CC\u7528 mode \u5217\u533A\u5206 work/demo \u4E24\u5957\u6570\u636E,
@@ -1775,6 +1716,65 @@ FROM orders
 WHERE final_paid_at IS NULL AND shot_at IS NOT NULL AND settle_via='private'
 ORDER BY days DESC;`;
 $("#schema-pre").innerHTML = SCHEMA;
+async function previewImport(file) {
+  if (!file) return;
+  try {
+    if (file.size > 10 * 1024 * 1024) throw new Error("\u5907\u4EFD\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 10 MB");
+    const state = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
+    for (const order of state.orders) {
+      for (const [kind, key, expected] of [["\u5B9A\u91D1", "depositPaidAt", order.deposit], ["\u5C3E\u6B3E", "finalPaidAt", order.price - order.deposit]]) {
+        const entries = state.payments.filter((p) => p.oid === order.id && p.kind === kind);
+        const total2 = entries.reduce((sum, p) => sum + Math.round(p.amount * 100), 0);
+        if (entries.length > 1 || entries.length > 0 && !order[key] || total2 !== Math.round((order[key] ? expected : 0) * 100)) throw new Error(`\u8BA2\u5355\u300C${order.store}\u300D\u7684${kind}\u6D41\u6C34\u4E0E\u5DF2\u6536\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5148\u6838\u5BF9\u5907\u4EFD`);
+      }
+    }
+    Store.pending = state;
+    const total = state.payments.reduce((sum, p) => sum + p.amount, 0);
+    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state.orders.length} \u7B14\u8BA2\u5355\u3001${state.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui2.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
+    showSheet("sheet-import");
+  } catch (error) {
+    Store.pending = null;
+    toast(`\u4E0D\u80FD\u5BFC\u5165\uFF1A${error.message}`);
+  }
+}
+async function confirmImport() {
+  if (!Store.pending || Store.busy) return;
+  const state = Store.pending;
+  if (await replaceData(state)) {
+    Store.pending = null;
+    toast("\u5907\u4EFD\u5DF2\u6062\u590D\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
+  }
+}
+async function restoreCheckpoint() {
+  if (Store.busy || Store.blocked) return;
+  Store.busy = true;
+  let saved;
+  try {
+    saved = await readSnapshot(Store.mode, "backup");
+  } finally {
+    Store.busy = false;
+  }
+  if (saved.uncertain) {
+    toast("\u90E8\u5206\u5907\u4EFD\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u6682\u505C\u6062\u590D\uFF1B\u8BF7\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u5E76\u91CD\u8BD5");
+    return;
+  }
+  if (!saved.value) {
+    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
+    return;
+  }
+  if (!confirm(`\u6062\u590D\u66FF\u6362\u524D\u7684 ${saved.value.orders.length} \u7B14\u8BA2\u5355\u548C ${saved.value.payments.length} \u7B14\u6D41\u6C34\uFF1F\u5F53\u524D\u6570\u636E\u5C06\u4F5C\u4E3A\u65B0\u7684\u66FF\u6362\u524D\u5907\u4EFD\u4FDD\u7559\u3002`)) return;
+  if (await replaceData(saved.value)) toast("\u5DF2\u6062\u590D\u66FF\u6362\u524D\u6570\u636E");
+}
+async function exportCheckpoint() {
+  const mode = Store.mode;
+  const saved = await readSnapshot(mode, "backup");
+  if (!saved.value) {
+    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
+    return;
+  }
+  download(`\u63A2\u8BB0-${mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}-\u66FF\u6362\u524D\u5907\u4EFD.json`, JSON.stringify(backupDocument(saved.value), null, 2), "application/json");
+  toast("\u5DF2\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\uFF0C\u539F\u5B58\u50A8\u672A\u6539\u52A8");
+}
 
 // src/app/detail.js
 var MILE_LABEL = { shotAt: "\u62CD\u6444", submittedAt: "\u63D0\u5BA1", shortAt: "\u526F\u7247\u53D1\u51FA", longAt: "\u6B63\u7247\u53D1\u51FA", publishedAt: "\u53D1\u5E03" };
@@ -1923,7 +1923,7 @@ function openDetail(id) {
     </div>
     ${o.note ? `<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">${esc(o.note)}</div></div>` : ""}
     <div style="padding-top:16px"><button class="btn danger-ghost" data-act="del-order" data-oid="${esc(o.id)}">\u5220\u9664\u8BA2\u5355</button></div>`;
-  showSheet2("sheet-detail");
+  showSheet("sheet-detail");
 }
 function rerenderDetail() {
   if (ui2.detail != null && ui2.editId == null && byId(ui2.detail)) openDetail(ui2.detail);
@@ -1937,11 +1937,11 @@ function mark(id, key, label) {
   if (!o || !Object.prototype.hasOwnProperty.call(MILE_LABEL, key) || o[key]) return false;
   const pre = MILE_PRE[key];
   if (pre && !o[pre]) {
-    toast2(`\u8BF7\u5148\u5B8C\u6210\u300C${MILE_LABEL[pre]}\u300D\u518D\u6807\u8BB0\u300C${MILE_LABEL[key]}\u300D`);
+    toast(`\u8BF7\u5148\u5B8C\u6210\u300C${MILE_LABEL[pre]}\u300D\u518D\u6807\u8BB0\u300C${MILE_LABEL[key]}\u300D`);
     return false;
   }
   if (key === "publishedAt" && !deliveredAll(o)) {
-    toast2("\u6B63\u7247/\u526F\u7247\u51FA\u9F50\u540E\u624D\u80FD\u6807\u8BB0\u53D1\u5E03");
+    toast("\u6B63\u7247/\u526F\u7247\u51FA\u9F50\u540E\u624D\u80FD\u6807\u8BB0\u53D1\u5E03");
     return false;
   }
   o[key] = nowStr();
@@ -1949,22 +1949,22 @@ function mark(id, key, label) {
   renderAll();
   rerenderDetail();
   Notify.syncDeliver();
-  toast2(label);
+  toast(label);
   return true;
 }
 function pay(id, kind, method = "\u5FAE\u4FE1") {
   const o = byId(id), spec = paymentSpec(kind);
   if (!o || !spec || !METHODS.includes(method)) {
-    toast2("\u6536\u6B3E\u8BA2\u5355\u3001\u7C7B\u578B\u6216\u65B9\u5F0F\u65E0\u6548");
+    toast("\u6536\u6B3E\u8BA2\u5355\u3001\u7C7B\u578B\u6216\u65B9\u5F0F\u65E0\u6548");
     return false;
   }
   const m = orderMoney(o);
   if (!m || m[kind] <= 0) {
-    toast2("\u6CA1\u6709\u6709\u6548\u7684\u5F85\u6536\u91D1\u989D\uFF0C\u4E0D\u80FD\u8BB0\u8D26");
+    toast("\u6CA1\u6709\u6709\u6548\u7684\u5F85\u6536\u91D1\u989D\uFF0C\u4E0D\u80FD\u8BB0\u8D26");
     return false;
   }
   if (hasReceipt(o, kind)) {
-    toast2("\u8BE5\u7B14\u6B3E\u9879\u5DF2\u8BB0\u5F55\uFF0C\u8BF7\u52FF\u91CD\u590D\u6536\u6B3E");
+    toast("\u8BE5\u7B14\u6B3E\u9879\u5DF2\u8BB0\u5F55\uFF0C\u8BF7\u52FF\u91CD\u590D\u6536\u6B3E");
     return false;
   }
   const t = nowStr(), amount = m[kind] / 100;
@@ -1974,7 +1974,7 @@ function pay(id, kind, method = "\u5FAE\u4FE1") {
   renderAll();
   rerenderDetail();
   Notify.syncDaily();
-  toast2(`\u5DF2\u6536${spec.label} ${fmtMoney(amount)} \xB7 ${method}`, { label: "\u64A4\u9500", run: () => undoPay(id, kind, t) });
+  toast(`\u5DF2\u6536${spec.label} ${fmtMoney(amount)} \xB7 ${method}`, { label: "\u64A4\u9500", run: () => undoPay(id, kind, t) });
   return true;
 }
 function undoPay(id, kind, at) {
@@ -1982,7 +1982,7 @@ function undoPay(id, kind, at) {
   if (!spec || !o) return false;
   const index = db.payments.findIndex((p) => p.oid === id && p.kind === spec.label && p.at === at);
   if (index < 0 || o[spec.field] !== at) {
-    toast2("\u8FD9\u7B14\u6536\u6B3E\u5DF2\u88AB\u6539\u52A8,\u65E0\u6CD5\u64A4\u9500");
+    toast("\u8FD9\u7B14\u6536\u6B3E\u5DF2\u88AB\u6539\u52A8,\u65E0\u6CD5\u64A4\u9500");
     return false;
   }
   db.payments.splice(index, 1);
@@ -1991,24 +1991,24 @@ function undoPay(id, kind, at) {
   renderAll();
   rerenderDetail();
   Notify.syncDaily();
-  toast2("\u5DF2\u64A4\u9500\u8BE5\u7B14\u6536\u6B3E");
+  toast("\u5DF2\u64A4\u9500\u8BE5\u7B14\u6536\u6B3E");
   return true;
 }
 function openPay(oid, kind, keepMethod) {
   ui2.payCtx = null;
   const o = byId(oid), spec = paymentSpec(kind);
   if (!o || !spec) {
-    toast2("\u6536\u6B3E\u8BA2\u5355\u6216\u7C7B\u578B\u65E0\u6548");
+    toast("\u6536\u6B3E\u8BA2\u5355\u6216\u7C7B\u578B\u65E0\u6548");
     return;
   }
   const m = orderMoney(o);
   if (!m || m[kind] <= 0 || hasReceipt(o, kind)) {
-    toast2("\u8BE5\u7B14\u6B3E\u9879\u6CA1\u6709\u5F85\u6536\u91D1\u989D\u6216\u5DF2\u7ECF\u8BB0\u5F55");
+    toast("\u8BE5\u7B14\u6B3E\u9879\u6CA1\u6709\u5F85\u6536\u91D1\u989D\u6216\u5DF2\u7ECF\u8BB0\u5F55");
     return;
   }
   const method = keepMethod === void 0 ? o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u5FAE\u4FE1" : keepMethod;
   if (!METHODS.includes(method)) {
-    toast2("\u8BF7\u9009\u62E9\u6709\u6548\u7684\u6536\u6B3E\u65B9\u5F0F");
+    toast("\u8BF7\u9009\u62E9\u6709\u6548\u7684\u6536\u6B3E\u65B9\u5F0F");
     return;
   }
   const amt = m[kind] / 100;
@@ -2024,13 +2024,13 @@ function openPay(oid, kind, keepMethod) {
       ${METHODS.map((m2) => `<button class="mchip ${ui2.payCtx.method === m2 ? "on" : ""}" data-act="pay-method" data-m="${esc(m2)}">${esc(m2)}</button>`).join("")}
     </div>
     <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">\u786E\u8BA4\u6536\u6B3E ${esc(fmtMoney(amt))}</button></div>`;
-  showSheet2("sheet-pay");
+  showSheet("sheet-pay");
 }
 var REMIND_QUICK = ["\u8BF4\u8FD9\u5468\u7ED9", "\u8BF4\u6708\u5E95\u7EDF\u4E00\u7ED3", "\u8D22\u52A1\u8D70\u6D41\u7A0B", "\u6CA1\u56DE\u590D/\u4E0D\u63A5", "\u5DF2\u8F6C\u5BF9\u516C", "\u8BF4\u62CD\u5B8C\u518D\u7ED3"];
 function openRemind(oid) {
   const o = byId(oid);
   if (!o) {
-    toast2("\u8BA2\u5355\u4E0D\u5B58\u5728");
+    toast("\u8BA2\u5355\u4E0D\u5B58\u5728");
     return;
   }
   const log = remindLogOf(o), last = log[log.length - 1];
@@ -2039,12 +2039,12 @@ function openRemind(oid) {
   if (note) note.value = "";
   $("#remind-sub").textContent = `\u300C${o.store}\u300D${log.length ? `\u5DF2\u50AC ${log.length >= 50 ? "50+" : log.length} \u6B21,\u6700\u8FD1 ${fmtDT(last.at)}` : "\u8FD8\u6CA1\u50AC\u8FC7"} \xB7 \u8BB0\u5F55\u65F6\u95F4\u81EA\u52A8\u53D6\u73B0\u5728`;
   $("#remind-quick").innerHTML = REMIND_QUICK.map((t) => `<button class="fchip" data-act="remind-quick" data-v="${esc(t)}">${esc(t)}</button>`).join("");
-  showSheet2("sheet-remind");
+  showSheet("sheet-remind");
 }
 function saveRemind() {
   const id = ui2.remindOid, o = byId(id);
   if (!o) {
-    closeSheets2();
+    closeSheets();
     return;
   }
   const input = $("#remind-note");
@@ -2056,40 +2056,40 @@ function saveRemind() {
   const back = ui2.detail === id ? id : null;
   save();
   renderAll();
-  closeSheets2();
+  closeSheets();
   if (back !== null && byId(back)) openDetail(back);
-  toast2(capped ? `\u5DF2\u8BB0\u5F55 \xB7 \u6700\u65E9\u4E00\u6761\u5DF2\u88AB\u6324\u51FA,\u53EA\u4FDD\u7559\u6700\u8FD1 50 \u6B21${note ? ` \xB7 ${note}` : ""}` : `\u5DF2\u8BB0\u5F55\u7B2C ${seq + 1} \u6B21\u50AC\u6536${note ? ` \xB7 ${note}` : ""}`);
+  toast(capped ? `\u5DF2\u8BB0\u5F55 \xB7 \u6700\u65E9\u4E00\u6761\u5DF2\u88AB\u6324\u51FA,\u53EA\u4FDD\u7559\u6700\u8FD1 50 \u6B21${note ? ` \xB7 ${note}` : ""}` : `\u5DF2\u8BB0\u5F55\u7B2C ${seq + 1} \u6B21\u50AC\u6536${note ? ` \xB7 ${note}` : ""}`);
 }
 function openExpect(oid) {
   const o = byId(oid);
   if (!o) {
-    toast2("\u8BA2\u5355\u4E0D\u5B58\u5728");
+    toast("\u8BA2\u5355\u4E0D\u5B58\u5728");
     return;
   }
   ui2.expectOid = oid;
   $("#expect-sub").textContent = `\u300C${o.store}\u300D\u6296\u97F3\u5546\u5355,\u5C3E\u6B3E ${fmtMoney(unFin(o))} \u7531\u5E73\u53F0\u7ED3\u7B97`;
   $("#expect-date").value = o.expectPayAt ? o.expectPayAt.slice(0, 10) : "";
-  showSheet2("sheet-expect");
+  showSheet("sheet-expect");
 }
 function saveExpect() {
   const id = ui2.expectOid, o = byId(id);
   if (!o) {
-    closeSheets2();
+    closeSheets();
     return;
   }
   const day = $("#expect-date").value;
   const at = day ? `${day}T10:00` : "";
   if (!at || !validDateTime(at)) {
-    toast2("\u5148\u9009\u4E00\u4E2A\u6709\u6548\u7684\u5230\u8D26\u65E5\u671F");
+    toast("\u5148\u9009\u4E00\u4E2A\u6709\u6548\u7684\u5230\u8D26\u65E5\u671F");
     return;
   }
   const back = ui2.detail === id ? id : null;
   o.expectPayAt = at;
   save();
   renderAll();
-  closeSheets2();
+  closeSheets();
   if (back !== null && byId(back)) openDetail(back);
-  toast2(`\u5DF2\u8BB0\u4E0B\u9884\u8BA1 ${fmtD(at)} \u5230\u8D26`);
+  toast(`\u5DF2\u8BB0\u4E0B\u9884\u8BA1 ${fmtD(at)} \u5230\u8D26`);
 }
 function clearExpect(oid) {
   const o = byId(oid);
@@ -2098,7 +2098,7 @@ function clearExpect(oid) {
   save();
   renderAll();
   rerenderDetail();
-  toast2("\u5DF2\u6E05\u9664\u9884\u8BA1\u5230\u8D26\u65E5");
+  toast("\u5DF2\u6E05\u9664\u9884\u8BA1\u5230\u8D26\u65E5");
 }
 function capturePlace(oid) {
   if (typeof TanJiGeo === "undefined") return;
@@ -2109,7 +2109,7 @@ function capturePlace(oid) {
     save();
     renderAll();
     rerenderDetail();
-    toast2("\u5DF2\u8BB0\u5F55\u5230\u5E97\u5B9A\u4F4D \u2713");
+    toast("\u5DF2\u8BB0\u5F55\u5230\u5E97\u5B9A\u4F4D \u2713");
   }).catch(() => {
   });
 }
@@ -2154,7 +2154,7 @@ function openNew() {
   renderAccPick("f-acc-block", ui2.draftAccId);
   renderProvPick("f-prov-block", "");
   updateConflict();
-  showSheet2("sheet-new");
+  showSheet("sheet-new");
 }
 function saveOrder() {
   const fail = (message) => {
@@ -2230,12 +2230,12 @@ function saveOrder() {
   db.orders.push(o);
   save();
   Notify.syncDeliver();
-  closeSheets2();
+  closeSheets();
   ui2.selDay = date;
   ui2.vMon = { y: +date.slice(0, 4), m: +date.slice(5, 7) };
   showTab("trip");
   renderAll();
-  toast2(`\u5DF2\u6DFB\u52A0\u9884\u7EA6:${store}`);
+  toast(`\u5DF2\u6DFB\u52A0\u9884\u7EA6:${store}`);
 }
 var EDIT_FIELDS = ["e-store", "e-cat", "e-settle", "e-partner", "e-location", "e-date", "e-time", "e-price", "e-deposit", "e-contact", "e-note"];
 var EDIT_CHECKS = ["e-need-main", "e-need-sub"];
@@ -2275,10 +2275,10 @@ function toggleReceipt(oid, kind) {
     save();
     renderAll();
     Notify.syncDaily();
-    toast2("\u5DF2\u64A4\u9500" + spec.label + "\u8BB0\u5F55(\u542B\u6D41\u6C34)");
+    toast("\u5DF2\u64A4\u9500" + spec.label + "\u8BB0\u5F55(\u542B\u6D41\u6C34)");
   } else {
     if (editDraft() !== ui2.editSnapshot) {
-      toast2("\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539\uFF0C\u8BF7\u5148\u4FDD\u5B58\uFF0C\u518D\u8865\u8BB0\u6536\u6B3E");
+      toast("\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539\uFF0C\u8BF7\u5148\u4FDD\u5B58\uFF0C\u518D\u8865\u8BB0\u6536\u6B3E");
       return;
     }
     if (!pay(oid, kind, o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u5FAE\u4FE1")) return;
@@ -2331,7 +2331,7 @@ function openEdit(oid) {
     $("#" + id).addEventListener("change", updateEditConflict);
     $("#" + id).addEventListener("input", updateEditConflict);
   });
-  showSheet2("sheet-edit");
+  showSheet("sheet-edit");
 }
 function updateEditConflict() {
   const el = $("#e-conflict");
@@ -2348,34 +2348,34 @@ function saveEdit() {
   const store = $("#e-store").value.trim();
   const priceCents = moneyCents(moneyFieldValue("e-price", o.price)), depositCents = moneyCents(moneyFieldValue("e-deposit", o.deposit), true);
   if (!store) {
-    toast2("\u8BF7\u586B\u5199\u5546\u5BB6\u540D\u79F0");
+    toast("\u8BF7\u586B\u5199\u5546\u5BB6\u540D\u79F0");
     return;
   }
   if (priceCents === null || depositCents === null || depositCents > priceCents) {
-    toast2("\u603B\u4EF7\u548C\u5B9A\u91D1\u987B\u4E3A\u6709\u6548\u975E\u8D1F\u91D1\u989D\uFF0C\u6700\u591A\u4E24\u4F4D\u5C0F\u6570\uFF0C\u5B9A\u91D1\u4E0D\u80FD\u8D85\u8FC7\u603B\u4EF7");
+    toast("\u603B\u4EF7\u548C\u5B9A\u91D1\u987B\u4E3A\u6709\u6548\u975E\u8D1F\u91D1\u989D\uFF0C\u6700\u591A\u4E24\u4F4D\u5C0F\u6570\uFF0C\u5B9A\u91D1\u4E0D\u80FD\u8D85\u8FC7\u603B\u4EF7");
     return;
   }
   if (hasAnyReceipt(o) && (priceCents !== moneyCents(o.price) || depositCents !== moneyCents(o.deposit))) {
-    toast2("\u5DF2\u6709\u6536\u6B3E\u8BB0\u5F55\uFF0C\u8BF7\u5148\u64A4\u9500\u9519\u8BEF\u6536\u6B3E\uFF0C\u518D\u4FEE\u6539\u603B\u4EF7\u6216\u5B9A\u91D1");
+    toast("\u5DF2\u6709\u6536\u6B3E\u8BB0\u5F55\uFF0C\u8BF7\u5148\u64A4\u9500\u9519\u8BEF\u6536\u6B3E\uFF0C\u518D\u4FEE\u6539\u603B\u4EF7\u6216\u5B9A\u91D1");
     return;
   }
   const date = $("#e-date").value || TODAY, time = $("#e-time").value || "10:00", appt = `${date}T${time}`;
   const settleVia = $("#e-settle").value;
   if (!validDateTime(appt)) {
-    toast2("\u8BF7\u586B\u5199\u6709\u6548\u7684\u9884\u7EA6\u65E5\u671F\u548C\u65F6\u95F4");
+    toast("\u8BF7\u586B\u5199\u6709\u6548\u7684\u9884\u7EA6\u65E5\u671F\u548C\u65F6\u95F4");
     return;
   }
   if (!["private", "douyin"].includes(settleVia)) {
-    toast2("\u8BF7\u9009\u62E9\u6709\u6548\u7684\u7ED3\u7B97\u65B9\u5F0F");
+    toast("\u8BF7\u9009\u62E9\u6709\u6548\u7684\u7ED3\u7B97\u65B9\u5F0F");
     return;
   }
   const needMain2 = $("#e-need-main").checked, needSub2 = $("#e-need-sub").checked;
   if (!needMain2 && !needSub2) {
-    toast2("\u51FA\u7247\u8981\u6C42\u81F3\u5C11\u8981\u52FE\u9009\u6B63\u7247\u6216\u526F\u7247");
+    toast("\u51FA\u7247\u8981\u6C42\u81F3\u5C11\u8981\u52FE\u9009\u6B63\u7247\u6216\u526F\u7247");
     return;
   }
   if (accMulti() && ui2.draftAccId == null) {
-    toast2("\u8BF7\u9009\u62E9\u8D26\u53F7");
+    toast("\u8BF7\u9009\u62E9\u8D26\u53F7");
     return;
   }
   o.store = store;
@@ -2395,12 +2395,12 @@ function saveEdit() {
   o.note = $("#e-note").value.trim();
   const returnDetail = ui2.detail === o.id ? o.id : null;
   save();
-  closeSheets2();
+  closeSheets();
   renderAll();
   Notify.syncDeliver();
   Notify.syncDaily();
   if (returnDetail !== null) openDetail(returnDetail);
-  toast2("\u5DF2\u4FDD\u5B58\u4FEE\u6539");
+  toast("\u5DF2\u4FDD\u5B58\u4FEE\u6539");
 }
 function initShotInput() {
   const input = $("#shot-file");
@@ -2409,12 +2409,12 @@ function initShotInput() {
     input.value = "";
     if (!file) return;
     if (Store.blocked) {
-      toast2("\u672C\u673A\u6570\u636E\u8BFB\u53D6\u5F02\u5E38,\u5199\u5165\u5DF2\u6682\u505C;\u8BF7\u5148\u70B9\u300C\u91CD\u8BD5\u4FDD\u5B58 / \u8BFB\u53D6\u300D");
+      toast("\u672C\u673A\u6570\u636E\u8BFB\u53D6\u5F02\u5E38,\u5199\u5165\u5DF2\u6682\u505C;\u8BF7\u5148\u70B9\u300C\u91CD\u8BD5\u4FDD\u5B58 / \u8BFB\u53D6\u300D");
       return;
     }
     const target = byId(ui2.detail);
     if (!target) {
-      toast2("\u5148\u6253\u5F00\u4E00\u7B14\u8BA2\u5355\u518D\u62CD");
+      toast("\u5148\u6253\u5F00\u4E00\u7B14\u8BA2\u5355\u518D\u62CD");
       return;
     }
     try {
@@ -2424,10 +2424,10 @@ function initShotInput() {
       renderAll();
       rerenderDetail();
       Notify.syncDeliver();
-      toast2("\u5DF2\u968F\u624B\u62CD \xB7 \u62CD\u6444\u65F6\u95F4\u5DF2\u8BB0\u5F55");
+      toast("\u5DF2\u968F\u624B\u62CD \xB7 \u62CD\u6444\u65F6\u95F4\u5DF2\u8BB0\u5F55");
       capturePlace(target.id);
     } catch (e) {
-      toast2("\u8FD9\u5F20\u56FE\u5904\u7406\u4E0D\u4E86,\u6362\u4E00\u5F20\u8BD5\u8BD5");
+      toast("\u8FD9\u5F20\u56FE\u5904\u7406\u4E0D\u4E86,\u6362\u4E00\u5F20\u8BD5\u8BD5");
     }
   });
 }
@@ -2504,10 +2504,10 @@ function buildTodayImage(day = TODAY) {
 async function shareToday() {
   refreshClock();
   const day = ui2.tab === "trip" ? ui2.selDay : TODAY;
-  toast2("\u6B63\u5728\u751F\u6210\u884C\u7A0B\u56FE\u7247\u2026");
+  toast("\u6B63\u5728\u751F\u6210\u884C\u7A0B\u56FE\u7247\u2026");
   const blob = await buildTodayImage(day);
   if (!blob) {
-    toast2("\u56FE\u7247\u751F\u6210\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5");
+    toast("\u56FE\u7247\u751F\u6210\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5");
     return;
   }
   ui2.shareDay = day;
@@ -2517,7 +2517,7 @@ async function shareToday() {
   ui2.shareUrl = URL.createObjectURL(blob);
   $("#share-body").innerHTML = `<img src="${ui2.shareUrl}" style="width:100%;border-radius:16px;border:.5px solid var(--line)">
     <div style="padding-top:14px"><button class="btn primary" data-act="share-confirm">\u5206\u4EAB / \u4FDD\u5B58\u56FE\u7247</button></div>`;
-  showSheet2("sheet-share");
+  showSheet("sheet-share");
 }
 
 // src/app/stats.js
@@ -2924,7 +2924,7 @@ registerAction("open", (t, oid) => {
   openDetail(oid);
 });
 registerAction("close-sheet", (t, oid) => {
-  closeSheets2();
+  closeSheets();
 });
 registerAction("new-order", (t, oid) => {
   openNew();
@@ -2983,15 +2983,15 @@ registerAction("nav-place", (t, oid) => {
   if (!o) return;
   const url = t.dataset.gps || !o.location ? TanJiGeo.mapUrl({ place: o.gpsPlace, name: o.store }) : TanJiGeo.mapUrl({ query: o.location });
   if (!url) {
-    toast2("\u8FD9\u5355\u8FD8\u6CA1\u6709\u5730\u70B9,\u5148\u586B\u5730\u70B9\u6216\u8BB0\u5F55\u5F53\u524D\u4F4D\u7F6E");
+    toast("\u8FD9\u5355\u8FD8\u6CA1\u6709\u5730\u70B9,\u5148\u586B\u5730\u70B9\u6216\u8BB0\u5F55\u5F53\u524D\u4F4D\u7F6E");
     return;
   }
-  if (!TanJiGeo.open(url)) toast2("\u6253\u4E0D\u5F00\u5730\u56FE,\u8BF7\u624B\u52A8\u641C\u7D22\u8BE5\u5730\u5740");
+  if (!TanJiGeo.open(url)) toast("\u6253\u4E0D\u5F00\u5730\u56FE,\u8BF7\u624B\u52A8\u641C\u7D22\u8BE5\u5730\u5740");
 });
 registerAction("locate-now", (t, oid) => {
   const o = byId(oid);
   if (!o) return;
-  toast2("\u6B63\u5728\u83B7\u53D6\u5F53\u524D\u4F4D\u7F6E\u2026");
+  toast("\u6B63\u5728\u83B7\u53D6\u5F53\u524D\u4F4D\u7F6E\u2026");
   TanJiGeo.locate().then((place) => {
     const cur = byId(oid);
     if (!cur) return;
@@ -2999,8 +2999,8 @@ registerAction("locate-now", (t, oid) => {
     save();
     renderAll();
     rerenderDetail();
-    toast2("\u5DF2\u8BB0\u5F55\u5230\u5E97\u5B9A\u4F4D \u2713");
-  }).catch(() => toast2("\u5B9A\u4F4D\u5931\u8D25,\u8BF7\u786E\u8BA4\u5DF2\u5141\u8BB8\u300C\u4F7F\u7528 App \u671F\u95F4\u300D\u5B9A\u4F4D"));
+    toast("\u5DF2\u8BB0\u5F55\u5230\u5E97\u5B9A\u4F4D \u2713");
+  }).catch(() => toast("\u5B9A\u4F4D\u5931\u8D25,\u8BF7\u786E\u8BA4\u5DF2\u5141\u8BB8\u300C\u4F7F\u7528 App \u671F\u95F4\u300D\u5B9A\u4F4D"));
 });
 registerAction("mark-submit", (t, oid) => {
   mark(oid, "submittedAt", "\u5DF2\u6807\u8BB0\u63D0\u5BA1 \u2713");
@@ -3055,7 +3055,7 @@ registerAction("shot-clear", (t, oid) => {
   save();
   renderAll();
   rerenderDetail();
-  toast2("\u7167\u7247\u5DF2\u5220\u9664");
+  toast("\u7167\u7247\u5DF2\u5220\u9664");
 });
 registerAction("remove-avatar", (t, oid) => {
   ui2.draftAvatar = null;
@@ -3064,10 +3064,10 @@ registerAction("remove-avatar", (t, oid) => {
 registerAction("copy-account", (t, oid) => {
   const a = accById(t.dataset.id);
   if (!a) {
-    toast2("\u8BE5\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7,\u65E0\u8D44\u6599\u53EF\u62F7");
+    toast("\u8BE5\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7,\u65E0\u8D44\u6599\u53EF\u62F7");
     return;
   }
-  copyText(accountCopyText(a)).then((ok) => toast2(ok ? `\u5DF2\u62F7\u8D1D\u300C${a.name}\u300D\u8D44\u6599 \u2713` : "\u62F7\u8D1D\u5931\u8D25,\u8BF7\u624B\u52A8\u957F\u6309\u590D\u5236"));
+  copyText(accountCopyText(a)).then((ok) => toast(ok ? `\u5DF2\u62F7\u8D1D\u300C${a.name}\u300D\u8D44\u6599 \u2713` : "\u62F7\u8D1D\u5931\u8D25,\u8BF7\u624B\u52A8\u957F\u6309\u590D\u5236"));
 });
 registerAction("assign-open", (t, oid) => {
   ui2.assignAcc = ACCS()[0] ? ACCS()[0].id : null;
@@ -3077,7 +3077,7 @@ registerAction("assign-open", (t, oid) => {
           <span class="acc-dot"></span>${accAvatarHTML(a, "width:30px;height:30px;font-size:14px;border-radius:10px")}
           <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${db.orders.filter((o) => o.accountId === a.id).length} \u5355</span></button>`;
   }).join("");
-  showSheet2("sheet-assign");
+  showSheet("sheet-assign");
 });
 registerAction("assign-pick", (t, oid) => {
   ui2.assignAcc = +t.dataset.id;
@@ -3094,20 +3094,20 @@ registerAction("assign-pick", (t, oid) => {
 registerAction("assign-run", (t, oid) => {
   const n = db.orders.filter((o) => o.accountId == null).length;
   if (!n) {
-    toast2("\u6CA1\u6709\u672A\u6307\u5B9A\u7684\u8BA2\u5355");
+    toast("\u6CA1\u6709\u672A\u6307\u5B9A\u7684\u8BA2\u5355");
     return;
   }
   if (ui2.assignAcc == null) {
-    toast2("\u5148\u9009\u4E00\u4E2A\u8D26\u53F7");
+    toast("\u5148\u9009\u4E00\u4E2A\u8D26\u53F7");
     return;
   }
   db.orders.forEach((o) => {
     if (o.accountId == null) o.accountId = ui2.assignAcc;
   });
   save();
-  closeSheets2();
+  closeSheets();
   renderAll();
-  toast2(`\u5DF2\u628A ${n} \u7B14\u8BA2\u5355\u6539\u6302\u5230\u300C${accById(ui2.assignAcc).name}\u300D`);
+  toast(`\u5DF2\u628A ${n} \u7B14\u8BA2\u5355\u6539\u6302\u5230\u300C${accById(ui2.assignAcc).name}\u300D`);
 });
 registerAction("set-review", (t, oid) => {
   const o = byId(oid), v = t.dataset.v;
@@ -3116,7 +3116,7 @@ registerAction("set-review", (t, oid) => {
   save();
   renderAll();
   rerenderDetail();
-  toast2(o.reviewResult ? `\u5DF2\u6807\u8BB0${REVIEW_LABEL[o.reviewResult]}` : "\u5DF2\u6E05\u9664\u9001\u5BA1\u7ED3\u679C");
+  toast(o.reviewResult ? `\u5DF2\u6807\u8BB0${REVIEW_LABEL[o.reviewResult]}` : "\u5DF2\u6E05\u9664\u9001\u5BA1\u7ED3\u679C");
 });
 registerAction("open-pay", (t, oid) => {
   openPay(oid, t.dataset.kind);
@@ -3131,11 +3131,11 @@ registerAction("confirm-pay", (t, oid) => {
   const ctx = ui2.payCtx;
   ui2.payCtx = null;
   if (!ctx) {
-    toast2("\u6536\u6B3E\u64CD\u4F5C\u5DF2\u7ED3\u675F\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u6536\u6B3E");
+    toast("\u6536\u6B3E\u64CD\u4F5C\u5DF2\u7ED3\u675F\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u6536\u6B3E");
     return;
   }
   const returnDetail = ui2.detail === ctx.oid ? ctx.oid : null;
-  closeSheets2();
+  closeSheets();
   pay(ctx.oid, ctx.kind, ctx.method);
   if (returnDetail !== null && byId(returnDetail)) openDetail(returnDetail);
 });
@@ -3149,7 +3149,7 @@ registerAction("snooze", (t, oid) => {
     rerenderDetail();
     Notify.scheduleSnooze(o, d);
     Notify.syncDaily();
-    toast2(`\u5DF2\u5907\u5FD8:${d} \u5929\u540E(${fmtD(o.remindAt)})\u63D0\u9192\u50AC\u6536 \u2713`);
+    toast(`\u5DF2\u5907\u5FD8:${d} \u5929\u540E(${fmtD(o.remindAt)})\u63D0\u9192\u50AC\u6536 \u2713`);
   }
 });
 registerAction("notify-toggle", (t, oid) => {
@@ -3164,7 +3164,7 @@ registerAction("clear-remind", (t, oid) => {
     rerenderDetail();
     Notify.cancelSnooze(oid);
     Notify.syncDaily();
-    toast2("\u5DF2\u6E05\u9664\u50AC\u6536\u63D0\u9192");
+    toast("\u5DF2\u6E05\u9664\u50AC\u6536\u63D0\u9192");
   }
 });
 registerAction("remind-open", (t, oid) => {
@@ -3206,7 +3206,7 @@ registerAction("mile", (t, oid) => {
       rerenderDetail();
       Notify.syncDeliver();
       Notify.syncDaily();
-      toast2("\u5DF2\u6E05\u9664,\u53EF\u91CD\u65B0\u6807\u8BB0");
+      toast("\u5DF2\u6E05\u9664,\u53EF\u91CD\u65B0\u6807\u8BB0");
     }
   } else if (mark(oid, key, "\u5DF2\u6807\u8BB0\u300C" + MILE_LABEL[key] + "\u300D") && key === "shotAt") capturePlace(oid);
 });
@@ -3226,10 +3226,10 @@ registerAction("privacy", (t, oid) => {
   ui2.privacy = !ui2.privacy;
   renderAll();
   rerenderDetail();
-  toast2(ui2.privacy ? "\u5DF2\u9690\u85CF\u91D1\u989D \xB7 \u622A\u56FE\u6A21\u5F0F" : "\u5DF2\u6062\u590D\u663E\u793A\u91D1\u989D");
+  toast(ui2.privacy ? "\u5DF2\u9690\u85CF\u91D1\u989D \xB7 \u622A\u56FE\u6A21\u5F0F" : "\u5DF2\u6062\u590D\u663E\u793A\u91D1\u989D");
 });
 registerAction("app-store-soon", (t, oid) => {
-  toast2("iOS \u539F\u751F\u7248\u5373\u5C06\u4E0A\u67B6,\u4E0A\u7EBF\u540E\u53EF\u76F4\u63A5\u5728 App Store \u4E70\u65AD");
+  toast("iOS \u539F\u751F\u7248\u5373\u5C06\u4E0A\u67B6,\u4E0A\u7EBF\u540E\u53EF\u76F4\u63A5\u5728 App Store \u4E70\u65AD");
 });
 registerAction("share", (t, oid) => {
   shareToday();
@@ -3240,11 +3240,11 @@ registerAction("share-confirm", (t, oid) => {
     const file = new File([ui2.shareBlob], name, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       navigator.share({ files: [file], title: ui2.shareDay + " \u62CD\u6444\u884C\u7A0B" }).catch((error) => {
-        if (error.name !== "AbortError") toast2("\u5206\u4EAB\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5");
+        if (error.name !== "AbortError") toast("\u5206\u4EAB\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5");
       });
     } else {
-      download2(name, ui2.shareBlob, "image/png");
-      toast2("\u56FE\u7247\u5DF2\u4FDD\u5B58");
+      download(name, ui2.shareBlob, "image/png");
+      toast("\u56FE\u7247\u5DF2\u4FDD\u5B58");
     }
   }
 });
@@ -3253,11 +3253,11 @@ registerAction("del-order", (t, oid) => {
     db.orders = db.orders.filter((o) => o.id !== oid);
     db.payments = db.payments.filter((p) => p.oid !== oid);
     save();
-    closeSheets2();
+    closeSheets();
     renderAll();
     Notify.cancelOrder(oid);
     Notify.syncDaily();
-    toast2("\u8BA2\u5355\u5DF2\u5220\u9664");
+    toast("\u8BA2\u5355\u5DF2\u5220\u9664");
   }
 });
 registerAction("export-csv", (t, oid) => {
@@ -3270,7 +3270,7 @@ registerAction("export-db", (t, oid) => {
   exportDb();
 });
 registerAction("open-schema", (t, oid) => {
-  showSheet2("sheet-schema");
+  showSheet("sheet-schema");
 });
 registerAction("th", (t, oid) => {
   const opts = [7, 15, 30, 45];
@@ -3281,7 +3281,7 @@ registerAction("th", (t, oid) => {
   renderAll();
   rerenderDetail();
   Notify.syncDaily();
-  toast2(`\u50AC\u6536\u9608\u503C\u5DF2\u8BBE\u4E3A ${db.threshold} \u5929`);
+  toast(`\u50AC\u6536\u9608\u503C\u5DF2\u8BBE\u4E3A ${db.threshold} \u5929`);
 });
 registerAction("import-json", (t, oid) => {
   $("#import-file").value = "";
@@ -3298,7 +3298,7 @@ registerAction("switch-mode", (t, oid) => {
 });
 registerAction("clear-data", (t, oid) => {
   if (confirm("\u6E05\u7A7A\u5F53\u524D" + (Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A") + "\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [] }).then((ok) => {
-    if (ok) toast2("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
+    if (ok) toast("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
   });
 });
 registerAction("export-checkpoint", (t, oid) => {
@@ -3309,7 +3309,7 @@ registerAction("retry-storage", (t, oid) => {
     location.reload();
   } else if (Store.blocked) {
     loadState().then(() => {
-      closeSheets2();
+      closeSheets();
       renderAll();
       showTab("home");
     });
@@ -3320,11 +3320,11 @@ document.addEventListener("click", (e) => {
   if (!t) return;
   const act = t.dataset.act, oid = +t.dataset.oid || 0;
   if (!Store.ready || Store.busy) {
-    toast2("\u6B63\u5728\u8BFB\u5199\u6570\u636E\uFF0C\u8BF7\u7A0D\u5019");
+    toast("\u6B63\u5728\u8BFB\u5199\u6570\u636E\uFF0C\u8BF7\u7A0D\u5019");
     return;
   }
   if (Store.blocked && !["retry-storage", "export-json", "export-csv", "export-db", "export-checkpoint", "tab", "open", "close-sheet", "privacy", "app-store-soon", "goto-collect", "chip", "bucket", "period", "day", "mnav", "mtoday", "share", "share-confirm", "open-schema", "open-account", "acc-filter", "acc-pick", "prov-pick", "pal-pick", "copy-account", "assign-open", "pick-avatar", "shot-pick", "nav-place", "remind-open", "expect-open"].includes(act)) {
-    toast2("\u4E3A\u4FDD\u62A4\u539F\u6570\u636E\uFF0C\u5199\u5165\u5DF2\u6682\u505C\uFF0C\u8BF7\u5148\u91CD\u8BD5\u8BFB\u53D6");
+    toast("\u4E3A\u4FDD\u62A4\u539F\u6570\u636E\uFF0C\u5199\u5165\u5DF2\u6682\u505C\uFF0C\u8BF7\u5148\u91CD\u8BD5\u8BFB\u53D6");
     return;
   }
   refreshClock();
@@ -3427,10 +3427,6 @@ Object.assign(globalThis, {
   snoozed: snoozed2,
   overdueDays: overdueDays2,
   ui: ui2,
-  closeSheets: closeSheets2,
-  showSheet: showSheet2,
-  toast: toast2,
-  download: download2,
   mark,
   renderTrip,
   statsFor,
@@ -3442,10 +3438,10 @@ Object.defineProperty(globalThis, "db", { get: () => db, configurable: true });
 globalThis.Store = Store;
 registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats });
 registerDetailRerender(rerenderDetail);
-registerAfterLoad({ renderAll, showTab });
+registerStorageHooks({ renderAll, showTab, toast, closeSheets });
 registerBytesBuilder(buildSqliteBytes);
 if (!isNative && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
-  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => toast2("\u79BB\u7EBF\u7F13\u5B58\u5B89\u88C5\u5931\u8D25\uFF0C\u8054\u7F51\u65F6\u4ECD\u53EF\u4F7F\u7528")));
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => toast("\u79BB\u7EBF\u7F13\u5B58\u5B89\u88C5\u5931\u8D25\uFF0C\u8054\u7F51\u65F6\u4ECD\u53EF\u4F7F\u7528")));
 }
 $("#import-file").addEventListener("change", (event) => previewImport(event.target.files[0]));
 document.addEventListener("keydown", (event) => {
@@ -3500,6 +3496,6 @@ $("#f-date").value = TODAY;
     if (s) {
       Store.sqlite3 = s;
       if (!Store.blocked && !Store.busy) persistFull();
-    } else if (!isNative) toast2("SQLite \u5F15\u64CE\u672A\u80FD\u52A0\u8F7D\uFF0CJSON \u4FDD\u5B58\u548C\u5907\u4EFD\u4ECD\u53EF\u7528");
+    } else if (!isNative) toast("SQLite \u5F15\u64CE\u672A\u80FD\u52A0\u8F7D\uFF0CJSON \u4FDD\u5B58\u548C\u5907\u4EFD\u4ECD\u53EF\u7528");
   });
 })();

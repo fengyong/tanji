@@ -9,7 +9,7 @@ export const Store={sqlite3:null,mode:'demo',revision:0,queue:Promise.resolve(),
    bytesBuilder = SQLite 字节构建(buildSqliteBytes 的实现住在 sqlite-bytes.js,
    它 import 本模块,不能反向 import —— 注入是单向依赖下唯一合法的回调通道)。 */
 let afterLoad=null,bytesBuilder=null;
-export function registerAfterLoad(hooks){afterLoad=hooks}
+export function registerStorageHooks(hooks){afterLoad=hooks}
 export function registerBytesBuilder(fn){bytesBuilder=fn}
 
 export async function acquireWriter(){
@@ -292,8 +292,8 @@ export async function switchMode(mode){
     if(!await rememberMode(mode)){setStorageStatus('无法保存切换状态，请导出备份后重试。');return}
     Store.mode=mode;db=target.value?validateState(target.value):mode==='work'?{orders:[],payments:[],threshold:15}:demoSeed();
     Store.revision=Math.max(Store.revision,target.value?.revision||0);Store.backup=target.value?.previous||null;
-    closeSheets();ui.q='';ui.chip='all';ui.bucket='all';await save();afterLoad&&(afterLoad.renderAll(),afterLoad.showTab('home'));Notify.syncDaily();Notify.syncDeliver();
-    toast(mode==='work'?'已切换到工作数据':'已切换到独立演示数据，工作数据未改动');
+    afterLoad&&afterLoad.closeSheets();ui.q='';ui.chip='all';ui.bucket='all';await save();afterLoad&&(afterLoad.renderAll(),afterLoad.showTab('home'));Notify.syncDaily();Notify.syncDeliver();
+    afterLoad&&afterLoad.toast(mode==='work'?'已切换到工作数据':'已切换到独立演示数据，工作数据未改动');
   }finally{Store.busy=false}
 }
 export async function replaceData(state){
@@ -308,7 +308,7 @@ export async function replaceData(state){
     const before=snapshot(),next=snapshot(validated);
     next.previous=before;
     if(!await persistSnapshot(next))return false;
-    Store.backup=before;db=validated;closeSheets();ui.q='';ui.chip='all';ui.bucket='all';afterLoad&&afterLoad.renderAll();
+    Store.backup=before;db=validated;afterLoad&&afterLoad.closeSheets();ui.q='';ui.chip='all';ui.bucket='all';afterLoad&&afterLoad.renderAll();
     // 数据被整体替换(导入/恢复/清空)后,已排的通知还指着旧数据:已删订单的备忘、
     // 出片提醒会在半夜凭空响起来。先撤掉当前模式的通知,再按新数据重排每日汇总与出片提醒。
     // 只撤当前模式:另一套数据(work/demo)没被替换,它的通知仍然有效。
@@ -333,47 +333,6 @@ export function accountCopyText(account){
   if(account.phone)lines.push(`手机:${account.phone}`);
   return lines.join('\n');
 }
-export async function previewImport(file){
-  if(!file)return;
-  try{
-    if(file.size>10*1024*1024)throw new Error('备份文件不能超过 10 MB');
-    const state=validateState(JSON.parse((await file.text()).replace(/^\uFEFF/,'')));
-    for(const order of state.orders){
-      for(const [kind,key,expected] of [['定金','depositPaidAt',order.deposit],['尾款','finalPaidAt',order.price-order.deposit]]){
-        const entries=state.payments.filter(p=>p.oid===order.id&&p.kind===kind);
-        const total=entries.reduce((sum,p)=>sum+Math.round(p.amount*100),0);
-        if(entries.length>1||(entries.length>0&&!order[key])||total!==Math.round((order[key]?expected:0)*100))throw new Error(`订单「${order.store}」的${kind}流水与已收状态不一致，请先核对备份`);
-      }
-    }
-    Store.pending=state;
-    const total=state.payments.reduce((sum,p)=>sum+p.amount,0);
-    document.querySelector('#import-summary').textContent=`${file.name}：${state.orders.length} 笔订单、${state.payments.length} 笔流水、实收 ${fmtMoney(total,ui.privacy)}、催收阈值 ${state.threshold} 天。将替换当前${Store.mode==='work'?'工作':'演示'}数据，替换前自动保存一份本机备份。`;
-    showSheet('sheet-import');
-  }catch(error){Store.pending=null;toast(`不能导入：${error.message}`)}
-}
-export async function confirmImport(){
-  if(!Store.pending||Store.busy)return;
-  const state=Store.pending;
-  if(await replaceData(state)){Store.pending=null;toast('备份已恢复，替换前数据可在统计页恢复')}
-}
-export async function restoreCheckpoint(){
-  if(Store.busy||Store.blocked)return;
-  Store.busy=true;
-  let saved;
-  try{saved=await readSnapshot(Store.mode,'backup')}finally{Store.busy=false}
-  if(saved.uncertain){toast('部分备份无法读取，已暂停恢复；请导出替换前备份并重试');return}
-  if(!saved.value){toast('没有可用的替换前备份');return}
-  if(!confirm(`恢复替换前的 ${saved.value.orders.length} 笔订单和 ${saved.value.payments.length} 笔流水？当前数据将作为新的替换前备份保留。`))return;
-  if(await replaceData(saved.value))toast('已恢复替换前数据');
-}
-export async function exportCheckpoint(){
-  const mode=Store.mode;
-  const saved=await readSnapshot(mode,'backup');
-  if(!saved.value){toast('没有可用的替换前备份');return}
-  download(`探记-${mode==='work'?'工作':'演示'}-替换前备份.json`,JSON.stringify(backupDocument(saved.value),null,2),'application/json');
-  toast('已导出替换前备份，原存储未改动');
-}
-
 /* --- 原生:Capacitor SQLite(双数据集:mode 列;settings 以 mode:suffix 为键) --- */
 const NATIVE_DB='tanji';
 const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','gps_place','deliver_main','deliver_sub','review_result','published_at','account_id','note','remind_log','expect_pay_at','created_at','updated_at'];
@@ -649,6 +608,6 @@ export const Notify={
         if(daily.length)await L.cancel({notifications:daily});
       }catch(e){}
     }
-    toast(db.notifyEnabled!==false?'已开启每日催收提醒（每天 09:00）':'已关闭每日催收提醒');
+    afterLoad&&afterLoad.toast(db.notifyEnabled!==false?'已开启每日催收提醒（每天 09:00）':'已关闭每日催收提醒');
   }
 };

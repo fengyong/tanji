@@ -1,11 +1,12 @@
 /* ================= 导出(P0 §3) ================= */
 import {CAP,isNative} from './env.js';
-import {$,toISO,TODAY,fmtD} from './util.js';
-import {db,Store,needMain,needSub,backupDocument} from './storage.js';
+import {$,toISO,TODAY,fmtD,fmtMoney} from './util.js';
+import {db,Store,needMain,needSub,backupDocument,validateState,replaceData,readSnapshot} from './storage.js';
 import {gpsText,REVIEW_LABEL,workOf,payOf,owedOf,isOver,overdueDays,remindLogOf,lastRemind,storeOf} from './derived.js';
 import {accById} from './accounts.js';
 import {buildSqliteBytes} from './sqlite-bytes.js';
-import {toast} from './sheets.js';
+import {ui} from './ui.js';
+import {showSheet,toast} from './sheets.js';
 
 /* ================= 导出 ================= */
 function blobToBase64(blob){
@@ -124,3 +125,45 @@ FROM orders
 WHERE final_paid_at IS NULL AND shot_at IS NOT NULL AND settle_via='private'
 ORDER BY days DESC;`;
 $('#schema-pre').innerHTML=SCHEMA;
+
+/* ================= 导入 / 替换前备份(T2-A 自 storage.js 搬入) ================= */
+export async function previewImport(file){
+  if(!file)return;
+  try{
+    if(file.size>10*1024*1024)throw new Error('备份文件不能超过 10 MB');
+    const state=validateState(JSON.parse((await file.text()).replace(/^\uFEFF/,'')));
+    for(const order of state.orders){
+      for(const [kind,key,expected] of [['定金','depositPaidAt',order.deposit],['尾款','finalPaidAt',order.price-order.deposit]]){
+        const entries=state.payments.filter(p=>p.oid===order.id&&p.kind===kind);
+        const total=entries.reduce((sum,p)=>sum+Math.round(p.amount*100),0);
+        if(entries.length>1||(entries.length>0&&!order[key])||total!==Math.round((order[key]?expected:0)*100))throw new Error(`订单「${order.store}」的${kind}流水与已收状态不一致，请先核对备份`);
+      }
+    }
+    Store.pending=state;
+    const total=state.payments.reduce((sum,p)=>sum+p.amount,0);
+    document.querySelector('#import-summary').textContent=`${file.name}：${state.orders.length} 笔订单、${state.payments.length} 笔流水、实收 ${fmtMoney(total,ui.privacy)}、催收阈值 ${state.threshold} 天。将替换当前${Store.mode==='work'?'工作':'演示'}数据，替换前自动保存一份本机备份。`;
+    showSheet('sheet-import');
+  }catch(error){Store.pending=null;toast(`不能导入：${error.message}`)}
+}
+export async function confirmImport(){
+  if(!Store.pending||Store.busy)return;
+  const state=Store.pending;
+  if(await replaceData(state)){Store.pending=null;toast('备份已恢复，替换前数据可在统计页恢复')}
+}
+export async function restoreCheckpoint(){
+  if(Store.busy||Store.blocked)return;
+  Store.busy=true;
+  let saved;
+  try{saved=await readSnapshot(Store.mode,'backup')}finally{Store.busy=false}
+  if(saved.uncertain){toast('部分备份无法读取，已暂停恢复；请导出替换前备份并重试');return}
+  if(!saved.value){toast('没有可用的替换前备份');return}
+  if(!confirm(`恢复替换前的 ${saved.value.orders.length} 笔订单和 ${saved.value.payments.length} 笔流水？当前数据将作为新的替换前备份保留。`))return;
+  if(await replaceData(saved.value))toast('已恢复替换前数据');
+}
+export async function exportCheckpoint(){
+  const mode=Store.mode;
+  const saved=await readSnapshot(mode,'backup');
+  if(!saved.value){toast('没有可用的替换前备份');return}
+  download(`探记-${mode==='work'?'工作':'演示'}-替换前备份.json`,JSON.stringify(backupDocument(saved.value),null,2),'application/json');
+  toast('已导出替换前备份，原存储未改动');
+}

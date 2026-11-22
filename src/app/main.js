@@ -2,7 +2,8 @@
 import {isNative} from './env.js';
 import {$,TODAY} from './util.js';
 import {ui,renderAll,showTab,refreshVisible,registerRenderers,registerDetailRerender,markDailySynced} from './ui.js';
-import {Store,save,loadState,persistFull,acquireWriter,storageKey,setStorageStatus,Notify,nativeOpen,previewImport,backupDocument,db as liveDb} from './storage.js';
+import {Store,save,loadState,persistFull,acquireWriter,storageKey,setStorageStatus,Notify,nativeOpen,backupDocument,db as liveDb} from './storage.js';
+import {previewImport} from './export.js';
 import {accMatch} from './accounts.js';
 import {isOver,snoozed,overdueDays} from './derived.js';
 import {buildSqliteBytes} from './sqlite-bytes.js';
@@ -25,7 +26,7 @@ import {renderStats} from './views/stats.js';
 /* P0 偏差 #1–#3(见 DEVIATIONS.md):storage.js / ui.js / derived.js 的函数体是
    逐字节搬运,仍按经典脚本时代的全局晚绑定调用下列符号;§3/§5 又禁止它们
    import 这些符号。在组合根统一挂回 globalThis —— 恢复原语义,不新增行为。 */
-Object.assign(globalThis,{accMatch,isOver,snoozed,overdueDays,ui,closeSheets,showSheet,toast,download,
+Object.assign(globalThis,{accMatch,isOver,snoozed,overdueDays,ui,
   mark,
   renderTrip,statsFor,backupDocument,previewImport,buildSqliteBytes});
 /* 冒烟测试与 WKWebView 调试控制台依赖 Store.ready / Store.blocked / db.orders —
@@ -38,8 +39,8 @@ globalThis.Store=Store;
 registerRenderers({home:renderHome,trip:renderTrip,orders:renderOrders,pay:renderPay,stats:renderStats});
 registerDetailRerender(rerenderDetail);
 /* P1-T1:storage 的 UI 刷新与 SQLite 字节构建经注入回调,不再走 globalThis */
-import {registerAfterLoad,registerBytesBuilder} from './storage.js';
-registerAfterLoad({renderAll,showTab});
+import {registerStorageHooks,registerBytesBuilder} from './storage.js';
+registerStorageHooks({renderAll,showTab,toast,closeSheets});
 registerBytesBuilder(buildSqliteBytes);
 
 /* ================= 启动 ================= */
