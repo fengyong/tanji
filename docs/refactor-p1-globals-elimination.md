@@ -9,7 +9,11 @@
 > - 静态扫描(查自由引用残留,脚本见本文附录)
 > - `npm test`(136 项)+ `npm run test:smoke` + `npm run build:app`
 >
-> 进度:T0 ✅(7/25,2026-11-22,f7… 提交见 git log)| T1 待做 | T2 待做
+> 进度:T0 ✅(7 个)| T1 ✅(renderAll/showTab/buildSqliteBytes 注入化,3 个;
+>   buildSqliteBytes 因冒烟直接求值归入 T2-D 调试面)| T2 待做
+> 当前挂回:生产 10(accMatch/isOver/snoozed/overdueDays/ui/closeSheets/showSheet/
+>   toast/download/mark)+ 调试 5(renderTrip/statsFor/backupDocument/previewImport/
+>   buildSqliteBytes)+ Store/db
 
 ## 剩余挂回清单(18 + Store/db)
 
@@ -21,7 +25,10 @@ renderTrip statsFor backupDocument previewImport   ← 仅冒烟/调试用
 Store db(活 getter)                              ← 仅冒烟/调试用
 ```
 
-## T1 —— 注入/挂钩可解(不搬模块)
+## T1 —— 注入/挂钩可解(不搬模块)✅ 已完成(renderAll/showTab/buildSqliteBytes)
+
+> 备注:mark 的 detail↔order-actions 解环未做,并入 T2 统一处理;
+> toast/closeSheets/showSheet/download 按原计划随 T2-A 自然消除。
 
 | 符号 | 自由引用方 | 环 | 解法 |
 |---|---|---|---|

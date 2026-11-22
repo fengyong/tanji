@@ -67,3 +67,14 @@ globalThis.__replaceDb = state => {
 // 组合根职责(与 src/app/main.js 相同,但不含启动序列)
 uiNS.registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats });
 uiNS.registerDetailRerender(detailNS.rerenderDetail);
+
+/* P1-T1:storage 的 UI 刷新/字节构建走注入;buildSqliteBytes 的全局 set 转发给
+   当前实现,保住旧测试「buildSqliteBytes=stub」的猴子补丁语义 */
+storageNS.registerAfterLoad({ renderAll: uiNS.renderAll, showTab: uiNS.showTab });
+let bytesImpl = sqliteNS.buildSqliteBytes;
+Object.defineProperty(globalThis, 'buildSqliteBytes', {
+  get: () => (...a) => bytesImpl(...a),
+  set: v => { bytesImpl = v; },
+  configurable: true,
+});
+storageNS.registerBytesBuilder((...a) => bytesImpl(...a));

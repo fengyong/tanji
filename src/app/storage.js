@@ -4,6 +4,14 @@ import {fmtMoney,validDateTime} from './util.js';
 import {demoSeed} from './demo.js';
 export let db={orders:[],payments:[],threshold:15};
 export const Store={sqlite3:null,mode:'demo',revision:0,queue:Promise.resolve(),ready:false,busy:false,blocked:false,lockedOut:false,backup:null,status:'正在读取本机数据…',pending:null};
+/* P1-T1 组合根注入(消除 globalThis 挂回):
+   afterLoad = loadState/switchMode/replaceData 后的 UI 刷新(renderAll/showTab);
+   bytesBuilder = SQLite 字节构建(buildSqliteBytes 的实现住在 sqlite-bytes.js,
+   它 import 本模块,不能反向 import —— 注入是单向依赖下唯一合法的回调通道)。 */
+let afterLoad=null,bytesBuilder=null;
+export function registerAfterLoad(hooks){afterLoad=hooks}
+export function registerBytesBuilder(fn){bytesBuilder=fn}
+
 export async function acquireWriter(){
   if(isNative)return;
   if(!navigator.locks){Store.lockedOut=true;return}
@@ -194,7 +202,7 @@ function persistSnapshot(payload){
   const write=async()=>{
     const entries=[[storageKey(payload.mode),payload]];
     if(payload.previous)entries.push([storageKey(payload.mode,'backup'),payload.previous]);
-    const bytes=buildSqliteBytes(payload);
+    const bytes=bytesBuilder?bytesBuilder(payload):null;
     if(bytes)entries.push([storageKey(payload.mode,'sqlite'),bytes]);
     const indexedOK=await idb.setMany(entries);
     if(Store.mode===payload.mode&&Store.revision===payload.revision&&!Store.blocked){
@@ -284,7 +292,7 @@ export async function switchMode(mode){
     if(!await rememberMode(mode)){setStorageStatus('无法保存切换状态，请导出备份后重试。');return}
     Store.mode=mode;db=target.value?validateState(target.value):mode==='work'?{orders:[],payments:[],threshold:15}:demoSeed();
     Store.revision=Math.max(Store.revision,target.value?.revision||0);Store.backup=target.value?.previous||null;
-    closeSheets();ui.q='';ui.chip='all';ui.bucket='all';await save();renderAll();showTab('home');Notify.syncDaily();Notify.syncDeliver();
+    closeSheets();ui.q='';ui.chip='all';ui.bucket='all';await save();afterLoad&&(afterLoad.renderAll(),afterLoad.showTab('home'));Notify.syncDaily();Notify.syncDeliver();
     toast(mode==='work'?'已切换到工作数据':'已切换到独立演示数据，工作数据未改动');
   }finally{Store.busy=false}
 }
@@ -300,7 +308,7 @@ export async function replaceData(state){
     const before=snapshot(),next=snapshot(validated);
     next.previous=before;
     if(!await persistSnapshot(next))return false;
-    Store.backup=before;db=validated;closeSheets();ui.q='';ui.chip='all';ui.bucket='all';renderAll();
+    Store.backup=before;db=validated;closeSheets();ui.q='';ui.chip='all';ui.bucket='all';afterLoad&&afterLoad.renderAll();
     // 数据被整体替换(导入/恢复/清空)后,已排的通知还指着旧数据:已删订单的备忘、
     // 出片提醒会在半夜凭空响起来。先撤掉当前模式的通知,再按新数据重排每日汇总与出片提醒。
     // 只撤当前模式:另一套数据(work/demo)没被替换,它的通知仍然有效。
@@ -629,7 +637,7 @@ export const Notify={
   },
   async toggle(){
     db.notifyEnabled=(db.notifyEnabled===false);
-    save();renderAll();
+    save();afterLoad&&afterLoad.renderAll();
     if(db.notifyEnabled!==false)await this.syncDaily();
     else{
       // 开关语义是「逾期催收每日提醒」(统计页文案),只撤当前模式的每日汇总(base+1)。

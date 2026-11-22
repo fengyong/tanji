@@ -23,10 +23,10 @@ function dOff(days, hm = "10:00") {
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
-function validDateTime2(value) {
+function validDateTime(value) {
   return TanJiLogic.validDateTime(value);
 }
-function nowStr2() {
+function nowStr() {
   const n = /* @__PURE__ */ new Date();
   return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}T${pad(n.getHours())}:${pad(n.getMinutes())}`;
 }
@@ -44,7 +44,7 @@ function fmtHM(s) {
 function fmtDT(s) {
   return s ? `${fmtD(s)} ${fmtHM(s)}` : "\u2014";
 }
-function fmtMoney2(n, masked) {
+function fmtMoney(n, masked) {
   return masked ? "\xA5\u2731\u2731\u2731" : "\xA5" + n.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
 }
 var DOW = "\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u65E5";
@@ -77,771 +77,8 @@ async function copyText(text) {
   }
 }
 
-// src/app/storage.js
-var db = { orders: [], payments: [], threshold: 15 };
-var Store = { sqlite3: null, mode: "demo", revision: 0, queue: Promise.resolve(), ready: false, busy: false, blocked: false, lockedOut: false, backup: null, status: "\u6B63\u5728\u8BFB\u53D6\u672C\u673A\u6570\u636E\u2026", pending: null };
-async function acquireWriter() {
-  if (isNative) return;
-  if (!navigator.locks) {
-    Store.lockedOut = true;
-    return;
-  }
-  await new Promise((resolve) => {
-    navigator.locks.request("tanji-data-writer", { ifAvailable: true }, async (lock) => {
-      Store.lockedOut = !lock;
-      resolve();
-      if (lock) await new Promise(() => {
-      });
-    }).catch(() => {
-      Store.lockedOut = true;
-      resolve();
-    });
-  });
-}
-var storageKey = (mode, suffix = "json") => `tanji_v3_${mode}_${suffix}`;
-var cloneState = (value) => JSON.parse(JSON.stringify(value));
-var idb = {
-  _db: null,
-  _opening: null,
-  open() {
-    if (this._db) return Promise.resolve(this._db);
-    if (this._opening) return this._opening;
-    this._opening = new Promise((resolve) => {
-      try {
-        const request = indexedDB.open("tanji", 1);
-        request.onupgradeneeded = () => request.result.createObjectStore("kv");
-        request.onsuccess = () => {
-          this._db = request.result;
-          this._db.onversionchange = () => {
-            this._db.close();
-            this._db = null;
-          };
-          resolve(this._db);
-        };
-        request.onerror = request.onblocked = () => resolve(null);
-      } catch (error) {
-        resolve(null);
-      }
-    }).then((value) => {
-      this._opening = null;
-      return value;
-    });
-    return this._opening;
-  },
-  async get(key) {
-    const database = await this.open();
-    if (!database) return { ok: false, value: null };
-    return new Promise((resolve) => {
-      try {
-        const transaction = database.transaction("kv"), request = transaction.objectStore("kv").get(key);
-        transaction.oncomplete = () => resolve({ ok: true, value: request.result ?? null });
-        transaction.onerror = transaction.onabort = () => resolve({ ok: false, value: null });
-      } catch (error) {
-        resolve({ ok: false, value: null });
-      }
-    });
-  },
-  async setMany(entries) {
-    const database = await this.open();
-    if (!database) return false;
-    return new Promise((resolve) => {
-      let transaction;
-      try {
-        transaction = database.transaction("kv", "readwrite");
-        transaction.oncomplete = () => resolve(true);
-        transaction.onerror = transaction.onabort = () => resolve(false);
-        for (const [key, value] of entries) transaction.objectStore("kv").put(value, key);
-      } catch (error) {
-        if (transaction) transaction.abort();
-        resolve(false);
-      }
-    });
-  }
-};
-function localRead(key) {
-  try {
-    const text = localStorage.getItem(key);
-    return { ok: true, value: text === null ? null : JSON.parse(text) };
-  } catch (error) {
-    return { ok: false, value: null };
-  }
-}
-function localWrite(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-function validateState(input) {
-  if (!input || typeof input !== "object" || !Array.isArray(input.orders) || !Array.isArray(input.payments)) throw new Error("\u5907\u4EFD\u5FC5\u987B\u5305\u542B\u8BA2\u5355\u4E0E\u6536\u6B3E\u6D41\u6C34\u6570\u7EC4");
-  if (input.version && !["0.2", "0.3", "0.4", "0.5", "0.6"].includes(input.version)) throw new Error("\u6682\u4E0D\u652F\u6301\u8FD9\u4E2A\u5907\u4EFD\u7248\u672C");
-  if (input.v !== void 0 && input.v !== 2 && input.v !== 3) throw new Error("\u6682\u4E0D\u652F\u6301\u8FD9\u4E2A\u6570\u636E\u7248\u672C");
-  const threshold = input.threshold ?? input.collectThresholdDays ?? 15;
-  if (![7, 15, 30, 45].includes(threshold)) throw new Error("\u50AC\u6536\u9608\u503C\u5E94\u4E3A 7\u300115\u300130 \u6216 45 \u5929");
-  const amount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && Number.isSafeInteger(Math.round(value * 100)) && Math.abs(value * 100 - Math.round(value * 100)) < 1e-5;
-  const text = (value, label, fallback = "") => {
-    if (value == null) return fallback;
-    if (typeof value !== "string") throw new Error(`${label}\u5FC5\u987B\u662F\u6587\u672C`);
-    return value;
-  };
-  const dates = ["shotAt", "submittedAt", "shortAt", "longAt", "depositPaidAt", "finalPaidAt", "remindAt", "publishedAt"];
-  const ids = /* @__PURE__ */ new Set();
-  const accountIds = /* @__PURE__ */ new Set();
-  const accounts = (Array.isArray(input.accounts) ? input.accounts : []).map((account, index) => {
-    const label = `\u7B2C ${index + 1} \u4E2A\u8D26\u53F7`;
-    if (!account || !Number.isSafeInteger(account.id) || account.id < 1 || accountIds.has(account.id)) throw new Error(`${label}\u7684 ID \u65E0\u6548\u6216\u91CD\u590D`);
-    if (typeof account.name !== "string" || !account.name.trim()) throw new Error(`${label}\u7F3A\u5C11\u6635\u79F0`);
-    accountIds.add(account.id);
-    const clean = {
-      id: account.id,
-      name: account.name,
-      phone: text(account.phone, `${label}\u7684\u624B\u673A\u53F7`),
-      douyin: text(account.douyin, `${label}\u7684\u6296\u97F3\u8D26\u53F7`),
-      color: Number.isSafeInteger(account.color) ? Math.max(0, Math.min(7, account.color)) : index % 8,
-      createdAt: text(account.createdAt, `${label}\u7684\u521B\u5EFA\u65F6\u95F4`) || null
-    };
-    if (account.avatar != null) {
-      if (typeof account.avatar !== "string" || !account.avatar.startsWith("data:image/") && account.avatar !== "") throw new Error(`${label}\u7684\u5934\u50CF\u6570\u636E\u65E0\u6548`);
-      if (account.avatar.length > 2e5) throw new Error(`${label}\u7684\u5934\u50CF\u56FE\u7247\u8FC7\u5927`);
-      clean.avatar = account.avatar;
-    }
-    return clean;
-  });
-  const seenProviders = /* @__PURE__ */ new Set();
-  const providers = (Array.isArray(input.providers) ? input.providers : []).filter((p) => {
-    if (typeof p !== "string") throw new Error("\u670D\u52A1\u5546\u9884\u8BBE\u5FC5\u987B\u662F\u6587\u672C");
-    const v = p.trim();
-    if (!v || seenProviders.has(v)) return false;
-    seenProviders.add(v);
-    return true;
-  });
-  const orders = input.orders.map((order, index) => {
-    const label = `\u7B2C ${index + 1} \u7B14\u8BA2\u5355`;
-    if (!order || !Number.isSafeInteger(order.id) || order.id < 1 || order.id >= 1e5 || ids.has(order.id)) throw new Error(`${label}\u7684 ID \u65E0\u6548\u3001\u91CD\u590D\u6216\u8D85\u8FC7\u4E0A\u9650(99999)`);
-    ids.add(order.id);
-    if (typeof order.store !== "string" || !order.store.trim()) throw new Error(`${label}\u7F3A\u5C11\u5546\u5BB6\u540D\u79F0`);
-    if (!amount(order.price) || !amount(order.deposit) || order.deposit > order.price) throw new Error(`${label}\u7684\u603B\u4EF7\u6216\u5B9A\u91D1\u4E0D\u5408\u6CD5`);
-    if (!validDateTime(order.appt)) throw new Error(`${label}\u7684\u9884\u7EA6\u65F6\u95F4\u65E0\u6548`);
-    if (order.settleVia && !["private", "douyin"].includes(order.settleVia)) throw new Error(`${label}\u7684\u7ED3\u7B97\u65B9\u5F0F\u65E0\u6548`);
-    if (order.reviewResult != null && !["", "pass", "fail"].includes(order.reviewResult)) throw new Error(`${label}\u7684\u9001\u5BA1\u7ED3\u679C\u65E0\u6548`);
-    const clean = {
-      id: order.id,
-      store: order.store,
-      price: Math.round(order.price * 100) / 100,
-      deposit: Math.round(order.deposit * 100) / 100,
-      appt: order.appt,
-      settleVia: order.settleVia || "private",
-      location: text(order.location, `${label}\u7684\u5730\u70B9`),
-      deliverMain: order.deliverMain !== false,
-      deliverSub: order.deliverSub !== false,
-      reviewResult: order.reviewResult || "",
-      accountId: order.accountId != null && accountIds.has(order.accountId) ? order.accountId : null
-    };
-    for (const field of ["cat", "contact", "channel", "partner", "note"]) clean[field] = text(order[field], `${label}\u7684${field}`, field === "cat" ? "\u5176\u4ED6" : field === "channel" ? "\u76F4\u5BA2" : "");
-    for (const field of dates) {
-      if (order[field] != null && !validDateTime(order[field])) throw new Error(`${label}\u7684${field}\u65F6\u95F4\u65E0\u6548`);
-      clean[field] = order[field] ?? null;
-    }
-    if (order.expectPayAt != null && order.expectPayAt !== "") {
-      if (!validDateTime(order.expectPayAt)) throw new Error(`${label}\u7684\u9884\u8BA1\u5230\u8D26\u65F6\u95F4\u65E0\u6548`);
-      clean.expectPayAt = order.expectPayAt;
-    }
-    if (Array.isArray(order.remindLog)) clean.remindLog = cloneState(order.remindLog).filter((entry) => entry && validDateTime(entry.at)).map((entry) => ({ at: entry.at, note: typeof entry.note === "string" ? entry.note.slice(0, 200) : "" })).slice(-50);
-    if (order.photoThumb != null) {
-      const ok = typeof TanJiImage !== "undefined" && TanJiImage.isValidStored(order.photoThumb, TanJiImage.LIMIT.door);
-      if (!ok) throw new Error(`${label}\u7684\u968F\u624B\u62CD\u7167\u7247\u65E0\u6548\u6216\u8FC7\u5927`);
-      clean.photoThumb = order.photoThumb;
-    }
-    if (typeof order.gpsPlace === "string" && order.gpsPlace.trim()) {
-      const place = order.gpsPlace.trim();
-      if (typeof TanJiGeo !== "undefined" && TanJiGeo.isValid(place)) clean.gpsPlace = place;
-      else console.warn(`[TanJi] ${label}\u7684\u5230\u5E97\u5B9A\u4F4D\u683C\u5F0F\u65E0\u6548,\u5DF2\u5FFD\u7565`, place);
-    }
-    return clean;
-  });
-  const payments = input.payments.map((payment, index) => {
-    const label = `\u7B2C ${index + 1} \u7B14\u6D41\u6C34`;
-    if (!payment || !ids.has(payment.oid)) throw new Error(`${label}\u627E\u4E0D\u5230\u5BF9\u5E94\u8BA2\u5355`);
-    if (!["\u5B9A\u91D1", "\u5C3E\u6B3E"].includes(payment.kind) || !amount(payment.amount) || !validDateTime(payment.at)) throw new Error(`${label}\u7684\u7C7B\u578B\u3001\u91D1\u989D\u6216\u65E5\u671F\u65E0\u6548`);
-    if (!["\u5FAE\u4FE1", "\u652F\u4ED8\u5B9D", "\u94F6\u884C\u5361", "\u6296\u97F3\u5546\u5355", "\u5176\u4ED6"].includes(payment.method)) throw new Error(`${label}\u7684\u6536\u6B3E\u65B9\u5F0F\u65E0\u6548`);
-    return { oid: payment.oid, kind: payment.kind, amount: Math.round(payment.amount * 100) / 100, at: payment.at, method: payment.method, ...payment.note != null ? { note: text(payment.note, `${label}\u5907\u6CE8`) } : {} };
-  });
-  const notifyEnabled = input.notifyEnabled === void 0 ? true : input.notifyEnabled !== false;
-  return { orders, payments, threshold, notifyEnabled, accounts, providers };
-}
-function setStorageStatus(message) {
-  if (Store.lockedOut) message = "\u5F53\u524D\u4E3A\u53EA\u8BFB\uFF1A\u8BF7\u5173\u95ED\u5176\u4ED6\u63A2\u8BB0\u6807\u7B7E\u9875\u540E\u5237\u65B0\u91CD\u8BD5\uFF1B\u6D4F\u89C8\u5668\u987B\u652F\u6301\u5B89\u5168\u5199\u5165\u9501\u3002";
-  Store.status = message;
-  const banner = document.querySelector("#storage-status");
-  if (banner) {
-    banner.hidden = !message;
-    banner.querySelector("span").textContent = message;
-  }
-}
-function snapshot(state = db, mode = Store.mode) {
-  Store.revision = Math.max(Date.now(), Store.revision + 1);
-  return { ...cloneState(state), v: 3, revision: Store.revision, savedAt: (/* @__PURE__ */ new Date()).toISOString(), mode };
-}
-function persistSnapshot(payload) {
-  if (isNative) {
-    const write2 = async () => {
-      const ok = await nativePersistSnapshot(payload);
-      const localOK2 = localWrite(storageKey(payload.mode), payload);
-      if (Store.mode === payload.mode && Store.revision === payload.revision && !Store.blocked) {
-        if (!ok) setStorageStatus("\u4FDD\u5B58\u5931\u8D25\uFF1A\u6539\u52A8\u4EC5\u5728\u5F53\u524D\u9875\u9762\uFF0C\u8BF7\u52FF\u5173\u95ED\uFF0C\u5148\u5BFC\u51FA JSON \u5907\u4EFD\u518D\u91CD\u8BD5\u3002");
-        else if (!localOK2) setStorageStatus("\u7B2C\u4E8C\u526F\u672C\u4FDD\u5B58\u5931\u8D25\uFF08\u672C\u673A\u5B58\u50A8\u7A7A\u95F4\u53EF\u80FD\u5DF2\u6EE1\uFF09\uFF1A\u6539\u52A8\u5DF2\u5199\u8FDB\u6570\u636E\u5E93\uFF0C\u4F46\u5907\u4EFD\u526F\u672C\u6CA1\u5199\u6210\u3002\u8BF7\u5148\u5BFC\u51FA JSON \u5907\u4EFD\uFF0C\u5E76\u6E05\u7406\u672C\u673A\u7A7A\u95F4\u3002");
-        else setStorageStatus("");
-      }
-      return ok;
-    };
-    Store.queue = Store.queue.then(write2, write2);
-    return Store.queue;
-  }
-  const localOK = localWrite(storageKey(payload.mode), payload);
-  const write = async () => {
-    const entries = [[storageKey(payload.mode), payload]];
-    if (payload.previous) entries.push([storageKey(payload.mode, "backup"), payload.previous]);
-    const bytes = buildSqliteBytes(payload);
-    if (bytes) entries.push([storageKey(payload.mode, "sqlite"), bytes]);
-    const indexedOK = await idb.setMany(entries);
-    if (Store.mode === payload.mode && Store.revision === payload.revision && !Store.blocked) {
-      setStorageStatus(localOK && indexedOK ? "" : localOK || indexedOK ? "\u4EC5\u4E00\u4EFD\u672C\u673A\u526F\u672C\u4FDD\u5B58\u6210\u529F\uFF0C\u8BF7\u5BFC\u51FA\u5907\u4EFD\u5E76\u91CD\u8BD5\u3002" : "\u4FDD\u5B58\u5931\u8D25\uFF1A\u6539\u52A8\u4EC5\u5728\u5F53\u524D\u9875\u9762\uFF0C\u8BF7\u52FF\u5173\u95ED\uFF0C\u5148\u5BFC\u51FA JSON \u5907\u4EFD\u518D\u91CD\u8BD5\u3002");
-    }
-    return localOK || indexedOK;
-  };
-  Store.queue = Store.queue.then(write, write);
-  return Store.queue;
-}
-function save() {
-  if (Store.blocked) return Promise.resolve(false);
-  setStorageStatus("\u6B63\u5728\u4FDD\u5B58\u2026");
-  const payload = snapshot();
-  if (Store.backup) payload.previous = Store.backup;
-  return persistSnapshot(payload);
-}
-function persistFull() {
-  return save();
-}
-async function readSnapshot(mode, suffix = "json") {
-  if (isNative) return nativeReadSnapshot(mode, suffix);
-  const key = storageKey(mode, suffix), local = localRead(key), indexed = await idb.get(key);
-  const candidates = [];
-  let invalid = false;
-  const sources = [local, indexed];
-  if (suffix === "backup") {
-    const primary = localRead(storageKey(mode));
-    if (primary.value?.previous) sources.push({ ok: true, value: primary.value.previous });
-  }
-  for (const source of sources) {
-    if (source.value === null) continue;
-    try {
-      const data = validateState(source.value);
-      const revision = source.value.revision;
-      if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("\u65E0\u6548\u4FEE\u8BA2\u53F7");
-      candidates.push({ ...data, v: 3, mode, revision, savedAt: source.value.savedAt, previous: source.value.previous ?? null });
-    } catch (error) {
-      invalid = true;
-    }
-  }
-  candidates.sort((a, b) => b.revision - a.revision);
-  return { value: candidates[0] || null, uncertain: invalid || !local.ok || !indexed.ok };
-}
-async function rememberMode(mode) {
-  if (Store.blocked) return false;
-  const value = { mode, revision: Date.now() }, localOK = localWrite("tanji_v3_mode", value);
-  const indexedOK = await idb.setMany([["tanji_v3_mode", value]]);
-  return localOK || indexedOK;
-}
-async function loadState() {
-  Store.ready = false;
-  Store.blocked = Store.lockedOut;
-  Store.backup = null;
-  const [work, demo, indexedMode] = await Promise.all([readSnapshot("work"), readSnapshot("demo"), idb.get("tanji_v3_mode")]);
-  const localMode = localRead("tanji_v3_mode");
-  const selected = [localMode.value, indexedMode.value].filter((v) => v && ["work", "demo"].includes(v.mode)).sort((a, b) => b.revision - a.revision)[0];
-  let mode = selected?.mode || (work.value || work.uncertain ? "work" : "demo"), state = mode === "work" ? work : demo;
-  Store.mode = mode;
-  if (!state.value && mode === "work" && state.uncertain) return blockLoad();
-  if (!work.value && !demo.value) {
-    const legacyLocal = localRead("tanji_v2"), legacyOld = localRead("tanstore_v1"), legacyIndexed = await idb.get("json");
-    const sources = [legacyLocal, legacyOld, legacyIndexed];
-    for (const source of sources) {
-      if (source.value === null) continue;
-      try {
-        db = validateState({ ...source.value, payments: source.value.payments ?? [] });
-        Store.mode = "work";
-        Store.ready = true;
-        await save();
-        await rememberMode("work");
-        return true;
-      } catch (error) {
-        source.ok = false;
-      }
-    }
-    if (sources.some((s) => !s.ok || s.value !== null) || work.uncertain || demo.uncertain) return blockLoad();
-  }
-  Store.mode = mode;
-  if (state.value) {
-    db = validateState(state.value);
-    Store.revision = Math.max(Store.revision, state.value.revision);
-    Store.backup = state.value.previous;
-  } else if (state.uncertain) return blockLoad();
-  else db = mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
-  Store.ready = true;
-  Store.blocked = Store.blocked || state.uncertain;
-  setStorageStatus(state.uncertain ? "\u90E8\u5206\u672C\u673A\u526F\u672C\u4E0D\u53EF\u8BFB\uFF0C\u5F53\u524D\u4EC5\u4F9B\u67E5\u770B\uFF1B\u5DF2\u6682\u505C\u5199\u5165\uFF0C\u8BF7\u5148\u5BFC\u51FA\u5907\u4EFD\u5E76\u91CD\u8BD5\u8BFB\u53D6\u3002" : "");
-  return !!state.value;
-}
-function blockLoad() {
-  Store.blocked = true;
-  Store.ready = true;
-  db = { orders: [], payments: [], threshold: 15 };
-  setStorageStatus("\u672C\u673A\u6570\u636E\u8BFB\u53D6\u5931\u8D25\uFF0C\u5DF2\u6682\u505C\u5199\u5165\u4EE5\u4FDD\u62A4\u539F\u6570\u636E\u3002\u8BF7\u91CD\u8BD5\uFF0C\u6216\u5148\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u7559\u5B58\u3002");
-  return false;
-}
-async function switchMode(mode) {
-  if (Store.busy || Store.blocked || mode === Store.mode) return;
-  Store.busy = true;
-  try {
-    if (!await save()) return;
-    const target = await readSnapshot(mode);
-    if (target.uncertain) {
-      setStorageStatus("\u76EE\u6807\u6570\u636E\u8BFB\u53D6\u5931\u8D25\uFF0C\u672A\u5207\u6362\u6216\u8986\u76D6\u6570\u636E\u3002");
-      return;
-    }
-    if (!await rememberMode(mode)) {
-      setStorageStatus("\u65E0\u6CD5\u4FDD\u5B58\u5207\u6362\u72B6\u6001\uFF0C\u8BF7\u5BFC\u51FA\u5907\u4EFD\u540E\u91CD\u8BD5\u3002");
-      return;
-    }
-    Store.mode = mode;
-    db = target.value ? validateState(target.value) : mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
-    Store.revision = Math.max(Store.revision, target.value?.revision || 0);
-    Store.backup = target.value?.previous || null;
-    closeSheets();
-    ui.q = "";
-    ui.chip = "all";
-    ui.bucket = "all";
-    await save();
-    renderAll();
-    showTab("home");
-    Notify.syncDaily();
-    Notify.syncDeliver();
-    toast(mode === "work" ? "\u5DF2\u5207\u6362\u5230\u5DE5\u4F5C\u6570\u636E" : "\u5DF2\u5207\u6362\u5230\u72EC\u7ACB\u6F14\u793A\u6570\u636E\uFF0C\u5DE5\u4F5C\u6570\u636E\u672A\u6539\u52A8");
-  } finally {
-    Store.busy = false;
-  }
-}
-async function replaceData(state) {
-  if (Store.busy || Store.blocked) return false;
-  const validated = validateState(state);
-  if (!state || state.notifyEnabled === void 0) validated.notifyEnabled = db.notifyEnabled !== false;
-  Store.busy = true;
-  try {
-    await Store.queue;
-    const before = snapshot(), next = snapshot(validated);
-    next.previous = before;
-    if (!await persistSnapshot(next)) return false;
-    Store.backup = before;
-    db = validated;
-    closeSheets();
-    ui.q = "";
-    ui.chip = "all";
-    ui.bucket = "all";
-    renderAll();
-    await Notify.cancelMode();
-    Notify.syncDaily();
-    Notify.syncDeliver();
-    const stamp = TanJiLogic.nowStr();
-    for (const o of validated.orders || []) {
-      if (o.remindAt && o.remindAt > stamp) Notify.scheduleSnooze(o);
-    }
-    return true;
-  } finally {
-    Store.busy = false;
-  }
-}
-function backupDocument(state = db) {
-  return { app: "\u63A2\u8BB0 TanJi", version: "0.6", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), threshold: state.threshold, notifyEnabled: state.notifyEnabled !== false, accounts: cloneState(state.accounts || []), providers: cloneState(state.providers || []), orders: cloneState(state.orders), payments: cloneState(state.payments) };
-}
-function accountCopyText(account) {
-  const lines = [];
-  if (account.name) lines.push(`\u6635\u79F0:${account.name}`);
-  if (account.douyin) lines.push(`\u6296\u97F3:${account.douyin}`);
-  if (account.phone) lines.push(`\u624B\u673A:${account.phone}`);
-  return lines.join("\n");
-}
-async function previewImport(file) {
-  if (!file) return;
-  try {
-    if (file.size > 10 * 1024 * 1024) throw new Error("\u5907\u4EFD\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 10 MB");
-    const state = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
-    for (const order of state.orders) {
-      for (const [kind, key, expected] of [["\u5B9A\u91D1", "depositPaidAt", order.deposit], ["\u5C3E\u6B3E", "finalPaidAt", order.price - order.deposit]]) {
-        const entries = state.payments.filter((p) => p.oid === order.id && p.kind === kind);
-        const total2 = entries.reduce((sum, p) => sum + Math.round(p.amount * 100), 0);
-        if (entries.length > 1 || entries.length > 0 && !order[key] || total2 !== Math.round((order[key] ? expected : 0) * 100)) throw new Error(`\u8BA2\u5355\u300C${order.store}\u300D\u7684${kind}\u6D41\u6C34\u4E0E\u5DF2\u6536\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5148\u6838\u5BF9\u5907\u4EFD`);
-      }
-    }
-    Store.pending = state;
-    const total = state.payments.reduce((sum, p) => sum + p.amount, 0);
-    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state.orders.length} \u7B14\u8BA2\u5355\u3001${state.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
-    showSheet("sheet-import");
-  } catch (error) {
-    Store.pending = null;
-    toast(`\u4E0D\u80FD\u5BFC\u5165\uFF1A${error.message}`);
-  }
-}
-async function confirmImport() {
-  if (!Store.pending || Store.busy) return;
-  const state = Store.pending;
-  if (await replaceData(state)) {
-    Store.pending = null;
-    toast("\u5907\u4EFD\u5DF2\u6062\u590D\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
-  }
-}
-async function restoreCheckpoint() {
-  if (Store.busy || Store.blocked) return;
-  Store.busy = true;
-  let saved;
-  try {
-    saved = await readSnapshot(Store.mode, "backup");
-  } finally {
-    Store.busy = false;
-  }
-  if (saved.uncertain) {
-    toast("\u90E8\u5206\u5907\u4EFD\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u6682\u505C\u6062\u590D\uFF1B\u8BF7\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u5E76\u91CD\u8BD5");
-    return;
-  }
-  if (!saved.value) {
-    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
-    return;
-  }
-  if (!confirm(`\u6062\u590D\u66FF\u6362\u524D\u7684 ${saved.value.orders.length} \u7B14\u8BA2\u5355\u548C ${saved.value.payments.length} \u7B14\u6D41\u6C34\uFF1F\u5F53\u524D\u6570\u636E\u5C06\u4F5C\u4E3A\u65B0\u7684\u66FF\u6362\u524D\u5907\u4EFD\u4FDD\u7559\u3002`)) return;
-  if (await replaceData(saved.value)) toast("\u5DF2\u6062\u590D\u66FF\u6362\u524D\u6570\u636E");
-}
-async function exportCheckpoint() {
-  const mode = Store.mode;
-  const saved = await readSnapshot(mode, "backup");
-  if (!saved.value) {
-    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
-    return;
-  }
-  download(`\u63A2\u8BB0-${mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}-\u66FF\u6362\u524D\u5907\u4EFD.json`, JSON.stringify(backupDocument(saved.value), null, 2), "application/json");
-  toast("\u5DF2\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\uFF0C\u539F\u5B58\u50A8\u672A\u6539\u52A8");
-}
-var NATIVE_DB = "tanji";
-var ORD_COLS = ["id", "store", "category", "contact", "price", "deposit", "appt_at", "shot_at", "submitted_at", "short_sent_at", "long_sent_at", "deposit_paid_at", "final_paid_at", "settle_via", "remind_at", "channel", "partner", "location", "gps_place", "deliver_main", "deliver_sub", "review_result", "published_at", "account_id", "note", "remind_log", "expect_pay_at", "created_at", "updated_at"];
-async function nativeOpen() {
-  if (Store.conn) return Store.conn;
-  const sqlite = new CAP.SQLiteConnection(CAP.CapacitorSQLite);
-  const conn = await sqlite.createConnection(NATIVE_DB, false, "no-encryption", 1, false);
-  await conn.open();
-  await conn.executeSet([
-    { statement: `CREATE TABLE IF NOT EXISTS orders(
-  mode TEXT NOT NULL,
-  id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
-  price REAL NOT NULL, deposit REAL DEFAULT 0,
-  appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
-  deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
-  channel TEXT, partner TEXT,
-  location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 1,
-  review_result TEXT DEFAULT '', published_at TEXT,
-  account_id INTEGER,
-  note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT,
-  PRIMARY KEY(mode,id))`, values: [] },
-    { statement: `CREATE TABLE IF NOT EXISTS payments(
-  mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`, values: [] },
-    { statement: `CREATE TABLE IF NOT EXISTS accounts(
-  mode TEXT NOT NULL,
-  id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
-  color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
-  PRIMARY KEY(mode,id))`, values: [] },
-    { statement: `CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`, values: [] }
-  ], true);
-  for (const stmt of [
-    "ALTER TABLE orders ADD COLUMN location TEXT",
-    "ALTER TABLE orders ADD COLUMN gps_place TEXT",
-    "ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1",
-    // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
-    "ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1",
-    `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
-    "ALTER TABLE orders ADD COLUMN published_at TEXT",
-    "ALTER TABLE orders ADD COLUMN account_id INTEGER",
-    "ALTER TABLE orders ADD COLUMN remind_log TEXT",
-    "ALTER TABLE orders ADD COLUMN expect_pay_at TEXT"
-  ]) {
-    try {
-      await conn.execute(stmt, false);
-    } catch (e) {
-    }
-  }
-  Store.conn = conn;
-  return conn;
-}
-async function nativePersistSnapshot(payload) {
-  try {
-    const conn = await nativeOpen(), ts = (/* @__PURE__ */ new Date()).toISOString();
-    const set = [
-      { statement: "DELETE FROM orders WHERE mode=?", values: [payload.mode] },
-      { statement: "DELETE FROM payments WHERE mode=?", values: [payload.mode] }
-    ];
-    payload.orders.forEach((o) => set.push({ statement: `INSERT INTO orders (mode,${ORD_COLS.join(",")}) VALUES (?,${ORD_COLS.map(() => "?").join(",")})`, values: [payload.mode, o.id, o.store, o.cat || null, o.contact || null, o.price, o.deposit || 0, o.appt || null, o.shotAt || null, o.submittedAt || null, o.shortAt || null, o.longAt || null, o.depositPaidAt || null, o.finalPaidAt || null, o.settleVia || "private", o.remindAt || null, o.channel || "\u76F4\u5BA2", o.partner || null, o.location || null, o.gpsPlace || null, o.deliverMain === false ? 0 : 1, o.deliverSub === false ? 0 : 1, o.reviewResult || "", o.publishedAt || null, o.accountId || null, o.note || null, o.remindLog && o.remindLog.length ? JSON.stringify(o.remindLog) : null, o.expectPayAt || null, ts, ts] }));
-    set.push({ statement: "DELETE FROM accounts WHERE mode=?", values: [payload.mode] });
-    (payload.accounts || []).forEach((a) => set.push({ statement: "INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?)", values: [payload.mode, a.id, a.name, a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || ts] }));
-    payload.payments.forEach((p) => set.push({ statement: "INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)", values: [payload.mode, p.oid, p.kind, p.amount, p.at, p.method || null, p.note || null] }));
-    const doc = { ...cloneState(payload), savedAt: ts };
-    set.push({ statement: "INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)", values: [payload.mode, "json", JSON.stringify(doc)] });
-    if (payload.previous) set.push({ statement: "INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)", values: [payload.mode, "backup", JSON.stringify(payload.previous)] });
-    await conn.executeSet(set, true);
-    return true;
-  } catch (e) {
-    console.error("[TanJi] SQLite \u5199\u5165\u5931\u8D25", e);
-    return false;
-  }
-}
-async function nativeReadSnapshot(mode, suffix = "json") {
-  try {
-    const conn = await nativeOpen();
-    if (suffix === "backup") {
-      const r2 = await conn.query("SELECT value FROM settings WHERE scope=? AND key=?", [mode, "backup"]);
-      const raw2 = (r2.values || [])[0];
-      return { value: raw2 ? JSON.parse(raw2.value) : null, uncertain: false };
-    }
-    const sources = [];
-    const r = await conn.query("SELECT value FROM settings WHERE scope=? AND key=?", [mode, "json"]);
-    const raw = (r.values || [])[0];
-    if (raw) sources.push(raw.value);
-    const mirror = localRead(storageKey(mode));
-    if (mirror.ok && mirror.value !== null) sources.push(mirror.value);
-    const candidates = [];
-    for (const source of sources) {
-      try {
-        const parsed = typeof source === "string" ? JSON.parse(source) : source;
-        const data = validateState(parsed);
-        const revision = parsed.revision;
-        if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("\u65E0\u6548\u4FEE\u8BA2\u53F7");
-        candidates.push({ ...data, v: 3, mode, revision, savedAt: parsed.savedAt || null, previous: parsed.previous || null });
-      } catch (error) {
-        console.warn("[TanJi] \u526F\u672C\u5185\u5BB9\u65E0\u6548,\u5DF2\u8DF3\u8FC7", error);
-      }
-    }
-    if (!candidates.length) return { value: null, uncertain: sources.length > 0 };
-    candidates.sort((a, b) => b.revision - a.revision);
-    return { value: candidates[0], uncertain: false };
-  } catch (e) {
-    console.error("[TanJi] SQLite \u8BFB\u53D6\u5931\u8D25", e);
-    try {
-      const mirror = localRead(storageKey(mode));
-      if (mirror.ok && mirror.value) {
-        const parsed = mirror.value;
-        const data = validateState(parsed);
-        return { value: { ...data, v: 3, mode, revision: parsed.revision || 0, savedAt: parsed.savedAt || null, previous: parsed.previous || null }, uncertain: true };
-      }
-    } catch (e2) {
-    }
-    return { value: null, uncertain: true };
-  }
-}
-var NOTIFY_OFFSET = { work: 0, demo: 5e5 };
-var notifyBase = () => NOTIFY_OFFSET[Store.mode] || 0;
-var needMain = (o) => TanJiLogic.needMain(o);
-var needSub = (o) => TanJiLogic.needSub(o);
-var deliveredAll = (o) => TanJiLogic.deliveredAll(o);
-var Notify = {
-  native() {
-    return isNative && CAP && CAP.LocalNotifications;
-  },
-  async ensurePermission() {
-    const L = CAP.LocalNotifications;
-    let p = await L.checkPermissions();
-    if (p.display !== "granted") p = await L.requestPermissions();
-    return p.display === "granted";
-  },
-  async syncDaily() {
-    if (!this.native()) return;
-    if (Store.mode === "demo") return;
-    try {
-      const L = CAP.LocalNotifications;
-      const base = notifyBase();
-      const pend = await L.getPending();
-      const oldDaily = (pend.notifications || []).filter((n) => +n.id === base + 1);
-      if (oldDaily.length) await L.cancel({ notifications: oldDaily });
-      const over = db.orders.filter((o) => isOver(o) && !snoozed(o));
-      if (!over.length || db.notifyEnabled === false) return;
-      if (!await this.ensurePermission()) return;
-      const maxD = Math.max(...over.map(overdueDays));
-      await L.schedule({ notifications: [{
-        id: base + 1,
-        title: "\u63A2\u8BB0 \xB7 \u5C3E\u6B3E\u50AC\u6536",
-        body: `${over.length} \u7B14\u5C3E\u6B3E\u5DF2\u903E\u671F\uFF0C\u6700\u957F ${maxD} \u5929 \u2014\u2014 \u4ECA\u65E5\u5B89\u6392\u4E00\u6B21\u8DDF\u8FDB`,
-        schedule: { on: { hour: 9, minute: 0 }, repeats: true, allowWhileIdle: true }
-      }] });
-    } catch (e) {
-      console.warn("[TanJi] \u50AC\u6536\u63D0\u9192\u6392\u7A0B\u5931\u8D25", e);
-    }
-  },
-  // 出片提醒:拍摄完成 +24h 仍未出齐(按该单的正/副片配置) → 一次性本地通知。
-  // 已超期的不再排(应用内列表有红色角标),出齐/删单/清除拍摄时间后重排即撤销。
-  async syncDeliver() {
-    if (!this.native()) return;
-    if (Store.mode === "demo") return;
-    try {
-      const L = CAP.LocalNotifications;
-      const base = notifyBase();
-      const pend = await L.getPending();
-      const mine = (pend.notifications || []).filter((n) => +n.id >= base + 3e5 && +n.id < base + 4e5);
-      if (mine.length) await L.cancel({ notifications: mine });
-      const now2 = Date.now();
-      const list = db.orders.filter((o) => o.shotAt && !deliveredAll(o)).map((o) => ({ o, at: new Date(new Date(o.shotAt).getTime() + 864e5) })).filter((x) => !isNaN(x.at.getTime()) && x.at.getTime() > now2);
-      if (!list.length) return;
-      if (!await this.ensurePermission()) return;
-      await L.schedule({ notifications: list.map(({ o, at }) => ({
-        id: base + 3e5 + o.id,
-        title: "\u63A2\u8BB0 \xB7 \u51FA\u7247\u63D0\u9192",
-        body: `\u300C${o.store}\u300D\u62CD\u6444\u5DF2\u8D85 24 \u5C0F\u65F6,\u8FD8\u6709\u7247\u5B50\u6CA1\u51FA\u9F50,\u8BB0\u5F97\u8DDF\u8FDB`,
-        schedule: { at, allowWhileIdle: true }
-      })) });
-    } catch (e) {
-      console.warn("[TanJi] \u51FA\u7247\u63D0\u9192\u6392\u7A0B\u5931\u8D25", e);
-    }
-  },
-  async scheduleSnooze(o, d) {
-    if (!this.native()) return;
-    if (Store.mode === "demo") return;
-    try {
-      const at = new Date(o.remindAt);
-      if (isNaN(at)) return;
-      if (!await this.ensurePermission()) return;
-      const L = CAP.LocalNotifications;
-      const base = notifyBase();
-      const pend = await L.getPending();
-      const mine = (pend.notifications || []).filter((n) => +n.id === base + 1e5 + o.id);
-      if (mine.length) await L.cancel({ notifications: mine });
-      const when = d != null ? `\uFF08${d} \u5929\u524D\u8BBE\u7F6E\u7684\u63D0\u9192\uFF09` : `\uFF08${String(o.remindAt || "").slice(5, 10)} \u8BBE\u7684\u63D0\u9192\uFF09`;
-      await L.schedule({ notifications: [{
-        id: base + 1e5 + o.id,
-        title: "\u63A2\u8BB0 \xB7 \u50AC\u6536\u8DDF\u8FDB",
-        body: `\u300C${o.store}\u300D\u5C3E\u6B3E\u8BE5\u8DDF\u8FDB\u4E86${when}`,
-        schedule: { at, allowWhileIdle: true }
-      }] });
-    } catch (e) {
-      console.warn("[TanJi] \u5355\u6B21\u63D0\u9192\u6392\u7A0B\u5931\u8D25", e);
-    }
-  },
-  // (cancelAll/isOurNotifyId 已删:replaceData 改用 cancelMode 后无调用方,
-  //  而"撤双模式全部通知"的语义一旦被误接回单模式动作,会重演通知误杀)
-  // 只撤当前模式的全部通知(导入/恢复/清空只替换当前模式数据,另一模式的通知指向的数据还在,不能动)
-  async cancelMode(mode = Store.mode) {
-    if (!this.native()) return;
-    try {
-      const base = NOTIFY_OFFSET[mode] || 0;
-      const L = CAP.LocalNotifications, pend = await L.getPending();
-      const ours = (pend.notifications || []).filter((n) => {
-        const id = +n.id;
-        return id === base + 1 || id >= base + 1e5 && id < base + 4e5;
-      });
-      if (ours.length) await L.cancel({ notifications: ours });
-    } catch (e) {
-    }
-  },
-  // 只撤单笔备忘:清除催收提醒不能连带撤掉同单的 24h 出片提醒(两条通知语义独立)
-  async cancelSnooze(id) {
-    if (!this.native()) return;
-    try {
-      const base = notifyBase();
-      const L = CAP.LocalNotifications, pend = await L.getPending();
-      const mine = (pend.notifications || []).filter((n) => +n.id === base + 1e5 + +id);
-      if (mine.length) await L.cancel({ notifications: mine });
-    } catch (e) {
-    }
-  },
-  async cancelOrder(id) {
-    if (!this.native()) return;
-    try {
-      const base = notifyBase();
-      const L = CAP.LocalNotifications, pend = await L.getPending();
-      const mine = (pend.notifications || []).filter((n) => +n.id === base + 1e5 + +id || +n.id === base + 3e5 + +id);
-      if (mine.length) await L.cancel({ notifications: mine });
-    } catch (e) {
-    }
-  },
-  async toggle() {
-    db.notifyEnabled = db.notifyEnabled === false;
-    save();
-    renderAll();
-    if (db.notifyEnabled !== false) await this.syncDaily();
-    else {
-      try {
-        const L = CAP.LocalNotifications, pend = await L.getPending();
-        const daily = (pend.notifications || []).filter((n) => +n.id === notifyBase() + 1);
-        if (daily.length) await L.cancel({ notifications: daily });
-      } catch (e) {
-      }
-    }
-    toast(db.notifyEnabled !== false ? "\u5DF2\u5F00\u542F\u6BCF\u65E5\u50AC\u6536\u63D0\u9192\uFF08\u6BCF\u5929 09:00\uFF09" : "\u5DF2\u5173\u95ED\u6BCF\u65E5\u50AC\u6536\u63D0\u9192");
-  }
-};
-
-// src/app/ui.js
-var ui2 = { tab: "home", chip: "all", bucket: "all", period: "7", selDay: TODAY, q: "", detail: null, payCtx: null, privacy: false, shareUrl: null, shareBlob: null, vMon: { y: now.getFullYear(), m: now.getMonth() + 1 }, accFilter: null, editAccountId: null, draftAvatar: null, draftColor: 0, draftProv: "", draftAccId: null, assignAcc: null, remindOid: null, expectOid: null };
-var lastDailySyncDay = "";
-function syncDailyOnNewDay() {
-  if (lastDailySyncDay === TODAY) return;
-  lastDailySyncDay = TODAY;
-  Notify.syncDaily();
-}
-function refreshClock() {
-  const { changed, previous } = tickClock();
-  if (changed && ui2.selDay === previous) {
-    ui2.selDay = TODAY;
-    ui2.vMon = { y: now.getFullYear(), m: now.getMonth() + 1 };
-  }
-}
-var RENDERERS = {};
-function registerRenderers(renderers) {
-  Object.assign(RENDERERS, renderers);
-}
-function showTab2(t) {
-  refreshClock();
-  ui2.tab = t;
-  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-  $("#v-" + t).classList.add("active");
-  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
-}
-function renderAll2() {
-  refreshClock();
-  setStorageStatus(Store.status);
-  RENDERERS.home();
-  RENDERERS.trip();
-  RENDERERS.orders();
-  RENDERERS.pay();
-  RENDERERS.stats();
-  const n = db.orders.filter(accMatch).filter((o) => isOver(o) && !snoozed(o)).length;
-  const b = $("#pay-bdg");
-  b.style.display = n ? "flex" : "none";
-  b.textContent = n;
-}
-var detailRerender = null;
-function registerDetailRerender(fn) {
-  detailRerender = fn;
-}
-function refreshVisible() {
-  if (!Store.ready || Store.busy || document.visibilityState === "hidden") return;
-  refreshClock();
-  syncDailyOnNewDay();
-  if (document.activeElement?.matches("input,textarea,select")) return;
-  renderAll2();
-  if ($("#sheet-detail").classList.contains("show")) detailRerender();
-}
-function markDailySynced(day = TODAY) {
-  lastDailySyncDay = day;
-}
-
 // src/app/demo.js
-function demoSeed2() {
+function demoSeed() {
   const O = [
     {
       id: 1,
@@ -1164,6 +401,776 @@ function demoSeed2() {
   return { orders: O, payments: P, threshold: 15 };
 }
 
+// src/app/storage.js
+var db = { orders: [], payments: [], threshold: 15 };
+var Store = { sqlite3: null, mode: "demo", revision: 0, queue: Promise.resolve(), ready: false, busy: false, blocked: false, lockedOut: false, backup: null, status: "\u6B63\u5728\u8BFB\u53D6\u672C\u673A\u6570\u636E\u2026", pending: null };
+var afterLoad = null;
+var bytesBuilder = null;
+function registerAfterLoad(hooks) {
+  afterLoad = hooks;
+}
+function registerBytesBuilder(fn) {
+  bytesBuilder = fn;
+}
+async function acquireWriter() {
+  if (isNative) return;
+  if (!navigator.locks) {
+    Store.lockedOut = true;
+    return;
+  }
+  await new Promise((resolve) => {
+    navigator.locks.request("tanji-data-writer", { ifAvailable: true }, async (lock) => {
+      Store.lockedOut = !lock;
+      resolve();
+      if (lock) await new Promise(() => {
+      });
+    }).catch(() => {
+      Store.lockedOut = true;
+      resolve();
+    });
+  });
+}
+var storageKey = (mode, suffix = "json") => `tanji_v3_${mode}_${suffix}`;
+var cloneState = (value) => JSON.parse(JSON.stringify(value));
+var idb = {
+  _db: null,
+  _opening: null,
+  open() {
+    if (this._db) return Promise.resolve(this._db);
+    if (this._opening) return this._opening;
+    this._opening = new Promise((resolve) => {
+      try {
+        const request = indexedDB.open("tanji", 1);
+        request.onupgradeneeded = () => request.result.createObjectStore("kv");
+        request.onsuccess = () => {
+          this._db = request.result;
+          this._db.onversionchange = () => {
+            this._db.close();
+            this._db = null;
+          };
+          resolve(this._db);
+        };
+        request.onerror = request.onblocked = () => resolve(null);
+      } catch (error) {
+        resolve(null);
+      }
+    }).then((value) => {
+      this._opening = null;
+      return value;
+    });
+    return this._opening;
+  },
+  async get(key) {
+    const database = await this.open();
+    if (!database) return { ok: false, value: null };
+    return new Promise((resolve) => {
+      try {
+        const transaction = database.transaction("kv"), request = transaction.objectStore("kv").get(key);
+        transaction.oncomplete = () => resolve({ ok: true, value: request.result ?? null });
+        transaction.onerror = transaction.onabort = () => resolve({ ok: false, value: null });
+      } catch (error) {
+        resolve({ ok: false, value: null });
+      }
+    });
+  },
+  async setMany(entries) {
+    const database = await this.open();
+    if (!database) return false;
+    return new Promise((resolve) => {
+      let transaction;
+      try {
+        transaction = database.transaction("kv", "readwrite");
+        transaction.oncomplete = () => resolve(true);
+        transaction.onerror = transaction.onabort = () => resolve(false);
+        for (const [key, value] of entries) transaction.objectStore("kv").put(value, key);
+      } catch (error) {
+        if (transaction) transaction.abort();
+        resolve(false);
+      }
+    });
+  }
+};
+function localRead(key) {
+  try {
+    const text = localStorage.getItem(key);
+    return { ok: true, value: text === null ? null : JSON.parse(text) };
+  } catch (error) {
+    return { ok: false, value: null };
+  }
+}
+function localWrite(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+function validateState(input) {
+  if (!input || typeof input !== "object" || !Array.isArray(input.orders) || !Array.isArray(input.payments)) throw new Error("\u5907\u4EFD\u5FC5\u987B\u5305\u542B\u8BA2\u5355\u4E0E\u6536\u6B3E\u6D41\u6C34\u6570\u7EC4");
+  if (input.version && !["0.2", "0.3", "0.4", "0.5", "0.6"].includes(input.version)) throw new Error("\u6682\u4E0D\u652F\u6301\u8FD9\u4E2A\u5907\u4EFD\u7248\u672C");
+  if (input.v !== void 0 && input.v !== 2 && input.v !== 3) throw new Error("\u6682\u4E0D\u652F\u6301\u8FD9\u4E2A\u6570\u636E\u7248\u672C");
+  const threshold = input.threshold ?? input.collectThresholdDays ?? 15;
+  if (![7, 15, 30, 45].includes(threshold)) throw new Error("\u50AC\u6536\u9608\u503C\u5E94\u4E3A 7\u300115\u300130 \u6216 45 \u5929");
+  const amount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && Number.isSafeInteger(Math.round(value * 100)) && Math.abs(value * 100 - Math.round(value * 100)) < 1e-5;
+  const text = (value, label, fallback = "") => {
+    if (value == null) return fallback;
+    if (typeof value !== "string") throw new Error(`${label}\u5FC5\u987B\u662F\u6587\u672C`);
+    return value;
+  };
+  const dates = ["shotAt", "submittedAt", "shortAt", "longAt", "depositPaidAt", "finalPaidAt", "remindAt", "publishedAt"];
+  const ids = /* @__PURE__ */ new Set();
+  const accountIds = /* @__PURE__ */ new Set();
+  const accounts = (Array.isArray(input.accounts) ? input.accounts : []).map((account, index) => {
+    const label = `\u7B2C ${index + 1} \u4E2A\u8D26\u53F7`;
+    if (!account || !Number.isSafeInteger(account.id) || account.id < 1 || accountIds.has(account.id)) throw new Error(`${label}\u7684 ID \u65E0\u6548\u6216\u91CD\u590D`);
+    if (typeof account.name !== "string" || !account.name.trim()) throw new Error(`${label}\u7F3A\u5C11\u6635\u79F0`);
+    accountIds.add(account.id);
+    const clean = {
+      id: account.id,
+      name: account.name,
+      phone: text(account.phone, `${label}\u7684\u624B\u673A\u53F7`),
+      douyin: text(account.douyin, `${label}\u7684\u6296\u97F3\u8D26\u53F7`),
+      color: Number.isSafeInteger(account.color) ? Math.max(0, Math.min(7, account.color)) : index % 8,
+      createdAt: text(account.createdAt, `${label}\u7684\u521B\u5EFA\u65F6\u95F4`) || null
+    };
+    if (account.avatar != null) {
+      if (typeof account.avatar !== "string" || !account.avatar.startsWith("data:image/") && account.avatar !== "") throw new Error(`${label}\u7684\u5934\u50CF\u6570\u636E\u65E0\u6548`);
+      if (account.avatar.length > 2e5) throw new Error(`${label}\u7684\u5934\u50CF\u56FE\u7247\u8FC7\u5927`);
+      clean.avatar = account.avatar;
+    }
+    return clean;
+  });
+  const seenProviders = /* @__PURE__ */ new Set();
+  const providers = (Array.isArray(input.providers) ? input.providers : []).filter((p) => {
+    if (typeof p !== "string") throw new Error("\u670D\u52A1\u5546\u9884\u8BBE\u5FC5\u987B\u662F\u6587\u672C");
+    const v = p.trim();
+    if (!v || seenProviders.has(v)) return false;
+    seenProviders.add(v);
+    return true;
+  });
+  const orders = input.orders.map((order, index) => {
+    const label = `\u7B2C ${index + 1} \u7B14\u8BA2\u5355`;
+    if (!order || !Number.isSafeInteger(order.id) || order.id < 1 || order.id >= 1e5 || ids.has(order.id)) throw new Error(`${label}\u7684 ID \u65E0\u6548\u3001\u91CD\u590D\u6216\u8D85\u8FC7\u4E0A\u9650(99999)`);
+    ids.add(order.id);
+    if (typeof order.store !== "string" || !order.store.trim()) throw new Error(`${label}\u7F3A\u5C11\u5546\u5BB6\u540D\u79F0`);
+    if (!amount(order.price) || !amount(order.deposit) || order.deposit > order.price) throw new Error(`${label}\u7684\u603B\u4EF7\u6216\u5B9A\u91D1\u4E0D\u5408\u6CD5`);
+    if (!validDateTime(order.appt)) throw new Error(`${label}\u7684\u9884\u7EA6\u65F6\u95F4\u65E0\u6548`);
+    if (order.settleVia && !["private", "douyin"].includes(order.settleVia)) throw new Error(`${label}\u7684\u7ED3\u7B97\u65B9\u5F0F\u65E0\u6548`);
+    if (order.reviewResult != null && !["", "pass", "fail"].includes(order.reviewResult)) throw new Error(`${label}\u7684\u9001\u5BA1\u7ED3\u679C\u65E0\u6548`);
+    const clean = {
+      id: order.id,
+      store: order.store,
+      price: Math.round(order.price * 100) / 100,
+      deposit: Math.round(order.deposit * 100) / 100,
+      appt: order.appt,
+      settleVia: order.settleVia || "private",
+      location: text(order.location, `${label}\u7684\u5730\u70B9`),
+      deliverMain: order.deliverMain !== false,
+      deliverSub: order.deliverSub !== false,
+      reviewResult: order.reviewResult || "",
+      accountId: order.accountId != null && accountIds.has(order.accountId) ? order.accountId : null
+    };
+    for (const field of ["cat", "contact", "channel", "partner", "note"]) clean[field] = text(order[field], `${label}\u7684${field}`, field === "cat" ? "\u5176\u4ED6" : field === "channel" ? "\u76F4\u5BA2" : "");
+    for (const field of dates) {
+      if (order[field] != null && !validDateTime(order[field])) throw new Error(`${label}\u7684${field}\u65F6\u95F4\u65E0\u6548`);
+      clean[field] = order[field] ?? null;
+    }
+    if (order.expectPayAt != null && order.expectPayAt !== "") {
+      if (!validDateTime(order.expectPayAt)) throw new Error(`${label}\u7684\u9884\u8BA1\u5230\u8D26\u65F6\u95F4\u65E0\u6548`);
+      clean.expectPayAt = order.expectPayAt;
+    }
+    if (Array.isArray(order.remindLog)) clean.remindLog = cloneState(order.remindLog).filter((entry) => entry && validDateTime(entry.at)).map((entry) => ({ at: entry.at, note: typeof entry.note === "string" ? entry.note.slice(0, 200) : "" })).slice(-50);
+    if (order.photoThumb != null) {
+      const ok = typeof TanJiImage !== "undefined" && TanJiImage.isValidStored(order.photoThumb, TanJiImage.LIMIT.door);
+      if (!ok) throw new Error(`${label}\u7684\u968F\u624B\u62CD\u7167\u7247\u65E0\u6548\u6216\u8FC7\u5927`);
+      clean.photoThumb = order.photoThumb;
+    }
+    if (typeof order.gpsPlace === "string" && order.gpsPlace.trim()) {
+      const place = order.gpsPlace.trim();
+      if (typeof TanJiGeo !== "undefined" && TanJiGeo.isValid(place)) clean.gpsPlace = place;
+      else console.warn(`[TanJi] ${label}\u7684\u5230\u5E97\u5B9A\u4F4D\u683C\u5F0F\u65E0\u6548,\u5DF2\u5FFD\u7565`, place);
+    }
+    return clean;
+  });
+  const payments = input.payments.map((payment, index) => {
+    const label = `\u7B2C ${index + 1} \u7B14\u6D41\u6C34`;
+    if (!payment || !ids.has(payment.oid)) throw new Error(`${label}\u627E\u4E0D\u5230\u5BF9\u5E94\u8BA2\u5355`);
+    if (!["\u5B9A\u91D1", "\u5C3E\u6B3E"].includes(payment.kind) || !amount(payment.amount) || !validDateTime(payment.at)) throw new Error(`${label}\u7684\u7C7B\u578B\u3001\u91D1\u989D\u6216\u65E5\u671F\u65E0\u6548`);
+    if (!["\u5FAE\u4FE1", "\u652F\u4ED8\u5B9D", "\u94F6\u884C\u5361", "\u6296\u97F3\u5546\u5355", "\u5176\u4ED6"].includes(payment.method)) throw new Error(`${label}\u7684\u6536\u6B3E\u65B9\u5F0F\u65E0\u6548`);
+    return { oid: payment.oid, kind: payment.kind, amount: Math.round(payment.amount * 100) / 100, at: payment.at, method: payment.method, ...payment.note != null ? { note: text(payment.note, `${label}\u5907\u6CE8`) } : {} };
+  });
+  const notifyEnabled = input.notifyEnabled === void 0 ? true : input.notifyEnabled !== false;
+  return { orders, payments, threshold, notifyEnabled, accounts, providers };
+}
+function setStorageStatus(message) {
+  if (Store.lockedOut) message = "\u5F53\u524D\u4E3A\u53EA\u8BFB\uFF1A\u8BF7\u5173\u95ED\u5176\u4ED6\u63A2\u8BB0\u6807\u7B7E\u9875\u540E\u5237\u65B0\u91CD\u8BD5\uFF1B\u6D4F\u89C8\u5668\u987B\u652F\u6301\u5B89\u5168\u5199\u5165\u9501\u3002";
+  Store.status = message;
+  const banner = document.querySelector("#storage-status");
+  if (banner) {
+    banner.hidden = !message;
+    banner.querySelector("span").textContent = message;
+  }
+}
+function snapshot(state = db, mode = Store.mode) {
+  Store.revision = Math.max(Date.now(), Store.revision + 1);
+  return { ...cloneState(state), v: 3, revision: Store.revision, savedAt: (/* @__PURE__ */ new Date()).toISOString(), mode };
+}
+function persistSnapshot(payload) {
+  if (isNative) {
+    const write2 = async () => {
+      const ok = await nativePersistSnapshot(payload);
+      const localOK2 = localWrite(storageKey(payload.mode), payload);
+      if (Store.mode === payload.mode && Store.revision === payload.revision && !Store.blocked) {
+        if (!ok) setStorageStatus("\u4FDD\u5B58\u5931\u8D25\uFF1A\u6539\u52A8\u4EC5\u5728\u5F53\u524D\u9875\u9762\uFF0C\u8BF7\u52FF\u5173\u95ED\uFF0C\u5148\u5BFC\u51FA JSON \u5907\u4EFD\u518D\u91CD\u8BD5\u3002");
+        else if (!localOK2) setStorageStatus("\u7B2C\u4E8C\u526F\u672C\u4FDD\u5B58\u5931\u8D25\uFF08\u672C\u673A\u5B58\u50A8\u7A7A\u95F4\u53EF\u80FD\u5DF2\u6EE1\uFF09\uFF1A\u6539\u52A8\u5DF2\u5199\u8FDB\u6570\u636E\u5E93\uFF0C\u4F46\u5907\u4EFD\u526F\u672C\u6CA1\u5199\u6210\u3002\u8BF7\u5148\u5BFC\u51FA JSON \u5907\u4EFD\uFF0C\u5E76\u6E05\u7406\u672C\u673A\u7A7A\u95F4\u3002");
+        else setStorageStatus("");
+      }
+      return ok;
+    };
+    Store.queue = Store.queue.then(write2, write2);
+    return Store.queue;
+  }
+  const localOK = localWrite(storageKey(payload.mode), payload);
+  const write = async () => {
+    const entries = [[storageKey(payload.mode), payload]];
+    if (payload.previous) entries.push([storageKey(payload.mode, "backup"), payload.previous]);
+    const bytes = bytesBuilder ? bytesBuilder(payload) : null;
+    if (bytes) entries.push([storageKey(payload.mode, "sqlite"), bytes]);
+    const indexedOK = await idb.setMany(entries);
+    if (Store.mode === payload.mode && Store.revision === payload.revision && !Store.blocked) {
+      setStorageStatus(localOK && indexedOK ? "" : localOK || indexedOK ? "\u4EC5\u4E00\u4EFD\u672C\u673A\u526F\u672C\u4FDD\u5B58\u6210\u529F\uFF0C\u8BF7\u5BFC\u51FA\u5907\u4EFD\u5E76\u91CD\u8BD5\u3002" : "\u4FDD\u5B58\u5931\u8D25\uFF1A\u6539\u52A8\u4EC5\u5728\u5F53\u524D\u9875\u9762\uFF0C\u8BF7\u52FF\u5173\u95ED\uFF0C\u5148\u5BFC\u51FA JSON \u5907\u4EFD\u518D\u91CD\u8BD5\u3002");
+    }
+    return localOK || indexedOK;
+  };
+  Store.queue = Store.queue.then(write, write);
+  return Store.queue;
+}
+function save() {
+  if (Store.blocked) return Promise.resolve(false);
+  setStorageStatus("\u6B63\u5728\u4FDD\u5B58\u2026");
+  const payload = snapshot();
+  if (Store.backup) payload.previous = Store.backup;
+  return persistSnapshot(payload);
+}
+function persistFull() {
+  return save();
+}
+async function readSnapshot(mode, suffix = "json") {
+  if (isNative) return nativeReadSnapshot(mode, suffix);
+  const key = storageKey(mode, suffix), local = localRead(key), indexed = await idb.get(key);
+  const candidates = [];
+  let invalid = false;
+  const sources = [local, indexed];
+  if (suffix === "backup") {
+    const primary = localRead(storageKey(mode));
+    if (primary.value?.previous) sources.push({ ok: true, value: primary.value.previous });
+  }
+  for (const source of sources) {
+    if (source.value === null) continue;
+    try {
+      const data = validateState(source.value);
+      const revision = source.value.revision;
+      if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("\u65E0\u6548\u4FEE\u8BA2\u53F7");
+      candidates.push({ ...data, v: 3, mode, revision, savedAt: source.value.savedAt, previous: source.value.previous ?? null });
+    } catch (error) {
+      invalid = true;
+    }
+  }
+  candidates.sort((a, b) => b.revision - a.revision);
+  return { value: candidates[0] || null, uncertain: invalid || !local.ok || !indexed.ok };
+}
+async function rememberMode(mode) {
+  if (Store.blocked) return false;
+  const value = { mode, revision: Date.now() }, localOK = localWrite("tanji_v3_mode", value);
+  const indexedOK = await idb.setMany([["tanji_v3_mode", value]]);
+  return localOK || indexedOK;
+}
+async function loadState() {
+  Store.ready = false;
+  Store.blocked = Store.lockedOut;
+  Store.backup = null;
+  const [work, demo, indexedMode] = await Promise.all([readSnapshot("work"), readSnapshot("demo"), idb.get("tanji_v3_mode")]);
+  const localMode = localRead("tanji_v3_mode");
+  const selected = [localMode.value, indexedMode.value].filter((v) => v && ["work", "demo"].includes(v.mode)).sort((a, b) => b.revision - a.revision)[0];
+  let mode = selected?.mode || (work.value || work.uncertain ? "work" : "demo"), state = mode === "work" ? work : demo;
+  Store.mode = mode;
+  if (!state.value && mode === "work" && state.uncertain) return blockLoad();
+  if (!work.value && !demo.value) {
+    const legacyLocal = localRead("tanji_v2"), legacyOld = localRead("tanstore_v1"), legacyIndexed = await idb.get("json");
+    const sources = [legacyLocal, legacyOld, legacyIndexed];
+    for (const source of sources) {
+      if (source.value === null) continue;
+      try {
+        db = validateState({ ...source.value, payments: source.value.payments ?? [] });
+        Store.mode = "work";
+        Store.ready = true;
+        await save();
+        await rememberMode("work");
+        return true;
+      } catch (error) {
+        source.ok = false;
+      }
+    }
+    if (sources.some((s) => !s.ok || s.value !== null) || work.uncertain || demo.uncertain) return blockLoad();
+  }
+  Store.mode = mode;
+  if (state.value) {
+    db = validateState(state.value);
+    Store.revision = Math.max(Store.revision, state.value.revision);
+    Store.backup = state.value.previous;
+  } else if (state.uncertain) return blockLoad();
+  else db = mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
+  Store.ready = true;
+  Store.blocked = Store.blocked || state.uncertain;
+  setStorageStatus(state.uncertain ? "\u90E8\u5206\u672C\u673A\u526F\u672C\u4E0D\u53EF\u8BFB\uFF0C\u5F53\u524D\u4EC5\u4F9B\u67E5\u770B\uFF1B\u5DF2\u6682\u505C\u5199\u5165\uFF0C\u8BF7\u5148\u5BFC\u51FA\u5907\u4EFD\u5E76\u91CD\u8BD5\u8BFB\u53D6\u3002" : "");
+  return !!state.value;
+}
+function blockLoad() {
+  Store.blocked = true;
+  Store.ready = true;
+  db = { orders: [], payments: [], threshold: 15 };
+  setStorageStatus("\u672C\u673A\u6570\u636E\u8BFB\u53D6\u5931\u8D25\uFF0C\u5DF2\u6682\u505C\u5199\u5165\u4EE5\u4FDD\u62A4\u539F\u6570\u636E\u3002\u8BF7\u91CD\u8BD5\uFF0C\u6216\u5148\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u7559\u5B58\u3002");
+  return false;
+}
+async function switchMode(mode) {
+  if (Store.busy || Store.blocked || mode === Store.mode) return;
+  Store.busy = true;
+  try {
+    if (!await save()) return;
+    const target = await readSnapshot(mode);
+    if (target.uncertain) {
+      setStorageStatus("\u76EE\u6807\u6570\u636E\u8BFB\u53D6\u5931\u8D25\uFF0C\u672A\u5207\u6362\u6216\u8986\u76D6\u6570\u636E\u3002");
+      return;
+    }
+    if (!await rememberMode(mode)) {
+      setStorageStatus("\u65E0\u6CD5\u4FDD\u5B58\u5207\u6362\u72B6\u6001\uFF0C\u8BF7\u5BFC\u51FA\u5907\u4EFD\u540E\u91CD\u8BD5\u3002");
+      return;
+    }
+    Store.mode = mode;
+    db = target.value ? validateState(target.value) : mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
+    Store.revision = Math.max(Store.revision, target.value?.revision || 0);
+    Store.backup = target.value?.previous || null;
+    closeSheets();
+    ui.q = "";
+    ui.chip = "all";
+    ui.bucket = "all";
+    await save();
+    afterLoad && (afterLoad.renderAll(), afterLoad.showTab("home"));
+    Notify.syncDaily();
+    Notify.syncDeliver();
+    toast(mode === "work" ? "\u5DF2\u5207\u6362\u5230\u5DE5\u4F5C\u6570\u636E" : "\u5DF2\u5207\u6362\u5230\u72EC\u7ACB\u6F14\u793A\u6570\u636E\uFF0C\u5DE5\u4F5C\u6570\u636E\u672A\u6539\u52A8");
+  } finally {
+    Store.busy = false;
+  }
+}
+async function replaceData(state) {
+  if (Store.busy || Store.blocked) return false;
+  const validated = validateState(state);
+  if (!state || state.notifyEnabled === void 0) validated.notifyEnabled = db.notifyEnabled !== false;
+  Store.busy = true;
+  try {
+    await Store.queue;
+    const before = snapshot(), next = snapshot(validated);
+    next.previous = before;
+    if (!await persistSnapshot(next)) return false;
+    Store.backup = before;
+    db = validated;
+    closeSheets();
+    ui.q = "";
+    ui.chip = "all";
+    ui.bucket = "all";
+    afterLoad && afterLoad.renderAll();
+    await Notify.cancelMode();
+    Notify.syncDaily();
+    Notify.syncDeliver();
+    const stamp = TanJiLogic.nowStr();
+    for (const o of validated.orders || []) {
+      if (o.remindAt && o.remindAt > stamp) Notify.scheduleSnooze(o);
+    }
+    return true;
+  } finally {
+    Store.busy = false;
+  }
+}
+function backupDocument(state = db) {
+  return { app: "\u63A2\u8BB0 TanJi", version: "0.6", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), threshold: state.threshold, notifyEnabled: state.notifyEnabled !== false, accounts: cloneState(state.accounts || []), providers: cloneState(state.providers || []), orders: cloneState(state.orders), payments: cloneState(state.payments) };
+}
+function accountCopyText(account) {
+  const lines = [];
+  if (account.name) lines.push(`\u6635\u79F0:${account.name}`);
+  if (account.douyin) lines.push(`\u6296\u97F3:${account.douyin}`);
+  if (account.phone) lines.push(`\u624B\u673A:${account.phone}`);
+  return lines.join("\n");
+}
+async function previewImport(file) {
+  if (!file) return;
+  try {
+    if (file.size > 10 * 1024 * 1024) throw new Error("\u5907\u4EFD\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 10 MB");
+    const state = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
+    for (const order of state.orders) {
+      for (const [kind, key, expected] of [["\u5B9A\u91D1", "depositPaidAt", order.deposit], ["\u5C3E\u6B3E", "finalPaidAt", order.price - order.deposit]]) {
+        const entries = state.payments.filter((p) => p.oid === order.id && p.kind === kind);
+        const total2 = entries.reduce((sum, p) => sum + Math.round(p.amount * 100), 0);
+        if (entries.length > 1 || entries.length > 0 && !order[key] || total2 !== Math.round((order[key] ? expected : 0) * 100)) throw new Error(`\u8BA2\u5355\u300C${order.store}\u300D\u7684${kind}\u6D41\u6C34\u4E0E\u5DF2\u6536\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5148\u6838\u5BF9\u5907\u4EFD`);
+      }
+    }
+    Store.pending = state;
+    const total = state.payments.reduce((sum, p) => sum + p.amount, 0);
+    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state.orders.length} \u7B14\u8BA2\u5355\u3001${state.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
+    showSheet("sheet-import");
+  } catch (error) {
+    Store.pending = null;
+    toast(`\u4E0D\u80FD\u5BFC\u5165\uFF1A${error.message}`);
+  }
+}
+async function confirmImport() {
+  if (!Store.pending || Store.busy) return;
+  const state = Store.pending;
+  if (await replaceData(state)) {
+    Store.pending = null;
+    toast("\u5907\u4EFD\u5DF2\u6062\u590D\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
+  }
+}
+async function restoreCheckpoint() {
+  if (Store.busy || Store.blocked) return;
+  Store.busy = true;
+  let saved;
+  try {
+    saved = await readSnapshot(Store.mode, "backup");
+  } finally {
+    Store.busy = false;
+  }
+  if (saved.uncertain) {
+    toast("\u90E8\u5206\u5907\u4EFD\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u6682\u505C\u6062\u590D\uFF1B\u8BF7\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u5E76\u91CD\u8BD5");
+    return;
+  }
+  if (!saved.value) {
+    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
+    return;
+  }
+  if (!confirm(`\u6062\u590D\u66FF\u6362\u524D\u7684 ${saved.value.orders.length} \u7B14\u8BA2\u5355\u548C ${saved.value.payments.length} \u7B14\u6D41\u6C34\uFF1F\u5F53\u524D\u6570\u636E\u5C06\u4F5C\u4E3A\u65B0\u7684\u66FF\u6362\u524D\u5907\u4EFD\u4FDD\u7559\u3002`)) return;
+  if (await replaceData(saved.value)) toast("\u5DF2\u6062\u590D\u66FF\u6362\u524D\u6570\u636E");
+}
+async function exportCheckpoint() {
+  const mode = Store.mode;
+  const saved = await readSnapshot(mode, "backup");
+  if (!saved.value) {
+    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
+    return;
+  }
+  download(`\u63A2\u8BB0-${mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}-\u66FF\u6362\u524D\u5907\u4EFD.json`, JSON.stringify(backupDocument(saved.value), null, 2), "application/json");
+  toast("\u5DF2\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\uFF0C\u539F\u5B58\u50A8\u672A\u6539\u52A8");
+}
+var NATIVE_DB = "tanji";
+var ORD_COLS = ["id", "store", "category", "contact", "price", "deposit", "appt_at", "shot_at", "submitted_at", "short_sent_at", "long_sent_at", "deposit_paid_at", "final_paid_at", "settle_via", "remind_at", "channel", "partner", "location", "gps_place", "deliver_main", "deliver_sub", "review_result", "published_at", "account_id", "note", "remind_log", "expect_pay_at", "created_at", "updated_at"];
+async function nativeOpen() {
+  if (Store.conn) return Store.conn;
+  const sqlite = new CAP.SQLiteConnection(CAP.CapacitorSQLite);
+  const conn = await sqlite.createConnection(NATIVE_DB, false, "no-encryption", 1, false);
+  await conn.open();
+  await conn.executeSet([
+    { statement: `CREATE TABLE IF NOT EXISTS orders(
+  mode TEXT NOT NULL,
+  id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
+  price REAL NOT NULL, deposit REAL DEFAULT 0,
+  appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
+  deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+  channel TEXT, partner TEXT,
+  location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 1,
+  review_result TEXT DEFAULT '', published_at TEXT,
+  account_id INTEGER,
+  note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT,
+  PRIMARY KEY(mode,id))`, values: [] },
+    { statement: `CREATE TABLE IF NOT EXISTS payments(
+  mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`, values: [] },
+    { statement: `CREATE TABLE IF NOT EXISTS accounts(
+  mode TEXT NOT NULL,
+  id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
+  color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
+  PRIMARY KEY(mode,id))`, values: [] },
+    { statement: `CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`, values: [] }
+  ], true);
+  for (const stmt of [
+    "ALTER TABLE orders ADD COLUMN location TEXT",
+    "ALTER TABLE orders ADD COLUMN gps_place TEXT",
+    "ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1",
+    // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
+    "ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1",
+    `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
+    "ALTER TABLE orders ADD COLUMN published_at TEXT",
+    "ALTER TABLE orders ADD COLUMN account_id INTEGER",
+    "ALTER TABLE orders ADD COLUMN remind_log TEXT",
+    "ALTER TABLE orders ADD COLUMN expect_pay_at TEXT"
+  ]) {
+    try {
+      await conn.execute(stmt, false);
+    } catch (e) {
+    }
+  }
+  Store.conn = conn;
+  return conn;
+}
+async function nativePersistSnapshot(payload) {
+  try {
+    const conn = await nativeOpen(), ts = (/* @__PURE__ */ new Date()).toISOString();
+    const set = [
+      { statement: "DELETE FROM orders WHERE mode=?", values: [payload.mode] },
+      { statement: "DELETE FROM payments WHERE mode=?", values: [payload.mode] }
+    ];
+    payload.orders.forEach((o) => set.push({ statement: `INSERT INTO orders (mode,${ORD_COLS.join(",")}) VALUES (?,${ORD_COLS.map(() => "?").join(",")})`, values: [payload.mode, o.id, o.store, o.cat || null, o.contact || null, o.price, o.deposit || 0, o.appt || null, o.shotAt || null, o.submittedAt || null, o.shortAt || null, o.longAt || null, o.depositPaidAt || null, o.finalPaidAt || null, o.settleVia || "private", o.remindAt || null, o.channel || "\u76F4\u5BA2", o.partner || null, o.location || null, o.gpsPlace || null, o.deliverMain === false ? 0 : 1, o.deliverSub === false ? 0 : 1, o.reviewResult || "", o.publishedAt || null, o.accountId || null, o.note || null, o.remindLog && o.remindLog.length ? JSON.stringify(o.remindLog) : null, o.expectPayAt || null, ts, ts] }));
+    set.push({ statement: "DELETE FROM accounts WHERE mode=?", values: [payload.mode] });
+    (payload.accounts || []).forEach((a) => set.push({ statement: "INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?)", values: [payload.mode, a.id, a.name, a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || ts] }));
+    payload.payments.forEach((p) => set.push({ statement: "INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)", values: [payload.mode, p.oid, p.kind, p.amount, p.at, p.method || null, p.note || null] }));
+    const doc = { ...cloneState(payload), savedAt: ts };
+    set.push({ statement: "INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)", values: [payload.mode, "json", JSON.stringify(doc)] });
+    if (payload.previous) set.push({ statement: "INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)", values: [payload.mode, "backup", JSON.stringify(payload.previous)] });
+    await conn.executeSet(set, true);
+    return true;
+  } catch (e) {
+    console.error("[TanJi] SQLite \u5199\u5165\u5931\u8D25", e);
+    return false;
+  }
+}
+async function nativeReadSnapshot(mode, suffix = "json") {
+  try {
+    const conn = await nativeOpen();
+    if (suffix === "backup") {
+      const r2 = await conn.query("SELECT value FROM settings WHERE scope=? AND key=?", [mode, "backup"]);
+      const raw2 = (r2.values || [])[0];
+      return { value: raw2 ? JSON.parse(raw2.value) : null, uncertain: false };
+    }
+    const sources = [];
+    const r = await conn.query("SELECT value FROM settings WHERE scope=? AND key=?", [mode, "json"]);
+    const raw = (r.values || [])[0];
+    if (raw) sources.push(raw.value);
+    const mirror = localRead(storageKey(mode));
+    if (mirror.ok && mirror.value !== null) sources.push(mirror.value);
+    const candidates = [];
+    for (const source of sources) {
+      try {
+        const parsed = typeof source === "string" ? JSON.parse(source) : source;
+        const data = validateState(parsed);
+        const revision = parsed.revision;
+        if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("\u65E0\u6548\u4FEE\u8BA2\u53F7");
+        candidates.push({ ...data, v: 3, mode, revision, savedAt: parsed.savedAt || null, previous: parsed.previous || null });
+      } catch (error) {
+        console.warn("[TanJi] \u526F\u672C\u5185\u5BB9\u65E0\u6548,\u5DF2\u8DF3\u8FC7", error);
+      }
+    }
+    if (!candidates.length) return { value: null, uncertain: sources.length > 0 };
+    candidates.sort((a, b) => b.revision - a.revision);
+    return { value: candidates[0], uncertain: false };
+  } catch (e) {
+    console.error("[TanJi] SQLite \u8BFB\u53D6\u5931\u8D25", e);
+    try {
+      const mirror = localRead(storageKey(mode));
+      if (mirror.ok && mirror.value) {
+        const parsed = mirror.value;
+        const data = validateState(parsed);
+        return { value: { ...data, v: 3, mode, revision: parsed.revision || 0, savedAt: parsed.savedAt || null, previous: parsed.previous || null }, uncertain: true };
+      }
+    } catch (e2) {
+    }
+    return { value: null, uncertain: true };
+  }
+}
+var NOTIFY_OFFSET = { work: 0, demo: 5e5 };
+var notifyBase = () => NOTIFY_OFFSET[Store.mode] || 0;
+var needMain = (o) => TanJiLogic.needMain(o);
+var needSub = (o) => TanJiLogic.needSub(o);
+var deliveredAll = (o) => TanJiLogic.deliveredAll(o);
+var Notify = {
+  native() {
+    return isNative && CAP && CAP.LocalNotifications;
+  },
+  async ensurePermission() {
+    const L = CAP.LocalNotifications;
+    let p = await L.checkPermissions();
+    if (p.display !== "granted") p = await L.requestPermissions();
+    return p.display === "granted";
+  },
+  async syncDaily() {
+    if (!this.native()) return;
+    if (Store.mode === "demo") return;
+    try {
+      const L = CAP.LocalNotifications;
+      const base = notifyBase();
+      const pend = await L.getPending();
+      const oldDaily = (pend.notifications || []).filter((n) => +n.id === base + 1);
+      if (oldDaily.length) await L.cancel({ notifications: oldDaily });
+      const over = db.orders.filter((o) => isOver(o) && !snoozed(o));
+      if (!over.length || db.notifyEnabled === false) return;
+      if (!await this.ensurePermission()) return;
+      const maxD = Math.max(...over.map(overdueDays));
+      await L.schedule({ notifications: [{
+        id: base + 1,
+        title: "\u63A2\u8BB0 \xB7 \u5C3E\u6B3E\u50AC\u6536",
+        body: `${over.length} \u7B14\u5C3E\u6B3E\u5DF2\u903E\u671F\uFF0C\u6700\u957F ${maxD} \u5929 \u2014\u2014 \u4ECA\u65E5\u5B89\u6392\u4E00\u6B21\u8DDF\u8FDB`,
+        schedule: { on: { hour: 9, minute: 0 }, repeats: true, allowWhileIdle: true }
+      }] });
+    } catch (e) {
+      console.warn("[TanJi] \u50AC\u6536\u63D0\u9192\u6392\u7A0B\u5931\u8D25", e);
+    }
+  },
+  // 出片提醒:拍摄完成 +24h 仍未出齐(按该单的正/副片配置) → 一次性本地通知。
+  // 已超期的不再排(应用内列表有红色角标),出齐/删单/清除拍摄时间后重排即撤销。
+  async syncDeliver() {
+    if (!this.native()) return;
+    if (Store.mode === "demo") return;
+    try {
+      const L = CAP.LocalNotifications;
+      const base = notifyBase();
+      const pend = await L.getPending();
+      const mine = (pend.notifications || []).filter((n) => +n.id >= base + 3e5 && +n.id < base + 4e5);
+      if (mine.length) await L.cancel({ notifications: mine });
+      const now2 = Date.now();
+      const list = db.orders.filter((o) => o.shotAt && !deliveredAll(o)).map((o) => ({ o, at: new Date(new Date(o.shotAt).getTime() + 864e5) })).filter((x) => !isNaN(x.at.getTime()) && x.at.getTime() > now2);
+      if (!list.length) return;
+      if (!await this.ensurePermission()) return;
+      await L.schedule({ notifications: list.map(({ o, at }) => ({
+        id: base + 3e5 + o.id,
+        title: "\u63A2\u8BB0 \xB7 \u51FA\u7247\u63D0\u9192",
+        body: `\u300C${o.store}\u300D\u62CD\u6444\u5DF2\u8D85 24 \u5C0F\u65F6,\u8FD8\u6709\u7247\u5B50\u6CA1\u51FA\u9F50,\u8BB0\u5F97\u8DDF\u8FDB`,
+        schedule: { at, allowWhileIdle: true }
+      })) });
+    } catch (e) {
+      console.warn("[TanJi] \u51FA\u7247\u63D0\u9192\u6392\u7A0B\u5931\u8D25", e);
+    }
+  },
+  async scheduleSnooze(o, d) {
+    if (!this.native()) return;
+    if (Store.mode === "demo") return;
+    try {
+      const at = new Date(o.remindAt);
+      if (isNaN(at)) return;
+      if (!await this.ensurePermission()) return;
+      const L = CAP.LocalNotifications;
+      const base = notifyBase();
+      const pend = await L.getPending();
+      const mine = (pend.notifications || []).filter((n) => +n.id === base + 1e5 + o.id);
+      if (mine.length) await L.cancel({ notifications: mine });
+      const when = d != null ? `\uFF08${d} \u5929\u524D\u8BBE\u7F6E\u7684\u63D0\u9192\uFF09` : `\uFF08${String(o.remindAt || "").slice(5, 10)} \u8BBE\u7684\u63D0\u9192\uFF09`;
+      await L.schedule({ notifications: [{
+        id: base + 1e5 + o.id,
+        title: "\u63A2\u8BB0 \xB7 \u50AC\u6536\u8DDF\u8FDB",
+        body: `\u300C${o.store}\u300D\u5C3E\u6B3E\u8BE5\u8DDF\u8FDB\u4E86${when}`,
+        schedule: { at, allowWhileIdle: true }
+      }] });
+    } catch (e) {
+      console.warn("[TanJi] \u5355\u6B21\u63D0\u9192\u6392\u7A0B\u5931\u8D25", e);
+    }
+  },
+  // (cancelAll/isOurNotifyId 已删:replaceData 改用 cancelMode 后无调用方,
+  //  而"撤双模式全部通知"的语义一旦被误接回单模式动作,会重演通知误杀)
+  // 只撤当前模式的全部通知(导入/恢复/清空只替换当前模式数据,另一模式的通知指向的数据还在,不能动)
+  async cancelMode(mode = Store.mode) {
+    if (!this.native()) return;
+    try {
+      const base = NOTIFY_OFFSET[mode] || 0;
+      const L = CAP.LocalNotifications, pend = await L.getPending();
+      const ours = (pend.notifications || []).filter((n) => {
+        const id = +n.id;
+        return id === base + 1 || id >= base + 1e5 && id < base + 4e5;
+      });
+      if (ours.length) await L.cancel({ notifications: ours });
+    } catch (e) {
+    }
+  },
+  // 只撤单笔备忘:清除催收提醒不能连带撤掉同单的 24h 出片提醒(两条通知语义独立)
+  async cancelSnooze(id) {
+    if (!this.native()) return;
+    try {
+      const base = notifyBase();
+      const L = CAP.LocalNotifications, pend = await L.getPending();
+      const mine = (pend.notifications || []).filter((n) => +n.id === base + 1e5 + +id);
+      if (mine.length) await L.cancel({ notifications: mine });
+    } catch (e) {
+    }
+  },
+  async cancelOrder(id) {
+    if (!this.native()) return;
+    try {
+      const base = notifyBase();
+      const L = CAP.LocalNotifications, pend = await L.getPending();
+      const mine = (pend.notifications || []).filter((n) => +n.id === base + 1e5 + +id || +n.id === base + 3e5 + +id);
+      if (mine.length) await L.cancel({ notifications: mine });
+    } catch (e) {
+    }
+  },
+  async toggle() {
+    db.notifyEnabled = db.notifyEnabled === false;
+    save();
+    afterLoad && afterLoad.renderAll();
+    if (db.notifyEnabled !== false) await this.syncDaily();
+    else {
+      try {
+        const L = CAP.LocalNotifications, pend = await L.getPending();
+        const daily = (pend.notifications || []).filter((n) => +n.id === notifyBase() + 1);
+        if (daily.length) await L.cancel({ notifications: daily });
+      } catch (e) {
+      }
+    }
+    toast(db.notifyEnabled !== false ? "\u5DF2\u5F00\u542F\u6BCF\u65E5\u50AC\u6536\u63D0\u9192\uFF08\u6BCF\u5929 09:00\uFF09" : "\u5DF2\u5173\u95ED\u6BCF\u65E5\u50AC\u6536\u63D0\u9192");
+  }
+};
+
+// src/app/ui.js
+var ui2 = { tab: "home", chip: "all", bucket: "all", period: "7", selDay: TODAY, q: "", detail: null, payCtx: null, privacy: false, shareUrl: null, shareBlob: null, vMon: { y: now.getFullYear(), m: now.getMonth() + 1 }, accFilter: null, editAccountId: null, draftAvatar: null, draftColor: 0, draftProv: "", draftAccId: null, assignAcc: null, remindOid: null, expectOid: null };
+var lastDailySyncDay = "";
+function syncDailyOnNewDay() {
+  if (lastDailySyncDay === TODAY) return;
+  lastDailySyncDay = TODAY;
+  Notify.syncDaily();
+}
+function refreshClock() {
+  const { changed, previous } = tickClock();
+  if (changed && ui2.selDay === previous) {
+    ui2.selDay = TODAY;
+    ui2.vMon = { y: now.getFullYear(), m: now.getMonth() + 1 };
+  }
+}
+var RENDERERS = {};
+function registerRenderers(renderers) {
+  Object.assign(RENDERERS, renderers);
+}
+function showTab(t) {
+  refreshClock();
+  ui2.tab = t;
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  $("#v-" + t).classList.add("active");
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
+}
+function renderAll() {
+  refreshClock();
+  setStorageStatus(Store.status);
+  RENDERERS.home();
+  RENDERERS.trip();
+  RENDERERS.orders();
+  RENDERERS.pay();
+  RENDERERS.stats();
+  const n = db.orders.filter(accMatch).filter((o) => isOver(o) && !snoozed(o)).length;
+  const b = $("#pay-bdg");
+  b.style.display = n ? "flex" : "none";
+  b.textContent = n;
+}
+var detailRerender = null;
+function registerDetailRerender(fn) {
+  detailRerender = fn;
+}
+function refreshVisible() {
+  if (!Store.ready || Store.busy || document.visibilityState === "hidden") return;
+  refreshClock();
+  syncDailyOnNewDay();
+  if (document.activeElement?.matches("input,textarea,select")) return;
+  renderAll();
+  if ($("#sheet-detail").classList.contains("show")) detailRerender();
+}
+function markDailySynced(day = TODAY) {
+  lastDailySyncDay = day;
+}
+
 // src/app/sheets.js
 function showSheet2(id) {
   $("#mask").classList.add("show");
@@ -1297,7 +1304,7 @@ function accTagHTML(a) {
   const av = a.avatar ? `<img class="tav" src="${a.avatar}" alt="">` : `<span class="tav" style="background:rgba(255,255,255,.72)">${esc(a.name.slice(0, 1))}</span>`;
   return `<span class="acc-tag" style="color:${c.ink};background:${c.bg}">${av}${esc(a.name)}</span>`;
 }
-function accChipbarHTML2() {
+function accChipbarHTML() {
   if (!accMulti()) return "";
   const chip = (label, id) => {
     const on = ui2.accFilter === id;
@@ -1385,12 +1392,12 @@ function saveAccount() {
     toast2("\u5DF2\u4FDD\u5B58\u8D26\u53F7");
   } else {
     const maxId = ACCS().reduce((m, x) => Math.max(m, x.id), 0);
-    db.accounts = [...ACCS(), { id: maxId + 1, createdAt: nowStr2(), ...base }];
+    db.accounts = [...ACCS(), { id: maxId + 1, createdAt: nowStr(), ...base }];
     toast2("\u5DF2\u6DFB\u52A0\u8D26\u53F7");
   }
   save();
   closeSheets2();
-  renderAll2();
+  renderAll();
 }
 function deleteAccount() {
   const a = accById(ui2.editAccountId);
@@ -1404,7 +1411,7 @@ function deleteAccount() {
   if (ui2.accFilter === a.id) ui2.accFilter = null;
   save();
   closeSheets2();
-  renderAll2();
+  renderAll();
   toast2("\u5DF2\u5220\u9664\u8D26\u53F7");
 }
 function initAvatarInput() {
@@ -1431,7 +1438,7 @@ function dayBadge(n, sum) {
 }
 
 // src/app/derived.js
-function workOf2(o) {
+function workOf(o) {
   return TanJiLogic.workOf(o);
 }
 function moneyCents(value, blankZero) {
@@ -1465,7 +1472,7 @@ function overdueDays2(o) {
   return TanJiLogic.overdueDays(o, db.payments, now);
 }
 function snoozed2(o) {
-  return TanJiLogic.snoozed(o, nowStr2());
+  return TanJiLogic.snoozed(o, nowStr());
 }
 function isOver2(o) {
   return TanJiLogic.isOver(o, db.payments, db.threshold, now);
@@ -1493,7 +1500,7 @@ function payChip(o) {
   return `<span class="chip ${PAY_CLS[label]}">${label}</span>`;
 }
 function workChip(o) {
-  return `<span class="chip ${WORK_CLS[workOf2(o)]}">${workOf2(o)}</span>`;
+  return `<span class="chip ${WORK_CLS[workOf(o)]}">${workOf(o)}</span>`;
 }
 function deliverLate(o) {
   return TanJiLogic.deliverLate(o, Date.now());
@@ -1501,13 +1508,13 @@ function deliverLate(o) {
 var REVIEW_LABEL = { pass: "\u9001\u5BA1\u5408\u683C", fail: "\u9001\u5BA1\u4E0D\u5408\u683C" };
 var byId = (id) => db.orders.find((o) => o.id === id);
 var gpsText = (o) => o && o.gpsPlace && typeof TanJiGeo !== "undefined" ? TanJiGeo.label(o.gpsPlace) : "";
-var storeOf2 = (id) => {
+var storeOf = (id) => {
   const o = byId(id);
   return o ? o.store : "";
 };
 
 // src/app/sqlite-bytes.js
-function buildSqliteBytes2(state = db) {
+function buildSqliteBytes(state = db) {
   if (!Store.sqlite3) return null;
   try {
     const s = Store.sqlite3;
@@ -1587,7 +1594,7 @@ function buildSqliteBytes2(state = db) {
     ss.bind(["app_version", "0.6"]);
     ss.step();
     ss.reset();
-    ss.bind(["exported_at", nowStr2()]);
+    ss.bind(["exported_at", nowStr()]);
     ss.step();
     ss.reset();
     ss.finalize();
@@ -1676,7 +1683,7 @@ function exportCsv() {
     [needMain(o) ? "\u6B63\u7247" : "", needSub(o) ? "\u526F\u7247" : ""].filter(Boolean).join("+") || "\u672A\u914D\u7F6E",
     o.reviewResult ? REVIEW_LABEL[o.reviewResult] : "",
     o.publishedAt || "",
-    workOf2(o),
+    workOf(o),
     payOf(o),
     owedOf(o),
     isOver2(o) ? overdueDays2(o) : 0,
@@ -1687,7 +1694,7 @@ function exportCsv() {
     o.note
   ].map(q).join(","));
   const phead = ["\u5E8F\u53F7", "\u8BA2\u5355ID", "\u5546\u5BB6", "\u7C7B\u578B", "\u91D1\u989D", "\u5230\u8D26\u65F6\u95F4", "\u6536\u6B3E\u65B9\u5F0F"];
-  const plines = db.payments.map((p, i) => [i + 1, p.oid, storeOf2(p.oid), p.kind, p.amount, p.at, p.method].map(q).join(","));
+  const plines = db.payments.map((p, i) => [i + 1, p.oid, storeOf(p.oid), p.kind, p.amount, p.at, p.method].map(q).join(","));
   download2(`\u63A2\u8BB0-\u5BFC\u51FA-${TODAY}.csv`, [head.map(q).join(","), ...lines, "", "", phead.map(q).join(","), ...plines].join("\n"), "text/csv;charset=utf-8");
   toast2("\u5DF2\u5BFC\u51FA CSV(\u8BA2\u5355 + \u6D41\u6C34)\u2713");
 }
@@ -1696,7 +1703,7 @@ function exportJson() {
   toast2("\u5DF2\u5BFC\u51FA JSON \u5907\u4EFD");
 }
 function exportDb() {
-  const bytes = buildSqliteBytes2();
+  const bytes = buildSqliteBytes();
   if (!bytes) {
     toast2("SQLite \u5F15\u64CE\u8FD8\u5728\u52A0\u8F7D,\u51E0\u79D2\u540E\u518D\u8BD5");
     return;
@@ -1790,7 +1797,7 @@ function mileStep(oid, key, label, time, done, nowFlag) {
     <div class="mlab">${esc(label)}</div><div class="mtime">${done ? esc(fmtDT(time)) : nowFlag ? "\u70B9\u51FB\u6807\u8BB0" : ""}</div></button>`;
 }
 function priceCell(o) {
-  const money = fmtMoney2(o.price);
+  const money = fmtMoney(o.price);
   return o.photoThumb ? `<div class="rprice shot" style="background-image:url('${o.photoThumb}')"><span>${money}</span></div>` : `<div class="rprice">${money}</div>`;
 }
 function detailActions(o) {
@@ -1836,8 +1843,8 @@ function openDetail(id) {
   const progress = lastDone < 0 ? 0 : (lastDone + 0.5) / visibleSteps.length * 72;
   const received = db.payments.filter((p) => p.oid === o.id).reduce((s, p) => s + (moneyCents(p.amount) || 0), 0) / 100;
   const payBtns = [];
-  if (unDep(o) > 0) payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="deposit">\u6536\u5B9A\u91D1 ${esc(fmtMoney2(unDep(o)))}</button>`);
-  if (unFin(o) > 0) payBtns.push(`<button class="btn ${isOver2(o) ? "primary" : "pay"}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">\u6536\u5C3E\u6B3E<span class="pmoney">${esc(fmtMoney2(unFin(o)))}</span></button>`);
+  if (unDep(o) > 0) payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="deposit">\u6536\u5B9A\u91D1 ${esc(fmtMoney(unDep(o)))}</button>`);
+  if (unFin(o) > 0) payBtns.push(`<button class="btn ${isOver2(o) ? "primary" : "pay"}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">\u6536\u5C3E\u6B3E<span class="pmoney">${esc(fmtMoney(unFin(o)))}</span></button>`);
   if (!payBtns.length) payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">\u6B3E\u9879\u5DF2\u5168\u90E8\u7ED3\u6E05</div>`);
   let snoozeHtml = "";
   if (payOf(o) === "\u5F85\u5C3E\u6B3E") {
@@ -1907,11 +1914,11 @@ function openDetail(id) {
       <div class="ig"><div class="k">\u53D1\u5E03\u65F6\u95F4</div><div class="v">${esc(fmtDT(o.publishedAt))}</div></div>
       <div class="ig"><div class="k">\u670D\u52A1\u5546</div><div class="v">${esc(o.channel || "\u76F4\u5BA2")}</div></div>
       <div class="ig"><div class="k">\u7EC4\u961F</div><div class="v">${esc(o.partner || (o.note && o.note.includes("\u4E0D\u7EC4\u961F") ? "\u4E0D\u7EC4\u961F" : "\u2014"))}</div></div>
-      <div class="ig"><div class="k">\u603B\u4EF7</div><div class="v">${esc(fmtMoney2(o.price))}</div></div>
-      <div class="ig"><div class="k">\u5B9A\u91D1 ${o.depositPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.depositPaidAt)) : ""}</div><div class="v">${esc(fmtMoney2(o.deposit))}</div></div>
-      <div class="ig"><div class="k">\u5C3E\u6B3E ${o.finalPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.finalPaidAt)) : ""}</div><div class="v">${esc(fmtMoney2(money ? money.final / 100 : 0))}</div></div>
-      <div class="ig"><div class="k">\u5DF2\u6536\u5408\u8BA1</div><div class="v" style="color:#239648">${received > 0 ? esc(fmtMoney2(received)) : "\u2014"}</div></div>
-      <div class="ig"><div class="k">\u5F53\u524D\u5F85\u6536</div><div class="v" style="${owedOf(o) > 0 ? "color:var(--red)" : "color:#239648"}">${owedOf(o) > 0 ? esc(fmtMoney2(owedOf(o))) : "\u5DF2\u7ED3\u6E05"}</div></div>
+      <div class="ig"><div class="k">\u603B\u4EF7</div><div class="v">${esc(fmtMoney(o.price))}</div></div>
+      <div class="ig"><div class="k">\u5B9A\u91D1 ${o.depositPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.depositPaidAt)) : ""}</div><div class="v">${esc(fmtMoney(o.deposit))}</div></div>
+      <div class="ig"><div class="k">\u5C3E\u6B3E ${o.finalPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.finalPaidAt)) : ""}</div><div class="v">${esc(fmtMoney(money ? money.final / 100 : 0))}</div></div>
+      <div class="ig"><div class="k">\u5DF2\u6536\u5408\u8BA1</div><div class="v" style="color:#239648">${received > 0 ? esc(fmtMoney(received)) : "\u2014"}</div></div>
+      <div class="ig"><div class="k">\u5F53\u524D\u5F85\u6536</div><div class="v" style="${owedOf(o) > 0 ? "color:var(--red)" : "color:#239648"}">${owedOf(o) > 0 ? esc(fmtMoney(owedOf(o))) : "\u5DF2\u7ED3\u6E05"}</div></div>
       <div class="ig"><div class="k">\u7ED3\u7B97\u65B9\u5F0F</div><div class="v">${o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u79C1\u6536"}</div></div>
     </div>
     ${o.note ? `<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">${esc(o.note)}</div></div>` : ""}
@@ -1937,9 +1944,9 @@ function mark(id, key, label) {
     toast2("\u6B63\u7247/\u526F\u7247\u51FA\u9F50\u540E\u624D\u80FD\u6807\u8BB0\u53D1\u5E03");
     return false;
   }
-  o[key] = nowStr2();
+  o[key] = nowStr();
   save();
-  renderAll2();
+  renderAll();
   rerenderDetail();
   Notify.syncDeliver();
   toast2(label);
@@ -1960,14 +1967,14 @@ function pay(id, kind, method = "\u5FAE\u4FE1") {
     toast2("\u8BE5\u7B14\u6B3E\u9879\u5DF2\u8BB0\u5F55\uFF0C\u8BF7\u52FF\u91CD\u590D\u6536\u6B3E");
     return false;
   }
-  const t = nowStr2(), amount = m[kind] / 100;
+  const t = nowStr(), amount = m[kind] / 100;
   o[spec.field] = t;
   db.payments.push({ oid: id, kind: spec.label, amount, at: t, method });
   save();
-  renderAll2();
+  renderAll();
   rerenderDetail();
   Notify.syncDaily();
-  toast2(`\u5DF2\u6536${spec.label} ${fmtMoney2(amount)} \xB7 ${method}`, { label: "\u64A4\u9500", run: () => undoPay(id, kind, t) });
+  toast2(`\u5DF2\u6536${spec.label} ${fmtMoney(amount)} \xB7 ${method}`, { label: "\u64A4\u9500", run: () => undoPay(id, kind, t) });
   return true;
 }
 function undoPay(id, kind, at) {
@@ -1981,7 +1988,7 @@ function undoPay(id, kind, at) {
   db.payments.splice(index, 1);
   o[spec.field] = null;
   save();
-  renderAll2();
+  renderAll();
   rerenderDetail();
   Notify.syncDaily();
   toast2("\u5DF2\u64A4\u9500\u8BE5\u7B14\u6536\u6B3E");
@@ -2009,14 +2016,14 @@ function openPay(oid, kind, keepMethod) {
   $("#pay-body").innerHTML = `
     <div style="text-align:center;padding:6px 0 2px">
       <div style="font-size:14px;font-weight:700">${esc(o.store)}</div>
-      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${esc(fmtMoney2(amt))}</div>
+      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${esc(fmtMoney(amt))}</div>
       <div style="font-size:12px;color:var(--sub)">${spec.label} \xB7 ${o.settleVia === "douyin" ? "\u7EA6\u5B9A\u6296\u97F3\u5546\u5355\u7ED3\u7B97" : "\u79C1\u6536\u6B3E\u9879"} \xB7 \u4EC5\u4F5C\u5165\u8D26\u8BB0\u5F55</div>
     </div>
     <div class="sec-title" style="justify-content:center">\u6536\u6B3E\u65B9\u5F0F(\u8BB0\u5F55\u7528)</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
       ${METHODS.map((m2) => `<button class="mchip ${ui2.payCtx.method === m2 ? "on" : ""}" data-act="pay-method" data-m="${esc(m2)}">${esc(m2)}</button>`).join("")}
     </div>
-    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">\u786E\u8BA4\u6536\u6B3E ${esc(fmtMoney2(amt))}</button></div>`;
+    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">\u786E\u8BA4\u6536\u6B3E ${esc(fmtMoney(amt))}</button></div>`;
   showSheet2("sheet-pay");
 }
 var REMIND_QUICK = ["\u8BF4\u8FD9\u5468\u7ED9", "\u8BF4\u6708\u5E95\u7EDF\u4E00\u7ED3", "\u8D22\u52A1\u8D70\u6D41\u7A0B", "\u6CA1\u56DE\u590D/\u4E0D\u63A5", "\u5DF2\u8F6C\u5BF9\u516C", "\u8BF4\u62CD\u5B8C\u518D\u7ED3"];
@@ -2042,13 +2049,13 @@ function saveRemind() {
   }
   const input = $("#remind-note");
   const note = (input && input.value ? input.value : "").trim().slice(0, 200);
-  const at = nowStr2();
+  const at = nowStr();
   const seq = remindLogOf(o).length;
   const capped = seq >= 50;
   o.remindLog = [...remindLogOf(o), { at, note }].slice(-50);
   const back = ui2.detail === id ? id : null;
   save();
-  renderAll2();
+  renderAll();
   closeSheets2();
   if (back !== null && byId(back)) openDetail(back);
   toast2(capped ? `\u5DF2\u8BB0\u5F55 \xB7 \u6700\u65E9\u4E00\u6761\u5DF2\u88AB\u6324\u51FA,\u53EA\u4FDD\u7559\u6700\u8FD1 50 \u6B21${note ? ` \xB7 ${note}` : ""}` : `\u5DF2\u8BB0\u5F55\u7B2C ${seq + 1} \u6B21\u50AC\u6536${note ? ` \xB7 ${note}` : ""}`);
@@ -2060,7 +2067,7 @@ function openExpect(oid) {
     return;
   }
   ui2.expectOid = oid;
-  $("#expect-sub").textContent = `\u300C${o.store}\u300D\u6296\u97F3\u5546\u5355,\u5C3E\u6B3E ${fmtMoney2(unFin(o))} \u7531\u5E73\u53F0\u7ED3\u7B97`;
+  $("#expect-sub").textContent = `\u300C${o.store}\u300D\u6296\u97F3\u5546\u5355,\u5C3E\u6B3E ${fmtMoney(unFin(o))} \u7531\u5E73\u53F0\u7ED3\u7B97`;
   $("#expect-date").value = o.expectPayAt ? o.expectPayAt.slice(0, 10) : "";
   showSheet2("sheet-expect");
 }
@@ -2072,14 +2079,14 @@ function saveExpect() {
   }
   const day = $("#expect-date").value;
   const at = day ? `${day}T10:00` : "";
-  if (!at || !validDateTime2(at)) {
+  if (!at || !validDateTime(at)) {
     toast2("\u5148\u9009\u4E00\u4E2A\u6709\u6548\u7684\u5230\u8D26\u65E5\u671F");
     return;
   }
   const back = ui2.detail === id ? id : null;
   o.expectPayAt = at;
   save();
-  renderAll2();
+  renderAll();
   closeSheets2();
   if (back !== null && byId(back)) openDetail(back);
   toast2(`\u5DF2\u8BB0\u4E0B\u9884\u8BA1 ${fmtD(at)} \u5230\u8D26`);
@@ -2089,7 +2096,7 @@ function clearExpect(oid) {
   if (!o || !o.expectPayAt) return;
   o.expectPayAt = null;
   save();
-  renderAll2();
+  renderAll();
   rerenderDetail();
   toast2("\u5DF2\u6E05\u9664\u9884\u8BA1\u5230\u8D26\u65E5");
 }
@@ -2100,7 +2107,7 @@ function capturePlace(oid) {
     if (!cur || !place) return;
     cur.gpsPlace = place;
     save();
-    renderAll2();
+    renderAll();
     rerenderDetail();
     toast2("\u5DF2\u8BB0\u5F55\u5230\u5E97\u5B9A\u4F4D \u2713");
   }).catch(() => {
@@ -2176,7 +2183,7 @@ function saveOrder() {
   }
   const date = $("#f-date").value || TODAY, time = $("#f-time").value || "10:00", appt = `${date}T${time}`;
   const settleVia = $("#f-settle").value;
-  if (!validDateTime2(appt)) {
+  if (!validDateTime(appt)) {
     fail("\u8BF7\u586B\u5199\u6709\u6548\u7684\u9884\u7EA6\u65E5\u671F\u548C\u65F6\u95F4");
     return;
   }
@@ -2226,8 +2233,8 @@ function saveOrder() {
   closeSheets2();
   ui2.selDay = date;
   ui2.vMon = { y: +date.slice(0, 4), m: +date.slice(5, 7) };
-  showTab2("trip");
-  renderAll2();
+  showTab("trip");
+  renderAll();
   toast2(`\u5DF2\u6DFB\u52A0\u9884\u7EA6:${store}`);
 }
 var EDIT_FIELDS = ["e-store", "e-cat", "e-settle", "e-partner", "e-location", "e-date", "e-time", "e-price", "e-deposit", "e-contact", "e-note"];
@@ -2266,7 +2273,7 @@ function toggleReceipt(oid, kind) {
     o[spec.field] = null;
     db.payments = db.payments.filter((p) => !(p.oid === oid && (p.kind === spec.label || p.kind === kind)));
     save();
-    renderAll2();
+    renderAll();
     Notify.syncDaily();
     toast2("\u5DF2\u64A4\u9500" + spec.label + "\u8BB0\u5F55(\u542B\u6D41\u6C34)");
   } else {
@@ -2354,7 +2361,7 @@ function saveEdit() {
   }
   const date = $("#e-date").value || TODAY, time = $("#e-time").value || "10:00", appt = `${date}T${time}`;
   const settleVia = $("#e-settle").value;
-  if (!validDateTime2(appt)) {
+  if (!validDateTime(appt)) {
     toast2("\u8BF7\u586B\u5199\u6709\u6548\u7684\u9884\u7EA6\u65E5\u671F\u548C\u65F6\u95F4");
     return;
   }
@@ -2389,7 +2396,7 @@ function saveEdit() {
   const returnDetail = ui2.detail === o.id ? o.id : null;
   save();
   closeSheets2();
-  renderAll2();
+  renderAll();
   Notify.syncDeliver();
   Notify.syncDaily();
   if (returnDetail !== null) openDetail(returnDetail);
@@ -2414,7 +2421,7 @@ function initShotInput() {
       target.photoThumb = await TanJiImage.doorThumb(file);
       if (!target.shotAt) target.shotAt = nowStr();
       await save();
-      renderAll2();
+      renderAll();
       rerenderDetail();
       Notify.syncDeliver();
       toast2("\u5DF2\u968F\u624B\u62CD \xB7 \u62CD\u6444\u65F6\u95F4\u5DF2\u8BB0\u5F55");
@@ -2480,10 +2487,10 @@ function buildTodayImage(day = TODAY) {
     g.fillStyle = "#1C1C1E";
     g.font = "700 34px -apple-system,PingFang SC";
     g.fillText(o.store, pad2 + 156, y + 46, W - pad2 * 2 - 320);
-    const st = WT[workOf2(o)][0];
+    const st = WT[workOf(o)][0];
     g.fillStyle = st;
     g.font = "700 24px -apple-system,PingFang SC";
-    g.fillText("\u25CF " + workOf2(o), pad2 + 158, y + 88);
+    g.fillText("\u25CF " + workOf(o), pad2 + 158, y + 88);
     g.fillStyle = "#8E8E93";
     g.font = "500 24px -apple-system,PingFang SC";
     g.fillText(o.cat, pad2 + 300, y + 88);
@@ -2564,7 +2571,7 @@ function renderOrders() {
         <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}${isOver2(o) ? `<span class="chip c-red">\u6B20 ${overdueDays2(o)} \u5929</span>` : ""}${snoozed2(o) ? '<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>' : ""}${stepBtn(o)}</div>
       </div>
       <div class="rside">${priceCell(o)}
-        <div class="rsub" style="${owedOf(o) > 0 ? "color:var(--red);font-weight:700" : ""}">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney2(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div>
+        <div class="rsub" style="${owedOf(o) > 0 ? "color:var(--red);font-weight:700" : ""}">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div>
       </div>
     </div>`).join("") : `<div class="empty"><div class="e-ic">\u{1F50D}</div>\u6CA1\u6709\u7B26\u5408\u6761\u4EF6\u7684\u8BA2\u5355</div>`;
   $("#v-orders").innerHTML = `
@@ -2573,7 +2580,7 @@ function renderOrders() {
       <div style="display:flex;gap:8px;align-items:center">${headBtns(false)}
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button></div>
     </div>
-    ${accChipbarHTML2()}
+    ${accChipbarHTML()}
     <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
       <input id="q-input" placeholder="\u641C\u7D22\u5546\u5BB6 / \u5730\u70B9 / \u8054\u7CFB\u4EBA / \u5907\u6CE8" value="${esc(ui2.q)}"></div>
     <div class="chips">${chips}</div>
@@ -2607,12 +2614,12 @@ function renderPay() {
     const d = overdueDays2(o), isDep = unDep(o) > 0 && !isOver2(o), isDy = o.settleVia === "douyin", sn = snoozed2(o);
     const late = isDy ? expectOverdue(o) : 0;
     const dyNote = isDy && o.expectPayAt ? ` \xB7 \u9884\u8BA1 ${fmtD(o.expectPayAt)} \u5230\u8D26${late > 0 ? `(\u5DF2\u8D85 ${late} \u5929)` : ""}` : "";
-    const due = isDep ? { kind: "deposit", amt: unDep(o), sub: `\u9884\u7EA6 ${fmtD(o.appt)} ${fmtHM(o.appt)} \xB7 \u5B9A\u91D1`, btn: "\u6807\u8BB0\u5DF2\u6536" } : isDy ? { kind: "final", amt: unFin(o), sub: `${o.shotAt ? "\u62CD\u6444 " + fmtD(o.shotAt) : "\u5F85\u62CD\u6444"} \xB7 \u6296\u97F3\u5546\u5355\u7ED3\u7B97${dyNote}`, btn: "\u6807\u8BB0\u5230\u8D26" } : { kind: "final", amt: unFin(o), sub: `${o.shotAt ? "\u62CD\u6444 " + fmtD(o.shotAt) : "\u9884\u7EA6 " + fmtD(o.appt)} \xB7 ${workOf2(o)}`, btn: "\u6807\u8BB0\u5DF2\u6536" };
+    const due = isDep ? { kind: "deposit", amt: unDep(o), sub: `\u9884\u7EA6 ${fmtD(o.appt)} ${fmtHM(o.appt)} \xB7 \u5B9A\u91D1`, btn: "\u6807\u8BB0\u5DF2\u6536" } : isDy ? { kind: "final", amt: unFin(o), sub: `${o.shotAt ? "\u62CD\u6444 " + fmtD(o.shotAt) : "\u5F85\u62CD\u6444"} \xB7 \u6296\u97F3\u5546\u5355\u7ED3\u7B97${dyNote}`, btn: "\u6807\u8BB0\u5230\u8D26" } : { kind: "final", amt: unFin(o), sub: `${o.shotAt ? "\u62CD\u6444 " + fmtD(o.shotAt) : "\u9884\u7EA6 " + fmtD(o.appt)} \xB7 ${workOf(o)}`, btn: "\u6807\u8BB0\u5DF2\u6536" };
     const chip = isDep ? '<span class="chip c-gray">\u5F85\u5B9A\u91D1</span>' : isDy ? `<span class="chip ${late > 0 ? "c-red" : "c-blue"}">\u5E73\u53F0\u7ED3\u7B97${o.expectPayAt ? ` \xB7 ${fmtD(o.expectPayAt)}${late > 0 ? " \u5DF2\u8D85\u671F" : ""}` : ""}</span>` : isOver2(o) ? sn ? `<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192 \xB7 ${fmtD(o.remindAt)}\u518D\u50AC</span>` : `<span class="chip c-red">\u903E\u671F \xB7 \u6B20 ${d} \u5929</span>` : `<span class="chip ${d > 7 ? "c-orange" : "c-gray"}">${o.shotAt ? "\u6B20\u6B3E " + d + " \u5929" : "\u672A\u62CD\u6444 \xB7 \u5C1A\u672A\u8D77\u7B97\u8D26\u671F"}</span>`;
     return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain"><div class="rname">${esc(o.store)}</div>
-        <div class="rsub">${due.sub} ${fmtMoney2(due.amt)}</div>
-        <div class="chiprow">${accOrderTag(o)}${chip}${!isDep && unDep(o) > 0 ? `<span class="chip c-gray">\u53E6\u5F85\u5B9A\u91D1 ${fmtMoney2(unDep(o))}</span>` : ""}</div>
+        <div class="rsub">${due.sub} ${fmtMoney(due.amt)}</div>
+        <div class="chiprow">${accOrderTag(o)}${chip}${!isDep && unDep(o) > 0 ? `<span class="chip c-gray">\u53E6\u5F85\u5B9A\u91D1 ${fmtMoney(unDep(o))}</span>` : ""}</div>
       </div>
       <button class="mini-btn green" data-act="open-pay" data-oid="${o.id}" data-kind="${due.kind}">${due.btn}</button>
     </div>`;
@@ -2620,7 +2627,7 @@ function renderPay() {
   const flow = [...db.payments].filter((p) => accOrderIds().has(p.oid)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((p) => {
     const po = db.orders.find((x) => x.id === p.oid);
     return `<div class="row${accBar(po)}" style="${accTint(po)}">
-      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney2(p.amount)} \xB7 ${esc(storeOf(p.oid))}</div>
+      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} \xB7 ${esc(storeOf(p.oid))}</div>
         <div class="rsub">${esc(p.kind)} \xB7 ${fmtD(p.at)} ${fmtHM(p.at)}${accMulti() ? ` \xB7 ${accTagHTML(po ? accById(po.accountId) : null)}` : ""}</div></div>
       <span class="chip ${METHOD_CLS[p.method] || "c-gray"}">${esc(p.method)}</span>
     </div>`;
@@ -2628,15 +2635,15 @@ function renderPay() {
   $("#v-pay").innerHTML = `
     <div class="htop-row"><div><div class="eyebrow">\u8D44\u91D1\u7EBF \xB7 \u8D26\u671F\u81EA\u5B9E\u9645\u62CD\u6444\u65E5\u8D77\u7B97</div><h1 class="big">\u6536\u6B3E</h1></div>
     <div style="display:flex;gap:8px">${headBtns(false)}</div></div>
-    ${accChipbarHTML2()}
+    ${accChipbarHTML()}
     <div class="card" style="padding:16px;margin-bottom:12px">
       <div style="font-size:12px;color:var(--sub)">\u5F85\u6536\u6B3E\u603B\u989D</div>
-      <div style="font-size:32px;font-weight:800;letter-spacing:.3px;margin:4px 0 2px">${fmtMoney2(unDepSum + unFinSum)}</div>
+      <div style="font-size:32px;font-weight:800;letter-spacing:.3px;margin:4px 0 2px">${fmtMoney(unDepSum + unFinSum)}</div>
       <div class="chiprow">
-        <span class="chip c-orange">\u5C3E\u6B3E\xB7\u79C1\u6536 ${fmtMoney2(unFinSum - dySum)}</span>
-        ${dySum > 0 ? `<span class="chip c-blue">\u6296\u97F3\u5546\u5355 ${fmtMoney2(dySum)}</span>` : ""}
-        <span class="chip c-gray">\u5B9A\u91D1 ${fmtMoney2(unDepSum)}</span>
-        ${over.length ? `<span class="chip c-red">\u903E\u671F ${over.length} \u7B14 \xB7 ${fmtMoney2(overSum)}</span>` : '<span class="chip c-green">\u65E0\u903E\u671F</span>'}
+        <span class="chip c-orange">\u5C3E\u6B3E\xB7\u79C1\u6536 ${fmtMoney(unFinSum - dySum)}</span>
+        ${dySum > 0 ? `<span class="chip c-blue">\u6296\u97F3\u5546\u5355 ${fmtMoney(dySum)}</span>` : ""}
+        <span class="chip c-gray">\u5B9A\u91D1 ${fmtMoney(unDepSum)}</span>
+        ${over.length ? `<span class="chip c-red">\u903E\u671F ${over.length} \u7B14 \xB7 ${fmtMoney(overSum)}</span>` : '<span class="chip c-green">\u65E0\u903E\u671F</span>'}
         ${overAll.length > over.length ? `<span class="chip c-gray">${overAll.length - over.length} \u7B14\u5DF2\u8BBE\u63D0\u9192</span>` : ""}
       </div>
     </div>
@@ -2691,9 +2698,9 @@ function renderStats() {
   }
   const daily = days.map((d) => st.paid.filter((p) => p.at.slice(0, 10) === d).reduce((s, p) => s + Math.round(p.amount * 100), 0) / 100);
   const mx = Math.max(...daily, 1);
-  const bars = daily.map((v, i) => `<div class="bar ${v ? "" : "zero"}" title="${days[i]} \u5B9E\u6536 ${fmtMoney2(v)}"><i style="height:${Math.max(3, Math.round(v / mx * 100))}%"></i></div>`).join("");
+  const bars = daily.map((v, i) => `<div class="bar ${v ? "" : "zero"}" title="${days[i]} \u5B9E\u6536 ${fmtMoney(v)}"><i style="height:${Math.max(3, Math.round(v / mx * 100))}%"></i></div>`).join("");
   const totOwed = db.orders.filter(accMatch).reduce((s, o) => s + owedOf(o), 0);
-  const sending = db.orders.filter(accMatch).filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf2(o))).length;
+  const sending = db.orders.filter(accMatch).filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf(o))).length;
   const segP = [["7", "\u8FD17\u5929"], ["30", "\u8FD130\u5929"], ["M", "\u672C\u6708"]].map(([k, l]) => `<button class="${ui2.period === k ? "on" : ""}" data-act="period" data-period="${k}">${l}</button>`).join("");
   const byM = /* @__PURE__ */ Object.create(null);
   st.paid.forEach((p) => {
@@ -2705,7 +2712,7 @@ function renderStats() {
     <div class="row" style="padding:9px 0">
       <span class="chip ${METHOD_CLS[m] || "c-gray"}" style="width:70px;justify-content:center">${esc(m)}</span>
       <div style="flex:1;height:8px;background:#F0F0F4;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(4, Math.round(v / mxm * 100))}%;background:var(--brand);border-radius:4px"></i></div>
-      <div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13.5px">${fmtMoney2(v)}</div></div>
+      <div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13.5px">${fmtMoney(v)}</div></div>
     </div>`).join("") : '<div class="empty" style="padding:18px 0">\u8BE5\u533A\u95F4\u6682\u65E0\u6536\u6B3E</div>';
   $("#v-stats").innerHTML = `
     <div class="htop-row"><div><div class="eyebrow">\u5B9E\u65F6\u7EDF\u8BA1 \xB7 \u6253\u5F00\u5373\u5237\u65B0</div><h1 class="big">\u7EDF\u8BA1</h1></div>
@@ -2713,15 +2720,15 @@ function renderStats() {
     ${accChipbarHTML()}
     <div class="seg" style="margin-bottom:14px">${segP}</div>
     <div class="mini-grid">
-      <div class="mini"><div class="mv">${fmtMoney2(st.dealSum)}</div><div class="ml">\u6210\u4EA4\u989D \xB7 ${st.deals.length} \u5355</div></div>
-      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney2(st.paidSum)}</div><div class="ml">\u5B9E\u6536\u91D1\u989D \xB7 ${st.paid.length} \u7B14</div></div>
+      <div class="mini"><div class="mv">${fmtMoney(st.dealSum)}</div><div class="ml">\u6210\u4EA4\u989D \xB7 ${st.deals.length} \u5355</div></div>
+      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(st.paidSum)}</div><div class="ml">\u5B9E\u6536\u91D1\u989D \xB7 ${st.paid.length} \u7B14</div></div>
       <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} \u5355</div><div class="ml">\u5DF2\u4EA4\u4ED8\u5B8C\u7ED3</div></div>
-      <div class="mini"><div class="mv">${fmtMoney2(avg)}</div><div class="ml">\u5BA2\u5355\u4EF7</div></div>
+      <div class="mini"><div class="mv">${fmtMoney(avg)}</div><div class="ml">\u5BA2\u5355\u4EF7</div></div>
     </div>
     <div class="card" style="margin-top:14px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
         <span style="font-size:14px;font-weight:800">\u6BCF\u65E5\u5B9E\u6536</span>
-        <span style="font-size:11.5px;color:var(--sub)">${ui2.period === "M" ? "\u672C\u6708" : "\u8FD1" + ui2.period + "\u5929"}\u5408\u8BA1 <b style="color:#239648;font-size:13px">${fmtMoney2(st.paidSum)}</b></span>
+        <span style="font-size:11.5px;color:var(--sub)">${ui2.period === "M" ? "\u672C\u6708" : "\u8FD1" + ui2.period + "\u5929"}\u5408\u8BA1 <b style="color:#239648;font-size:13px">${fmtMoney(st.paidSum)}</b></span>
       </div>
       <div class="bars">${bars}</div>
       <div class="bar-x"><span>${fmtD(days[0])}</span><span>${fmtD(days[days.length - 1])}</span></div>
@@ -2735,7 +2742,7 @@ function renderStats() {
     </div>
     <div class="card rows" style="margin-top:14px">
       <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">\u5F53\u524D\u5F85\u6536\u6B3E</div><div class="rsub">\u542B\u5B9A\u91D1\u4E0E\u5C3E\u6B3E</div></div>
-        <div class="rside"><div class="rprice" style="color:var(--red)">${fmtMoney2(totOwed)}</div></div></div>
+        <div class="rside"><div class="rprice" style="color:var(--red)">${fmtMoney(totOwed)}</div></div></div>
       <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">\u5F85\u53D1\u7247\u8BA2\u5355</div><div class="rsub">\u540E\u671F\u4E2D / \u53D1\u7247\u4E2D</div></div>
         <div class="rside"><div class="rprice" style="color:var(--orange)">${sending} \u5355</div></div></div>
     </div>
@@ -2815,12 +2822,12 @@ function renderStats() {
 
 // src/app/views/trip.js
 function orderRowTrip(o) {
-  const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney2(unDep(o))}</span>` : "";
+  const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney(unDep(o))}</span>` : "";
   return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
     <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
     <div class="rmain"><div class="rname">${esc(o.store)}</div>
       <div class="chiprow">${workChip(o)}${depChip || payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}</div></div>
-    <div class="rside"><div class="rprice">${fmtMoney2(o.price)}</div><div class="rsub">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney2(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div></div>
+    <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div><div class="rsub">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div></div>
   </div>`;
 }
 function renderTrip() {
@@ -2870,7 +2877,7 @@ function renderTrip() {
   }
   if (!up) up = `<div class="empty">${m}\u6708\u6682\u65E0\u6863\u671F \xB7 \u70B9\u53F3\u4E0A\u89D2\u300C\u9884\u7EA6\u300D\u65B0\u589E</div>`;
   const week = upcoming7(), weekCount = week.reduce((s, d) => s + d.count, 0), weekSum = week.reduce((s, d) => s + d.sum, 0);
-  const weekHtml = `<div class="sec-title" style="margin-top:14px;margin-bottom:6px"><span>\u672A\u6765 7 \u5929${weekCount ? ` \xB7 ${weekCount} \u5355` : " \xB7 \u6682\u65E0\u6863\u671F"}</span>${weekSum ? `<span style="font-weight:600">${esc(fmtMoney2(weekSum))}</span>` : ""}</div>
+  const weekHtml = `<div class="sec-title" style="margin-top:14px;margin-bottom:6px"><span>\u672A\u6765 7 \u5929${weekCount ? ` \xB7 ${weekCount} \u5355` : " \xB7 \u6682\u65E0\u6863\u671F"}</span>${weekSum ? `<span style="font-weight:600">${esc(fmtMoney(weekSum))}</span>` : ""}</div>
     <div class="n7">${week.map((d, i) => {
     const wd = i === 0 ? "\u4ECA\u5929" : i === 1 ? "\u660E\u5929" : `\u5468${dowOf(d.day)}`;
     return `<button class="n7d ${d.day === ui2.selDay ? "on" : ""}" data-act="day" data-day="${d.day}">
@@ -2885,10 +2892,10 @@ function renderTrip() {
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button>
       </div>
     </div>
-    ${accChipbarHTML2()}
+    ${accChipbarHTML()}
     <div class="mgrid">
       <div class="mhead">
-        <div class="mtitle">${y}\u5E74${m}\u6708<span class="msum">${mOrders.length} \u4E2A\u6863\u671F \xB7 \u6210\u4EA4 ${fmtMoney2(mSum)} \xB7 \u5DF2\u6536 ${fmtMoney2(mPaidSum)}${mBadges}</span></div>
+        <div class="mtitle">${y}\u5E74${m}\u6708<span class="msum">${mOrders.length} \u4E2A\u6863\u671F \xB7 \u6210\u4EA4 ${fmtMoney(mSum)} \xB7 \u5DF2\u6536 ${fmtMoney(mPaidSum)}${mBadges}</span></div>
         <div class="mnav">
           <button data-act="mnav" data-d="-1">\u2039</button>
           <button data-act="mtoday" class="mtod">\u4ECA\u5929</button>
@@ -2911,7 +2918,7 @@ function registerAction(name, fn) {
   ACTIONS[name] = fn;
 }
 registerAction("tab", (t, oid) => {
-  showTab2(t.dataset.tab);
+  showTab(t.dataset.tab);
 });
 registerAction("open", (t, oid) => {
   openDetail(oid);
@@ -2927,8 +2934,8 @@ registerAction("save-order", (t, oid) => {
 });
 registerAction("goto-collect", (t, oid) => {
   ui2.bucket = db.orders.some((o) => isOver2(o) && !snoozed2(o)) ? "over" : "snoozed";
-  showTab2("pay");
-  renderAll2();
+  showTab("pay");
+  renderAll();
 });
 registerAction("chip", (t, oid) => {
   ui2.chip = t.dataset.chip;
@@ -2990,7 +2997,7 @@ registerAction("locate-now", (t, oid) => {
     if (!cur) return;
     cur.gpsPlace = place;
     save();
-    renderAll2();
+    renderAll();
     rerenderDetail();
     toast2("\u5DF2\u8BB0\u5F55\u5230\u5E97\u5B9A\u4F4D \u2713");
   }).catch(() => toast2("\u5B9A\u4F4D\u5931\u8D25,\u8BF7\u786E\u8BA4\u5DF2\u5141\u8BB8\u300C\u4F7F\u7528 App \u671F\u95F4\u300D\u5B9A\u4F4D"));
@@ -3006,7 +3013,7 @@ registerAction("mark-long", (t, oid) => {
 });
 registerAction("acc-filter", (t, oid) => {
   ui2.accFilter = t.dataset.id === "" ? null : +t.dataset.id;
-  renderAll2();
+  renderAll();
 });
 registerAction("acc-pick", (t, oid) => {
   ui2.draftAccId = +t.dataset.id;
@@ -3046,7 +3053,7 @@ registerAction("shot-clear", (t, oid) => {
   if (!confirm("\u5220\u9664\u8FD9\u5F20\u968F\u624B\u62CD\u7167?")) return;
   target.photoThumb = null;
   save();
-  renderAll2();
+  renderAll();
   rerenderDetail();
   toast2("\u7167\u7247\u5DF2\u5220\u9664");
 });
@@ -3099,7 +3106,7 @@ registerAction("assign-run", (t, oid) => {
   });
   save();
   closeSheets2();
-  renderAll2();
+  renderAll();
   toast2(`\u5DF2\u628A ${n} \u7B14\u8BA2\u5355\u6539\u6302\u5230\u300C${accById(ui2.assignAcc).name}\u300D`);
 });
 registerAction("set-review", (t, oid) => {
@@ -3107,7 +3114,7 @@ registerAction("set-review", (t, oid) => {
   if (!o || !["pass", "fail"].includes(v)) return;
   o.reviewResult = o.reviewResult === v ? "" : v;
   save();
-  renderAll2();
+  renderAll();
   rerenderDetail();
   toast2(o.reviewResult ? `\u5DF2\u6807\u8BB0${REVIEW_LABEL[o.reviewResult]}` : "\u5DF2\u6E05\u9664\u9001\u5BA1\u7ED3\u679C");
 });
@@ -3138,7 +3145,7 @@ registerAction("snooze", (t, oid) => {
     const d = +t.dataset.d;
     o.remindAt = dOff(d, "09:00");
     save();
-    renderAll2();
+    renderAll();
     rerenderDetail();
     Notify.scheduleSnooze(o, d);
     Notify.syncDaily();
@@ -3153,7 +3160,7 @@ registerAction("clear-remind", (t, oid) => {
   if (o) {
     o.remindAt = null;
     save();
-    renderAll2();
+    renderAll();
     rerenderDetail();
     Notify.cancelSnooze(oid);
     Notify.syncDaily();
@@ -3195,7 +3202,7 @@ registerAction("mile", (t, oid) => {
     if (confirm(msg)) {
       [key, ...after].forEach((k) => o[k] = null);
       save();
-      renderAll2();
+      renderAll();
       rerenderDetail();
       Notify.syncDeliver();
       Notify.syncDaily();
@@ -3217,7 +3224,7 @@ registerAction("toggle-fin", (t, oid) => {
 });
 registerAction("privacy", (t, oid) => {
   ui2.privacy = !ui2.privacy;
-  renderAll2();
+  renderAll();
   rerenderDetail();
   toast2(ui2.privacy ? "\u5DF2\u9690\u85CF\u91D1\u989D \xB7 \u622A\u56FE\u6A21\u5F0F" : "\u5DF2\u6062\u590D\u663E\u793A\u91D1\u989D");
 });
@@ -3247,7 +3254,7 @@ registerAction("del-order", (t, oid) => {
     db.payments = db.payments.filter((p) => p.oid !== oid);
     save();
     closeSheets2();
-    renderAll2();
+    renderAll();
     Notify.cancelOrder(oid);
     Notify.syncDaily();
     toast2("\u8BA2\u5355\u5DF2\u5220\u9664");
@@ -3271,7 +3278,7 @@ registerAction("th", (t, oid) => {
   i = Math.min(opts.length - 1, Math.max(0, i + +t.dataset.v));
   db.threshold = opts[i];
   save();
-  renderAll2();
+  renderAll();
   rerenderDetail();
   Notify.syncDaily();
   toast2(`\u50AC\u6536\u9608\u503C\u5DF2\u8BBE\u4E3A ${db.threshold} \u5929`);
@@ -3303,8 +3310,8 @@ registerAction("retry-storage", (t, oid) => {
   } else if (Store.blocked) {
     loadState().then(() => {
       closeSheets2();
-      renderAll2();
-      showTab2("home");
+      renderAll();
+      showTab("home");
     });
   } else save();
 });
@@ -3336,14 +3343,14 @@ function renderHome() {
   const maxOver = over.length ? Math.max(...over.map(overdueDays2)) : 0;
   const todays = flt.filter((o) => o.appt.slice(0, 10) === TODAY).sort((a, b) => a.appt.localeCompare(b.appt));
   const todoToday = todays.filter((o) => !o.shotAt);
-  const sending = flt.filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf2(o))).sort((a, b) => (a.shotAt || "").localeCompare(b.shotAt || ""));
+  const sending = flt.filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf(o))).sort((a, b) => (a.shotAt || "").localeCompare(b.shotAt || ""));
   const m = statsFor("M", flt);
   const totOwed = flt.reduce((s, o) => s + owedOf(o), 0);
   let alertCard;
   if (over.length) {
     alertCard = `<div class="alert-card" data-act="goto-collect">
       <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg>
-      <div class="alert-main"><div class="alert-t">${over.length} \u7B14\u5C3E\u6B3E\u903E\u671F \xB7 \u5F85\u50AC\u6536 ${fmtMoney2(overSum)}</div>
+      <div class="alert-main"><div class="alert-t">${over.length} \u7B14\u5C3E\u6B3E\u903E\u671F \xB7 \u5F85\u50AC\u6536 ${fmtMoney(overSum)}</div>
       <div class="alert-s">\u6700\u957F\u5DF2\u6B20 ${maxOver} \u5929${overAll.length > over.length ? ` \xB7 \u53E6\u6709 ${overAll.length - over.length} \u7B14\u5DF2\u8BBE\u63D0\u9192` : ""} \xB7 \u70B9\u51FB\u8FDB\u5165\u50AC\u6536\u6E05\u5355</div></div>
       <svg class="ic" style="opacity:.9" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg>
     </div>`;
@@ -3358,11 +3365,11 @@ function renderHome() {
   } else {
     alertCard = `<div class="alert-card calm">
       <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-      <div class="alert-main"><div class="alert-t">\u6536\u6B3E\u72B6\u6001\u5065\u5EB7</div><div class="alert-s">\u6682\u65E0\u903E\u671F\u5C3E\u6B3E,\u5171\u5F85\u6536 ${fmtMoney2(totOwed)}</div></div>
+      <div class="alert-main"><div class="alert-t">\u6536\u6B3E\u72B6\u6001\u5065\u5EB7</div><div class="alert-s">\u6682\u65E0\u903E\u671F\u5C3E\u6B3E,\u5171\u5F85\u6536 ${fmtMoney(totOwed)}</div></div>
     </div>`;
   }
   const todayRows = todays.length ? todays.map((o) => {
-    const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney2(unDep(o))}</span>` : "";
+    const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney(unDep(o))}</span>` : "";
     const punch = o.shotAt ? "" : `<button class="mini-btn" style="padding:6px 10px;font-size:12px" data-act="mark-shot" data-oid="${esc(o.id)}">\u6253\u5361</button>`;
     return `<div class="row${accBar(o)}" style="${accTint(o)}${o.shotAt ? ";opacity:.66" : ""}" data-act="open" data-oid="${o.id}">
       <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">\u9884\u7EA6</div></div>
@@ -3381,7 +3388,7 @@ function renderHome() {
     ].filter(Boolean).map((t) => `<span class="chip c-orange">${t}</span>`).join("");
     const late = deliverLate(o) ? `<span class="chip c-red">\u8D8524h</span>` : "";
     return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
-      <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">\u62CD\u6444\u4E8E ${fmtD(o.shotAt)} \xB7 ${fmtMoney2(o.price)}</div>
+      <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">\u62CD\u6444\u4E8E ${fmtD(o.shotAt)} \xB7 ${fmtMoney(o.price)}</div>
         <div class="chiprow">${accOrderTag(o)}${late}${miss}</div></div>
       ${stepBtn(o, "padding:8px 12px") || '<svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>'}
     </div>`;
@@ -3398,7 +3405,7 @@ function renderHome() {
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button>
       </div>
     </div>
-    ${accChipbarHTML2()}
+    ${accChipbarHTML()}
     ${alertCard}
     <div class="sec-title">\u4ECA\u65E5\u62CD\u6444${todays.length ? ` <span class="rsub" style="font-weight:600">${todays.length - todoToday.length}/${todays.length} \u5DF2\u62CD</span>` : ""} <span class="more" data-act="tab" data-tab="trip">\u884C\u7A0B \u203A</span></div>
     <div class="card rows">${todayRows}</div>
@@ -3406,9 +3413,9 @@ function renderHome() {
     <div class="card rows">${sendRows}</div>
     <div class="sec-title">\u672C\u6708\u901F\u89C8 <span class="more" data-act="tab" data-tab="stats">\u7EDF\u8BA1 \u203A</span></div>
     <div class="mini-grid">
-      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney2(m.paidSum)}</div><div class="ml">\u672C\u6708\u5B9E\u6536 \xB7 ${m.paid.length} \u7B14</div></div>
-      <div class="mini"><div class="mv">${fmtMoney2(m.dealSum)}</div><div class="ml">\u672C\u6708\u6210\u4EA4 \xB7 ${m.deals.length} \u5355</div></div>
-      <div class="mini"><div class="mv" style="color:var(--red)">${fmtMoney2(totOwed)}</div><div class="ml">\u5F53\u524D\u5F85\u6536\u6B3E</div></div>
+      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(m.paidSum)}</div><div class="ml">\u672C\u6708\u5B9E\u6536 \xB7 ${m.paid.length} \u7B14</div></div>
+      <div class="mini"><div class="mv">${fmtMoney(m.dealSum)}</div><div class="ml">\u672C\u6708\u6210\u4EA4 \xB7 ${m.deals.length} \u5355</div></div>
+      <div class="mini"><div class="mv" style="color:var(--red)">${fmtMoney(totOwed)}</div><div class="ml">\u5F53\u524D\u5F85\u6536\u6B3E</div></div>
       <div class="mini"><div class="mv" style="color:var(--orange)">${sending.length}</div><div class="ml">\u5F85\u53D1\u7247\u8BA2\u5355</div></div>
     </div>`;
 }
@@ -3420,30 +3427,23 @@ Object.assign(globalThis, {
   snoozed: snoozed2,
   overdueDays: overdueDays2,
   ui: ui2,
-  validDateTime: validDateTime2,
-  fmtMoney: fmtMoney2,
-  buildSqliteBytes: buildSqliteBytes2,
-  demoSeed: demoSeed2,
   closeSheets: closeSheets2,
   showSheet: showSheet2,
-  renderAll: renderAll2,
-  showTab: showTab2,
   toast: toast2,
   download: download2,
   mark,
-  nowStr: nowStr2,
-  workOf: workOf2,
-  storeOf: storeOf2,
-  accChipbarHTML: accChipbarHTML2,
   renderTrip,
   statsFor,
   backupDocument,
-  previewImport
+  previewImport,
+  buildSqliteBytes
 });
 Object.defineProperty(globalThis, "db", { get: () => db, configurable: true });
 globalThis.Store = Store;
 registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats });
 registerDetailRerender(rerenderDetail);
+registerAfterLoad({ renderAll, showTab });
+registerBytesBuilder(buildSqliteBytes);
 if (!isNative && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
   addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => toast2("\u79BB\u7EBF\u7F13\u5B58\u5B89\u88C5\u5931\u8D25\uFF0C\u8054\u7F51\u65F6\u4ECD\u53EF\u4F7F\u7528")));
 }
@@ -3486,8 +3486,8 @@ $("#f-date").value = TODAY;
   }
   await acquireWriter();
   const had = await loadState();
-  renderAll2();
-  showTab2("home");
+  renderAll();
+  showTab("home");
   Notify.cancelMode("demo");
   Notify.syncDaily();
   markDailySynced();
