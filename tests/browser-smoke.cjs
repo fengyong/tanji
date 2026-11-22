@@ -10,7 +10,7 @@ const chrome=process.env.CHROME_BIN||'/Applications/Google Chrome.app/Contents/M
 const server=http.createServer((request,response)=>{
   const pathname=new URL(request.url,'http://localhost').pathname;
   const relative=pathname==='/'?'index.html':pathname.slice(1);
-  if(!/^(index\.html|imaging\.js|logic\.js|storage\.js|sw\.js|manifest\.webmanifest|privacy\.html|support\.html|icons\/[a-z0-9.-]+|vendor\/sqlite3\.(mjs|wasm))$/.test(relative)){response.writeHead(404);response.end();return}
+  if(!/^(index\.html|imaging\.js|logic\.js|geo\.js|storage\.js|sw\.js|manifest\.webmanifest|privacy\.html|support\.html|icons\/[a-z0-9.-]+|vendor\/sqlite3\.(mjs|wasm))$/.test(relative)){response.writeHead(404);response.end();return}
   const types={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.wasm':'application/wasm','.png':'image/png','.webmanifest':'application/manifest+json'};
   response.setHeader('Content-Type',types[path.extname(relative)]||'application/octet-stream');
   response.setHeader('Cache-Control','no-cache');fs.createReadStream(path.join(root,relative)).pipe(response);
@@ -74,6 +74,14 @@ const server=http.createServer((request,response)=>{
     assert.equal(await evaluate('Store.mode'),'work');assert.equal(await evaluate('db.orders.length'),0);
     await click('.tab[data-tab="stats"]');await click('#v-stats [data-act="export-json"]');
     await click('.tab[data-tab="home"]');await click('#v-home [data-act="new-order"]');
+    await evaluate('Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})))');
+    // 保存按钮必须常驻:内容滚到顶部时也得在视口内,且不能躺在滚动区里
+    const saveBar=await evaluate(`(()=>{const body=document.querySelector('#sheet-new .sheet-body');body.scrollTop=0;const btn=document.querySelector('#sheet-new [data-act="save-order"]');if(!btn)return {found:false};const r=btn.getBoundingClientRect();return {found:true,top:r.top,bottom:r.bottom,viewport:innerHeight,inScrollArea:!!btn.closest('.sheet-body')}})()`);
+    assert.ok(saveBar.found,'新建弹层缺少保存按钮');
+    assert.equal(saveBar.inScrollArea,false,'保存按钮不该放在滚动区里(要滚到底才看得见)');
+    assert.ok(saveBar.top>=0&&saveBar.bottom<=saveBar.viewport+1,'保存按钮不在首屏可见区域: '+JSON.stringify(saveBar));
+    // geo.js 必须被真正加载:地图跳转与定位都挂在这个模块上
+    assert.equal(await evaluate('TanJiGeo.mapUrl({query:"万象城 3 层"}).startsWith("https://maps.apple.com/")'),true);
     await fill('#f-store','安全 <b>咖啡</b>');await fill('#f-price','1000');await fill('#f-deposit','200');
     await fill('#f-date','2026-11-22');await click('[data-act="save-order"]');
     assert.equal(await evaluate('db.orders.length'),1);
@@ -84,7 +92,11 @@ const server=http.createServer((request,response)=>{
     await click('.tab[data-tab="orders"]');await click('#v-orders [data-act="open"]');
     await click('#detail-body [data-kind="deposit"]');await click('[data-act="confirm-pay"]');
     assert.equal(await evaluate('db.payments.length'),1);assert.equal(await evaluate('statsFor("M").paidSum'),200);
-    await click('#detail-body [data-act="edit-order"]');await fill('#e-price','1200');await click('[data-act="save-edit"]');
+    await click('#detail-body [data-act="edit-order"]');
+    await evaluate('Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})))');
+    const editBar=await evaluate(`(()=>{const btn=document.querySelector('#sheet-edit [data-act="save-edit"]');if(!btn)return {found:false};const r=btn.getBoundingClientRect();return {found:true,top:r.top,bottom:r.bottom,viewport:innerHeight,inScrollArea:!!btn.closest('.sheet-body')}})()`);
+    assert.ok(editBar.found&&!editBar.inScrollArea&&editBar.bottom<=editBar.viewport+1,'编辑弹层的保存按钮必须常驻可见: '+JSON.stringify(editBar));
+    await fill('#e-price','1200');await click('[data-act="save-edit"]');
     assert.equal(await evaluate('db.orders[0].price'),1000);
     await click('#sheet-edit [data-act="close-sheet"]');
     await click('.tab[data-tab="trip"]');await evaluate('ui.selDay="2026-11-22";ui.vMon={y:2026,m:11};renderTrip()');await click('#v-trip [data-act="share"]');
@@ -116,7 +128,7 @@ const server=http.createServer((request,response)=>{
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
+    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
     await send('Browser.close');
   }finally{
     if(socket)socket.close();

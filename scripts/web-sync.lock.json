@@ -6,13 +6,13 @@
   "files": {
     "index.html": {
       "main": "3d4f454769af69ccf2d68622ed9504c5072015ad",
-      "native": "fe9d9dd8293d358aed3f3175448d2c92f9c81644",
+      "native": "f5f9a28051394b67217d4b1389d022d652dcfcae",
       "nativePath": "www/index.html",
       "note": "主应用 UI + 业务状态"
     },
     "storage.js": {
       "main": "7d40eafe0b5d8f118fb6b697e9bf74b4bc299301",
-      "native": "8bba0949351319be9caa0b5874157d5a6f720f1a",
+      "native": "c9a97fbd6feb10496a5e30fde720d9735d05f730",
       "nativePath": "www/storage.js",
       "note": "双副本存储与迁移"
     },

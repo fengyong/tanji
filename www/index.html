@@ -13,6 +13,7 @@
 <script src="cap-plugins.js"></script>
 <script src="imaging.js"></script>
 <script src="logic.js"></script>
+<script src="geo.js"></script>
 <script src="storage.js"></script>
 <script type="module">
   import sqlite3InitModule from './vendor/sqlite3.mjs';
@@ -254,6 +255,11 @@
   .sheet-close .ic{width:15px;height:15px}
   .sheet-body{overflow-y:auto;padding:2px 20px 34px;scrollbar-width:none}
   .sheet-body::-webkit-scrollbar{display:none}
+  /* 有底部操作条的弹层:内容区不再留一屏底边距 */
+  .sheet-body.flush{padding-bottom:12px}
+  /* 保存类操作常驻底部:不随内容滚动,打开弹层就能看见 */
+  .sheet-foot{flex-shrink:0;padding:10px 20px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #F1F1F5;box-shadow:0 -8px 18px rgba(120,100,80,.05)}
+  .sheet-foot .btn{margin-top:0}
 
   /* 收款方式选择 */
   .mchip{border:1.5px solid #E2E2E8;background:#fff;color:#3a3a40;font-size:13.5px;font-weight:700;padding:9px 16px;border-radius:20px;font-family:inherit}
@@ -460,7 +466,7 @@
         <span class="sheet-title">新建探店预约</span>
         <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <div class="sheet-body">
+      <div class="sheet-body flush">
         <div class="frow"><label>品名/商家</label><input id="f-store" placeholder="如:澄川咖啡·滨江店"></div>
         <div class="frow"><label>地点</label><input id="f-location" placeholder="如:万象城 3 层 / 具体地址"></div>
         <div id="f-acc-block"></div>
@@ -492,10 +498,8 @@
         <div class="frow"><label>备注</label><textarea id="f-note" rows="2" placeholder="拍摄要点、机位、交付要求…"></textarea></div>
         <div class="banner-amber" id="f-conflict"></div>
         <div class="ferr" id="f-err">商家名称和总价为必填</div>
-        <div style="padding:16px 0 4px">
-          <button class="btn primary" data-act="save-order">保存预约</button>
-        </div>
       </div>
+      <div class="sheet-foot"><button class="btn primary" data-act="save-order">保存预约</button></div>
     </div>
 
     <div class="sheet" id="sheet-edit">
@@ -504,7 +508,8 @@
         <span class="sheet-title">编辑订单</span>
         <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <div class="sheet-body" id="edit-body"></div>
+      <div class="sheet-body flush" id="edit-body"></div>
+      <div class="sheet-foot"><button class="btn primary" data-act="save-edit">保存修改</button></div>
     </div>
 
     <div class="sheet" id="sheet-schema">
@@ -650,7 +655,7 @@ function buildSqliteBytes(state=db){
       appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
       deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
       channel TEXT, partner TEXT,
-      location TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
+      location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
       review_result TEXT DEFAULT '', published_at TEXT,
       account_id INTEGER,
       note TEXT, created_at TEXT, updated_at TEXT);
@@ -661,11 +666,11 @@ function buildSqliteBytes(state=db){
       id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT, douyin TEXT,
       color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
-    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     state.orders.forEach(o=>{
       so.bind([o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
                o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.channel||null,o.partner||null,
-               o.location||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,
+               o.location||null,o.gpsPlace||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,
                o.accountId||null,o.note||null,null,null]);
       so.step();so.reset();
     });
@@ -879,10 +884,30 @@ function initShotInput(){
       if(!target.shotAt)target.shotAt=nowStr();   // 到店拍照 = 开始拍摄,不用再点一次"标记已拍摄"
       await save();renderAll();rerenderDetail();
       toast('已随手拍 · 拍摄时间已记录');
+      capturePlace(target.id);                    // 拍照当下顺手记一次位置,不阻塞上面的保存
     }catch(e){toast('这张图处理不了,换一张试试')}
   });
 }
+/**
+ * 到店定位:拍摄动作发生时顺手记一次 GPS,存 `lat,lng` 到 order.gpsPlace。
+ * - 失败/拒绝授权一律静默(位置是附加信息,不能影响"这单拍过了"这件事);
+ * - 与手填 location 完全并存:location 是人写的地址,gpsPlace 是当时的位置;
+ * - 已有 gpsPlace 时不覆盖拍照流程里的自动记录? 会覆盖 —— 重拍意味着"我又到店了",
+ *   以最新一次为准,详情页里也可以手动重新定位。
+ */
+function capturePlace(oid){
+  if(typeof TanJiGeo==='undefined')return;
+  TanJiGeo.locate().then(place=>{
+    const cur=byId(oid);
+    if(!cur||!place)return;
+    cur.gpsPlace=place;
+    save();renderAll();rerenderDetail();
+    toast('已记录到店定位 ✓');
+  }).catch(()=>{/* 无权限/超时/无信号:保持原值,可在详情页手动补 */});
+}
 const byId=id=>db.orders.find(o=>o.id===id);
+/* 到店定位的可读文本:geo.js 缺失时也返回空串,不让详情页/导出因为一个可选模块崩掉 */
+const gpsText=o=>(o&&o.gpsPlace&&typeof TanJiGeo!=='undefined')?TanJiGeo.label(o.gpsPlace):'';
 const storeOf=id=>{const o=byId(id);return o?o.store:''};
 
 /* ================= 单日勋章(激励) =================
@@ -931,8 +956,8 @@ function download(name,content,type){
 }
 function q(v){const text=String(v??'');return `"${(typeof v==='string'&&/^[\s]*[=+@-]/.test(text)?"'"+text:text).replace(/"/g,'""')}"`}
 function exportCsv(){
-  const head=['ID','品名/商家','类型','结算方式','服务商','组队','账号','地点','联系方式','总价','定金','预约时间','实际拍摄','提审时间','副片发出','正片发出','出片要求','送审结果','发布时间','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
-  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.channel||'',o.partner||'',(accById(o.accountId)||{}).name||'',o.location||'',o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
+  const head=['ID','品名/商家','类型','结算方式','服务商','组队','账号','地点','到店定位','联系方式','总价','定金','预约时间','实际拍摄','提审时间','副片发出','正片发出','出片要求','送审结果','发布时间','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
+  const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.channel||'',o.partner||'',(accById(o.accountId)||{}).name||'',o.location||'',gpsText(o),o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
     [needMain(o)?'正片':'',needSub(o)?'副片':''].filter(Boolean).join('+')||'未配置',
     o.reviewResult?REVIEW_LABEL[o.reviewResult]:'',o.publishedAt||'',workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',o.note].map(q).join(','));
   const phead=['序号','订单ID','商家','类型','金额','到账时间','收款方式'];
@@ -974,7 +999,8 @@ CREATE TABLE orders (
   remind_at      TEXT,           <span class="c">-- 催收备忘:下次提醒时间(1/3/7 天)</span>
   channel        TEXT,           <span class="c">-- 服务商:蜂向、小爱、金城、食物、直客…</span>
   partner        TEXT,           <span class="c">-- 组队/出镜搭档:花花、邱邱…(空=不组队/未记)</span>
-  location       TEXT,           <span class="c">-- 地点:门店地址/楼层</span>
+  location       TEXT,           <span class="c">-- 地点:门店地址/楼层(手填,导航按它查)</span>
+  gps_place      TEXT,           <span class="c">-- 到店定位 拍摄时自动记录的 GPS 坐标串 与手填 location 并存</span>
   deliver_main   INTEGER DEFAULT 1, <span class="c">-- 出片要求:1=需要正片</span>
   deliver_sub    INTEGER DEFAULT 0, <span class="c">-- 出片要求:1=需要副片</span>
   review_result  TEXT DEFAULT '',   <span class="c">-- 送审结果:''待审 / pass 合格 / fail 不合格</span>
@@ -1125,8 +1151,7 @@ function openEdit(oid){
     <div class="banner-amber" id="e-conflict"></div>
     <div class="sec-title">收款记录(可撤销 / 补记)</div>
     <div class="btn2" id="e-payments"></div>
-    <div class="rsub" style="margin-top:6px;line-height:1.5">补记前请先保存修改；按已保存金额记一笔，平台单使用抖音商单，私收默认微信。撤销仅用于纠正错误收款，会同时移除对应流水。</div>
-    <div style="padding:16px 0 4px"><button class="btn primary" data-act="save-edit" data-oid="${esc(o.id)}">保存修改</button></div>`;
+    <div class="rsub" style="margin-top:6px;line-height:1.5">补记前请先保存修改；按已保存金额记一笔，平台单使用抖音商单，私收默认微信。撤销仅用于纠正错误收款，会同时移除对应流水。</div>`;
   ui.draftProv=o.channel||'直客';ui.draftAccId=o.accountId??(ACCS().length?ACCS()[0].id:null);
   renderAccPick('e-acc-block',ui.draftAccId);renderProvPick('e-prov-block',ui.draftProv);
   renderEditReceipts(o);ui.editSnapshot=editDraft();
@@ -1254,6 +1279,23 @@ function detailActions(o){
   if(deliveredAll(o)&&!o.publishedAt)btns.push(`<button class="btn primary" data-act="mile" data-oid="${esc(o.id)}" data-key="publishedAt">标记已发布</button>`);
   return btns.length?`<div class="btn2">${btns.join('')}</div>`:'';
 }
+/**
+ * 行内"下一步":把 detailActions 的判定提到列表层,让待发片的单不必进详情就能推进。
+ * 顺序与详情页一致:提审 → 副片 → 正片 → 发布;返回 null 表示当前没有该做的事。
+ */
+function nextStep(o){
+  if(!o.shotAt)return null;
+  if(!o.submittedAt)return {act:'mark-submit',label:'提审'};
+  if(needSub(o)&&!o.shortAt)return {act:'mark-short',label:'发副片'};
+  if(needMain(o)&&!o.longAt)return {act:'mark-long',label:'发正片'};
+  if(deliveredAll(o)&&!o.publishedAt)return {act:'mile',key:'publishedAt',label:'发布'};
+  return null;
+}
+function stepBtn(o,extra=''){
+  const step=nextStep(o);
+  if(!step)return '';
+  return `<button class="mini-btn" style="${extra}" data-act="${step.act}" data-oid="${esc(o.id)}"${step.key?` data-key="${step.key}"`:''}>${step.label}</button>`;
+}
 function openDetail(id){
   const o=byId(id);if(!o){ui.detail=null;return}
   ui.detail=id;ui.payCtx=null;ui.editId=null;
@@ -1315,7 +1357,8 @@ function openDetail(id){
       <div class="ig"><div class="k">预约时间</div><div class="v">${esc(fmtD(o.appt))} ${esc(fmtHM(o.appt))}</div></div>
       <div class="ig"><div class="k">实际拍摄</div><div class="v">${esc(fmtDT(o.shotAt))}</div></div>
       ${accMulti()?`<div class="ig"><div class="k">账号</div><div class="v" style="display:flex;align-items:center;gap:6px">${accTagHTML(accById(o.accountId))}<button class="mini-btn" data-act="copy-account" data-id="${o.accountId??''}">拷贝</button></div></div>`:''}
-      <div class="ig"><div class="k">地点</div><div class="v">${esc(o.location||'—')}</div></div>
+      <div class="ig"><div class="k">地点</div><div class="v">${esc(o.location||'—')}${o.location?`<button class="mini-btn" style="padding:4px 9px;font-size:11.5px;margin-left:6px;vertical-align:middle" data-act="nav-place" data-oid="${esc(o.id)}">导航</button>`:''}</div></div>
+      <div class="ig"><div class="k">到店定位</div><div class="v">${o.gpsPlace?`${esc(gpsText(o))}<button class="mini-btn" style="padding:4px 9px;font-size:11.5px;margin-left:6px;vertical-align:middle" data-act="nav-place" data-oid="${esc(o.id)}" data-gps="1">看位置</button>`:`<button class="mini-btn" style="padding:4px 9px;font-size:11.5px" data-act="locate-now" data-oid="${esc(o.id)}">记录当前位置</button>`}</div></div>
       <div class="ig"><div class="k">发布时间</div><div class="v">${esc(fmtDT(o.publishedAt))}</div></div>
       <div class="ig"><div class="k">服务商</div><div class="v">${esc(o.channel||'直客')}</div></div>
       <div class="ig"><div class="k">组队</div><div class="v">${esc(o.partner||(o.note&&o.note.includes('不组队')?'不组队':'—'))}</div></div>
@@ -1418,7 +1461,9 @@ function renderHome(){
   const over=overAll.filter(o=>!snoozed(o));
   const overSum=over.reduce((s,o)=>s+owedOf(o),0);
   const maxOver=over.length?Math.max(...over.map(overdueDays)):0;
-  const todays=flt.filter(o=>o.appt.slice(0,10)===TODAY&&!o.shotAt).sort((a,b)=>a.appt.localeCompare(b.appt));
+  // 今日全部单:拍过的也留着(置灰),否则首页数量会随拍照一路减少,看着像"今天只接了一单"
+  const todays=flt.filter(o=>o.appt.slice(0,10)===TODAY).sort((a,b)=>a.appt.localeCompare(b.appt));
+  const todoToday=todays.filter(o=>!o.shotAt);
   const sending=flt.filter(o=>['后期中','发片中'].includes(workOf(o))).sort((a,b)=>(a.shotAt||'').localeCompare(b.shotAt||''));
   const m=statsFor('M',flt);
   const totOwed=flt.reduce((s,o)=>s+owedOf(o),0);
@@ -1448,12 +1493,14 @@ function renderHome(){
 
   const todayRows=todays.length?todays.map(o=>{
     const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
-    return `<div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
+    // 到店第一件事就是打卡:首页行内一键完成,顺手记下当时的 GPS(详情页仍可补拍)
+    const punch=o.shotAt?'':`<button class="mini-btn" style="padding:6px 10px;font-size:12px" data-act="mark-shot" data-oid="${esc(o.id)}">打卡</button>`;
+    return `<div class="row" style="${accTint(o)}${o.shotAt?';opacity:.66':''}" data-act="open" data-oid="${o.id}">
       <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">预约</div></div>
       <div class="rmain"><div class="rname">${esc(o.store)}</div>
         <div class="chiprow">${accOrderTag(o)}${workChip(o)}${depChip||payChip(o)}<span class="chip c-gray">${esc(o.cat)}</span></div></div>
       <div class="rside">${priceCell(o)}</div>
-      <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      ${punch||'<svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>'}
     </div>`;}).join('')
     : `<div class="empty"><div class="e-ic">🌙</div>今日无拍摄安排<br>去「行程」页看看接下来的档期</div>`;
 
@@ -1464,17 +1511,21 @@ function renderHome(){
       deliveredAll(o)&&!o.publishedAt?'待发布':''].filter(Boolean)
       .map(t=>`<span class="chip c-orange">${t}</span>`).join('');
     const late=deliverLate(o)?`<span class="chip c-red">超24h</span>`:'';
+    // 回家批量交付:行内直接点下一个动作,不用每单都进详情
     return `<div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
-      <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">拍摄于 ${fmtD(o.shotAt)} · ${fmtMoney(o.price)}</div></div>
-      <div style="display:flex;gap:5px;flex-shrink:0">${accOrderTag(o)}${late}${miss}</div>
-    </div>`;}).join('')
+      <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">拍摄于 ${fmtD(o.shotAt)} · ${fmtMoney(o.price)}</div>
+        <div class="chiprow">${accOrderTag(o)}${late}${miss}</div></div>
+      ${stepBtn(o,'padding:8px 12px')||'<svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>'}
+    </div>`;}).join('')+(sending.length>4?`<div class="row" data-act="tab" data-tab="orders">
+      <div class="rmain"><div class="rsub">还有 ${sending.length-4} 单待发片 · 查看全部</div></div>
+      <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg></div>`:'')
     : `<div class="empty">没有待发片的订单 🎉</div>`;
 
   $('#v-home').innerHTML=`
     <div class="htop-row">
       <div><div class="eyebrow">${now.getMonth()+1}月${now.getDate()}日 周${dowOf(TODAY)}</div>
       <h1 class="big">${greeting()},达人</h1>
-      <div class="hsub">今日 ${todays.length} 单拍摄 · ${over.length?`${over.length} 笔待催收`:'收款正常'}</div></div>
+      <div class="hsub">今日 ${todays.length} 单${todays.length?` · ${todoToday.length?`待拍 ${todoToday.length}`:'已全部拍完'}`:''} · ${over.length?`${over.length} 笔待催收`:'收款正常'}</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         ${headBtns(true)}
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
@@ -1482,7 +1533,7 @@ function renderHome(){
     </div>
     ${accChipbarHTML()}
     ${alertCard}
-    <div class="sec-title">今日拍摄 <span class="more" data-act="tab" data-tab="trip">行程 ›</span></div>
+    <div class="sec-title">今日拍摄${todays.length?` <span class="rsub" style="font-weight:600">${todays.length-todoToday.length}/${todays.length} 已拍</span>`:''} <span class="more" data-act="tab" data-tab="trip">行程 ›</span></div>
     <div class="card rows">${todayRows}</div>
     <div class="sec-title">待发片 <span class="more" data-act="tab" data-tab="orders">全部 ›</span></div>
     <div class="card rows">${sendRows}</div>
@@ -1512,6 +1563,9 @@ function renderTrip(){
   const dim=new Date(y,m,0).getDate();
   const mOrders=db.orders.filter(o=>+o.appt.slice(0,4)===y&&+o.appt.slice(5,7)===m);
   const mSum=mOrders.reduce((s,o)=>s+o.price,0);
+  // 日历头部原来只有成交额:排档期时更想知道"这个月已经收到多少"
+  const mPrefix=`${y}-${pad(m)}`;
+  const mPaidSum=db.payments.filter(p=>String(p.at||'').slice(0,7)===mPrefix).reduce((s,p)=>s+p.amount,0);
   const byDay={};mOrders.forEach(o=>{const k=o.appt.slice(0,10);if(!byDay[k])byDay[k]={n:0,s:0};byDay[k].n++;byDay[k].s+=o.price});
   let bFire=0,bMoney=0;Object.values(byDay).forEach(v=>{const b=dayBadge(v.n,v.s);if(b&&b.e==='🔥')bFire++;if(b&&b.e==='💰')bMoney++});
   const mBadges=(bFire?' 🔥'+bFire:'')+(bMoney?' 💰'+bMoney:'');
@@ -1551,7 +1605,7 @@ function renderTrip(){
     </div>
     <div class="mgrid">
       <div class="mhead">
-        <div class="mtitle">${y}年${m}月<span class="msum">${mOrders.length} 个档期 · ${fmtMoney(mSum)}${mBadges}</span></div>
+        <div class="mtitle">${y}年${m}月<span class="msum">${mOrders.length} 个档期 · 成交 ${fmtMoney(mSum)} · 已收 ${fmtMoney(mPaidSum)}${mBadges}</span></div>
         <div class="mnav">
           <button data-act="mnav" data-d="-1">‹</button>
           <button data-act="mtoday" class="mtod">今天</button>
@@ -1580,8 +1634,11 @@ function chipMatch(o){
   }
 }
 function renderOrders(){
-  const q=ui.q.trim();
-  const all=db.orders.filter(accMatch).filter(chipMatch).filter(o=>!q||o.store.toLowerCase().includes(q.toLowerCase()))
+  const q=ui.q.trim().toLowerCase();
+  // 找回旧单的锚点通常是地点/联系人/服务商,只搜商家名等于白搜
+  const hit=o=>q&&[o.store,o.location,o.contact,o.channel,o.partner,o.note,o.cat]
+    .some(v=>String(v??'').toLowerCase().includes(q));
+  const all=db.orders.filter(accMatch).filter(chipMatch).filter(o=>!q||hit(o))
     .sort((a,b)=>(b.shotAt||b.appt).localeCompare(a.shotAt||a.appt));
   const cnt=k=>db.orders.filter(accMatch).filter(o=>{const t=ui.chip;ui.chip=k;const r=chipMatch(o);ui.chip=t;return r}).length;
   const chips=[['all','全部'],['wait','待拍摄'],['doing','进行中'],['unpaid','待收款'],['over','逾期'],['done','已完结']]
@@ -1591,7 +1648,7 @@ function renderOrders(){
       <div class="rmain">
         <div class="rname">${esc(o.store)}</div>
         <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${esc(o.cat)}${o.partner?' · 出镜 '+esc(o.partner):''}</div>
-        <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
+        <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}${stepBtn(o)}</div>
       </div>
       <div class="rside">${priceCell(o)}
         <div class="rsub" style="${owedOf(o)>0?'color:var(--red);font-weight:700':''}">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div>
@@ -1606,7 +1663,7 @@ function renderOrders(){
     </div>
     ${accChipbarHTML()}
     <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-      <input id="q-input" placeholder="搜索商家名称" value="${esc(ui.q)}"></div>
+      <input id="q-input" placeholder="搜索商家 / 地点 / 联系人 / 备注" value="${esc(ui.q)}"></div>
     <div class="chips">${chips}</div>
     <div class="card rows">${rows}</div>`;
   const qi=$('#q-input');
@@ -1852,7 +1909,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
   if(!Store.ready||Store.busy){toast('正在读写数据，请稍候');return}
-  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','shot-pick'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
+  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','shot-pick','nav-place'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
   refreshClock();
   switch(act){
     case 'tab':showTab(t.dataset.tab);break;
@@ -1870,7 +1927,26 @@ document.addEventListener('click',e=>{
       if(m<1){m=12;y--} if(m>12){m=1;y++}
       ui.vMon={y,m};ui.selDay=`${y}-${pad(m)}-${pad(Math.min(+ui.selDay.slice(8,10),new Date(y,m,0).getDate()))}`;renderTrip();break;}
     case 'mtoday':ui.vMon={y:now.getFullYear(),m:now.getMonth()+1};ui.selDay=TODAY;renderTrip();break;
-    case 'mark-shot':mark(oid,'shotAt','已记录实际拍摄时间 ✓');break;
+    case 'mark-shot':if(mark(oid,'shotAt','已记录实际拍摄时间 ✓'))capturePlace(oid);break;
+    case 'nav-place':{
+      const o=byId(oid);if(!o)break;
+      const url=(t.dataset.gps||!o.location)
+        ?TanJiGeo.mapUrl({place:o.gpsPlace,name:o.store})
+        :TanJiGeo.mapUrl({query:o.location});
+      if(!url){toast('这单还没有地点,先填地点或记录当前位置');break}
+      if(!TanJiGeo.open(url))toast('打不开地图,请手动搜索该地址');
+      break;
+    }
+    case 'locate-now':{
+      const o=byId(oid);if(!o)break;
+      toast('正在获取当前位置…');
+      TanJiGeo.locate().then(place=>{
+        const cur=byId(oid);if(!cur)return;
+        cur.gpsPlace=place;save();renderAll();rerenderDetail();
+        toast('已记录到店定位 ✓');
+      }).catch(()=>toast('定位失败,请确认已允许「使用 App 期间」定位'));
+      break;
+    }
     case 'mark-submit':mark(oid,'submittedAt','已标记提审 ✓');break;
     case 'mark-short':mark(oid,'shortAt','已标记发副片 ✓');break;
     case 'mark-long':mark(oid,'longAt','已标记发正片 ✓');break;
@@ -1937,7 +2013,7 @@ document.addEventListener('click',e=>{
     case 'mile':{const o=byId(oid),key=t.dataset.key;
       if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key))break;
       if(o[key]){if(confirm('清除「'+MILE_LABEL[key]+'」记录?')){o[key]=null;save();renderAll();rerenderDetail();Notify.syncDeliver();toast('已清除,可重新标记')}}
-      else mark(oid,key,'已标记「'+MILE_LABEL[key]+'」');
+      else if(mark(oid,key,'已标记「'+MILE_LABEL[key]+'」')&&key==='shotAt')capturePlace(oid);
       break}
     case 'edit-order':openEdit(oid);break;
     case 'save-edit':saveEdit();break;

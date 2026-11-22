@@ -165,9 +165,16 @@ test('orders 表的列数与 v0.5/v0.6 新增字段符合预期', () => {
     return;
   }
   const hasAccounts = names.includes('account_id');
-  assert.equal(names.length, hasAccounts ? 26 : 25, `orders 表当前是 ${names.length} 列,预期 ${hasAccounts ? 26 : 25}`);
+  const hasGps = names.includes('gps_place');
+  // v0.5 工作流(25) → v0.6 账号(26) → v0.6 到店定位(27);按已上线的列逐级放宽
+  const expected = hasAccounts ? (hasGps ? 27 : 26) : 25;
+  assert.equal(names.length, expected, `orders 表当前是 ${names.length} 列,预期 ${expected}`);
   for (const added of ['location', 'deliver_main', 'deliver_sub', 'review_result', 'published_at']) {
     assert.ok(names.includes(added), `orders 表缺少 v0.5 新增列 ${added}`);
+  }
+  if (hasGps) {
+    // 定位列必须紧跟 location:两份建表语句与 ORD_COLS 的列序都靠这个约定对齐
+    assert.equal(names.indexOf('gps_place'), names.indexOf('location') + 1, 'gps_place 应紧跟 location');
   }
   if (hasAccounts) {
     assert.ok(tables.has('accounts'), 'v0.6 账号体系必须有 accounts 表(导出 .db 也要带)');

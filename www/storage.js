@@ -123,6 +123,13 @@ function validateState(input){
       if(!ok)throw new Error(`${label}的随手拍照片无效或过大`);
       clean.photoThumb=order.photoThumb;
     }
+    // 到店定位:固定 `lat,lng`(geo.js 负责解析)。这里只做归一,脏值丢弃不抛错 ——
+    // 位置是附加信息,不能因为一条坏坐标就让整份快照读不出来。
+    if(typeof order.gpsPlace==='string'&&order.gpsPlace.trim()){
+      const place=order.gpsPlace.trim();
+      if(typeof TanJiGeo!=='undefined'&&TanJiGeo.isValid(place))clean.gpsPlace=place;
+      else console.warn(`[TanJi] ${label}的到店定位格式无效,已忽略`,place);
+    }
     return clean;
   });
   const payments=input.payments.map((payment,index)=>{
@@ -330,7 +337,7 @@ async function exportCheckpoint(){
 
 /* --- 原生:Capacitor SQLite(双数据集:mode 列;settings 以 mode:suffix 为键) --- */
 const NATIVE_DB='tanji';
-const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','deliver_main','deliver_sub','review_result','published_at','account_id','note','created_at','updated_at'];
+const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','gps_place','deliver_main','deliver_sub','review_result','published_at','account_id','note','created_at','updated_at'];
 async function nativeOpen(){
   if(Store.conn)return Store.conn;
   const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
@@ -346,7 +353,7 @@ async function nativeOpen(){
   appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
   deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
   channel TEXT, partner TEXT,
-  location TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
+  location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
   review_result TEXT DEFAULT '', published_at TEXT,
   account_id INTEGER,
   note TEXT, created_at TEXT, updated_at TEXT,
@@ -365,6 +372,7 @@ async function nativeOpen(){
   // column,逐条吞掉即可;新库建表已含这些列,ALTER 同样报重复,一起吞。
   for(const stmt of [
     'ALTER TABLE orders ADD COLUMN location TEXT',
+    'ALTER TABLE orders ADD COLUMN gps_place TEXT',
     'ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1',
     'ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 0',
     `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
@@ -379,7 +387,7 @@ function rowToOrder(mode,r){
     appt:r.appt_at??'',shotAt:r.shot_at??null,submittedAt:r.submitted_at??null,shortAt:r.short_sent_at??null,
     longAt:r.long_sent_at??null,depositPaidAt:r.deposit_paid_at??null,finalPaidAt:r.final_paid_at??null,
     settleVia:r.settle_via||'private',remindAt:r.remind_at??null,channel:r.channel||'直客',partner:r.partner??'',
-    location:r.location??'',deliverMain:r.deliver_main!==0,deliverSub:r.deliver_sub!==0,
+    location:r.location??'',gpsPlace:r.gps_place??null,deliverMain:r.deliver_main!==0,deliverSub:r.deliver_sub!==0,
     reviewResult:r.review_result||'',publishedAt:r.published_at??null,
     accountId:r.account_id??null,
     note:r.note??''};
@@ -391,7 +399,7 @@ async function nativePersistSnapshot(payload){
       {statement:'DELETE FROM orders WHERE mode=?',values:[payload.mode]},
       {statement:'DELETE FROM payments WHERE mode=?',values:[payload.mode]},
     ];
-    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.location||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,o.accountId||null,o.note||null,ts,ts]}));
+    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.location||null,o.gpsPlace||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,o.accountId||null,o.note||null,ts,ts]}));
     set.push({statement:'DELETE FROM accounts WHERE mode=?',values:[payload.mode]});
     (payload.accounts||[]).forEach(a=>set.push({statement:'INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?)',values:[payload.mode,a.id,a.name,a.phone||null,a.douyin||null,a.color??0,a.avatar||null,a.createdAt||ts]}));
     payload.payments.forEach(p=>set.push({statement:'INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)',values:[payload.mode,p.oid,p.kind,p.amount,p.at,p.method||null,p.note||null]}));

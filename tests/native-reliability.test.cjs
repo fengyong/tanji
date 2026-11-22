@@ -22,6 +22,7 @@ const script=html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>')
 const storage=fs.readFileSync(path.join(root,'storage.js'),'utf8');
 const logic=fs.readFileSync(path.join(root,'logic.js'),'utf8');
 const imaging=fs.readFileSync(path.join(root,'imaging.js'),'utf8');
+const geo=fs.readFileSync(path.join(root,'geo.js'),'utf8');
 
 /* ---------- 模拟一台设备：SQLite 库 + 通知队列（跨 app 实例共享 = 重启） ---------- */
 function newDevice(options={}){
@@ -114,6 +115,8 @@ function makeCap(device){
       Share:{async share(){return {activityType:'custom'};}},
       Directory:{Cache:'CACHE'},
       Encoding:{UTF8:'utf8',Base64:'base64'},
+      // 定位插件:iOS 真机返回 WGS84 十进制度,这里固定一个深圳坐标便于断言
+      Geolocation:{async getCurrentPosition(){return {coords:{latitude:22.5430961,longitude:114.0578654,accuracy:12}}}},
     },
   };
 }
@@ -146,8 +149,8 @@ function app(device=newDevice()){
   context.window.TanjiCap=mock.cap;
 
   const run=code=>vm.runInContext(code,context);
-  // 加载顺序与 index.html 一致:imaging(图像) → logic(规则) → storage(持久化/通知) → 页面脚本
-  run(imaging+'\n'+logic+'\n'+storage+'\n'+script.slice(0,script.indexOf('/* ================= 启动')));
+  // 加载顺序与 index.html 一致:imaging(图像) → logic(规则) → geo(定位) → storage(持久化/通知) → 页面脚本
+  run(imaging+'\n'+logic+'\n'+geo+'\n'+storage+'\n'+script.slice(0,script.indexOf('/* ================= 启动')));
   // IndexedDB 在原生端不该被读写；这里给一个「读得到但为空」的实现，模拟 WKWebView 正常行为
   run('idb.get=async()=>({ok:true,value:null});idb.setMany=async()=>true;');
   run('Store.ready=true;Store.mode="work";');
@@ -562,6 +565,28 @@ test('随手拍:只接受烘焙过的小图,非法格式或超限直接拒绝',(
   // 没有随手拍的订单不应写入空字段,保持与旧备份同构
   const none=a.json(`validateState({orders:[${JSON.stringify(order())}],payments:[]}).orders[0]`);
   assert.equal('photoThumb' in none,false);
+});
+
+test('到店定位:gps_place 落库、重启读回,且与手填地点并存',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  setState(a,[order({location:'万象城 3 层',gpsPlace:'22.543096,114.057865'})]);
+  assert.equal(await a.run('save()'),true);
+  const row=a.run(`Store.conn.db.prepare('SELECT location,gps_place FROM orders').all()[0]`);
+  assert.equal(row.location,'万象城 3 层','手填地点不能被定位覆盖');
+  assert.equal(row.gps_place,'22.543096,114.057865');
+
+  const b=app(device);                                   // 重启
+  await b.run('loadState()');
+  assert.equal(b.run('db.orders[0].gpsPlace'),'22.543096,114.057865','重启后定位应读回');
+  assert.equal(b.run('db.orders[0].location'),'万象城 3 层');
+
+  // 插件返回的坐标统一裁到 6 位小数(存储格式固定,导出与解析都不必再猜精度)
+  assert.equal(await a.run('TanJiGeo.locate()'),'22.543096,114.057865');
+
+  // 脏坐标只丢这一段,不能让整份快照读不出来
+  const norm=a.json(`validateState({orders:[${JSON.stringify(order({gpsPlace:'万象城3层'}))}],payments:[]}).orders[0]`);
+  assert.equal('gpsPlace' in norm,false,'非法定位串应被丢弃而不是抛错');
 });
 
 test('账号:标识色板渲染出 8 个带颜色的可点色块(曾因缺样式整块不可见)',()=>{
