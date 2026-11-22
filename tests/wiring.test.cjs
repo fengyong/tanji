@@ -76,8 +76,8 @@ test('清除催收提醒必须接 cancelSnooze(只撤备忘段),不能接删单�
   // P2-1 的接线层防线:clear-remind 若接 cancelOrder,会连带撤掉同单的 24h 出片提醒。
   // Notify.cancelSnooze 原语有行为级测试(native-reliability),但不经过点击处理器——
   // 变异实测把处理器改回 cancelOrder 时其余测试全绿,接线只能在这里静态钉住。
-  const m = actionsSrc.match(/case 'clear-remind':\{[\s\S]*?break\}/);
-  assert.ok(m, '找不到 clear-remind 处理器(case 块结构可能变了)');
+  const m = actionsSrc.match(/registerAction\('clear-remind',[\s\S]*?\n\}\);/);
+  assert.ok(m, '找不到 clear-remind 处理器(注册块结构可能变了)');
   assert.match(m[0], /Notify\.cancelSnooze\(/, 'clear-remind 应调用 Notify.cancelSnooze(只撤备忘段)');
   assert.doesNotMatch(m[0], /cancelOrder/, 'clear-remind 不能调 cancelOrder(删单语义,会连带撤掉 24h 出片提醒)');
 });
@@ -130,9 +130,11 @@ test('markup 里出现的每个 data-act 都必须在事件委托里有对应 ca
     .join('\n');
   const acts = [...new Set([...(index + '\n' + appAll).matchAll(/data-act="([a-z0-9-]+)"/g)].map(m => m[1]))];
   assert.ok(acts.length >= 60, `只枚举到 ${acts.length} 个 data-act,数量异常,正则或 markup 可能变了`);
-  const delegation = actionsSrc.slice(actionsSrc.indexOf("document.addEventListener('click'"));
-  const cases = new Set([...delegation.matchAll(/case '([a-z0-9-]+)':/g)].map(m => m[1]));
-  const missing = acts.filter(a => !cases.has(a));
+  // P0-3 注册表化:断言「全部 data-act ⊆ 已注册动作」——静态扫描 registerAction,
+  // 不执行代码;漏注册 = 点了没反应,这里必红
+  const appCode = appAll.replace(/^\s*\/\/.*$/gm, ''); // 剥掉行注释:被注释掉的注册不算数
+  const registered = new Set([...appCode.matchAll(/registerAction\('([a-z0-9-]+)'/g)].map(m => m[1]));
+  const missing = acts.filter(a => !registered.has(a));
   assert.deepEqual(
     missing,
     [],

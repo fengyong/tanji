@@ -2906,6 +2906,408 @@ function renderTrip() {
 }
 
 // src/app/actions.js
+var ACTIONS = {};
+function registerAction(name, fn) {
+  ACTIONS[name] = fn;
+}
+registerAction("tab", (t, oid) => {
+  showTab2(t.dataset.tab);
+});
+registerAction("open", (t, oid) => {
+  openDetail(oid);
+});
+registerAction("close-sheet", (t, oid) => {
+  closeSheets2();
+});
+registerAction("new-order", (t, oid) => {
+  openNew();
+});
+registerAction("save-order", (t, oid) => {
+  saveOrder();
+});
+registerAction("goto-collect", (t, oid) => {
+  ui2.bucket = db.orders.some((o) => isOver2(o) && !snoozed2(o)) ? "over" : "snoozed";
+  showTab2("pay");
+  renderAll2();
+});
+registerAction("chip", (t, oid) => {
+  ui2.chip = t.dataset.chip;
+  renderOrders();
+});
+registerAction("bucket", (t, oid) => {
+  ui2.bucket = t.dataset.bucket;
+  renderPay();
+});
+registerAction("period", (t, oid) => {
+  ui2.period = t.dataset.period;
+  renderStats();
+});
+registerAction("day", (t, oid) => {
+  const day = t.dataset.day || ui2.selDay;
+  ui2.selDay = day;
+  const dy = +day.slice(0, 4), dm = +day.slice(5, 7);
+  if (dy !== ui2.vMon.y || dm !== ui2.vMon.m) ui2.vMon = { y: dy, m: dm };
+  renderTrip();
+});
+registerAction("mnav", (t, oid) => {
+  let m = ui2.vMon.m + +t.dataset.d, y = ui2.vMon.y;
+  if (m < 1) {
+    m = 12;
+    y--;
+  }
+  if (m > 12) {
+    m = 1;
+    y++;
+  }
+  ui2.vMon = { y, m };
+  ui2.selDay = `${y}-${pad(m)}-${pad(Math.min(+ui2.selDay.slice(8, 10), new Date(y, m, 0).getDate()))}`;
+  renderTrip();
+});
+registerAction("mtoday", (t, oid) => {
+  ui2.vMon = { y: now.getFullYear(), m: now.getMonth() + 1 };
+  ui2.selDay = TODAY;
+  renderTrip();
+});
+registerAction("mark-shot", (t, oid) => {
+  if (mark(oid, "shotAt", "\u5DF2\u8BB0\u5F55\u5B9E\u9645\u62CD\u6444\u65F6\u95F4 \u2713")) capturePlace(oid);
+});
+registerAction("nav-place", (t, oid) => {
+  const o = byId(oid);
+  if (!o) return;
+  const url = t.dataset.gps || !o.location ? TanJiGeo.mapUrl({ place: o.gpsPlace, name: o.store }) : TanJiGeo.mapUrl({ query: o.location });
+  if (!url) {
+    toast2("\u8FD9\u5355\u8FD8\u6CA1\u6709\u5730\u70B9,\u5148\u586B\u5730\u70B9\u6216\u8BB0\u5F55\u5F53\u524D\u4F4D\u7F6E");
+    return;
+  }
+  if (!TanJiGeo.open(url)) toast2("\u6253\u4E0D\u5F00\u5730\u56FE,\u8BF7\u624B\u52A8\u641C\u7D22\u8BE5\u5730\u5740");
+});
+registerAction("locate-now", (t, oid) => {
+  const o = byId(oid);
+  if (!o) return;
+  toast2("\u6B63\u5728\u83B7\u53D6\u5F53\u524D\u4F4D\u7F6E\u2026");
+  TanJiGeo.locate().then((place) => {
+    const cur = byId(oid);
+    if (!cur) return;
+    cur.gpsPlace = place;
+    save();
+    renderAll2();
+    rerenderDetail();
+    toast2("\u5DF2\u8BB0\u5F55\u5230\u5E97\u5B9A\u4F4D \u2713");
+  }).catch(() => toast2("\u5B9A\u4F4D\u5931\u8D25,\u8BF7\u786E\u8BA4\u5DF2\u5141\u8BB8\u300C\u4F7F\u7528 App \u671F\u95F4\u300D\u5B9A\u4F4D"));
+});
+registerAction("mark-submit", (t, oid) => {
+  mark(oid, "submittedAt", "\u5DF2\u6807\u8BB0\u63D0\u5BA1 \u2713");
+});
+registerAction("mark-short", (t, oid) => {
+  mark(oid, "shortAt", "\u5DF2\u6807\u8BB0\u53D1\u526F\u7247 \u2713");
+});
+registerAction("mark-long", (t, oid) => {
+  mark(oid, "longAt", "\u5DF2\u6807\u8BB0\u53D1\u6B63\u7247 \u2713");
+});
+registerAction("acc-filter", (t, oid) => {
+  ui2.accFilter = t.dataset.id === "" ? null : +t.dataset.id;
+  renderAll2();
+});
+registerAction("acc-pick", (t, oid) => {
+  ui2.draftAccId = +t.dataset.id;
+  renderAccPick("f-acc-block", ui2.draftAccId);
+  renderAccPick("e-acc-block", ui2.draftAccId);
+});
+registerAction("prov-pick", (t, oid) => {
+  ui2.draftProv = t.dataset.v;
+  {
+    const ctx = t.closest('[id$="-block"]');
+    if (ctx) renderProvPick(ctx.id, ui2.draftProv);
+  }
+});
+registerAction("pal-pick", (t, oid) => {
+  ui2.draftColor = +t.dataset.i;
+  renderPal();
+  renderAvatarPreview();
+});
+registerAction("open-account", (t, oid) => {
+  openAccount(t.dataset.id != null ? +t.dataset.id : null);
+});
+registerAction("save-account", (t, oid) => {
+  saveAccount();
+});
+registerAction("delete-account", (t, oid) => {
+  deleteAccount();
+});
+registerAction("pick-avatar", (t, oid) => {
+  $("#avatar-file").click();
+});
+registerAction("shot-pick", (t, oid) => {
+  $("#shot-file").click();
+});
+registerAction("shot-clear", (t, oid) => {
+  const target = byId(oid);
+  if (!target || !target.photoThumb) return;
+  if (!confirm("\u5220\u9664\u8FD9\u5F20\u968F\u624B\u62CD\u7167?")) return;
+  target.photoThumb = null;
+  save();
+  renderAll2();
+  rerenderDetail();
+  toast2("\u7167\u7247\u5DF2\u5220\u9664");
+});
+registerAction("remove-avatar", (t, oid) => {
+  ui2.draftAvatar = null;
+  renderAvatarPreview();
+});
+registerAction("copy-account", (t, oid) => {
+  const a = accById(t.dataset.id);
+  if (!a) {
+    toast2("\u8BE5\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7,\u65E0\u8D44\u6599\u53EF\u62F7");
+    return;
+  }
+  copyText(accountCopyText(a)).then((ok) => toast2(ok ? `\u5DF2\u62F7\u8D1D\u300C${a.name}\u300D\u8D44\u6599 \u2713` : "\u62F7\u8D1D\u5931\u8D25,\u8BF7\u624B\u52A8\u957F\u6309\u590D\u5236"));
+});
+registerAction("assign-open", (t, oid) => {
+  ui2.assignAcc = ACCS()[0] ? ACCS()[0].id : null;
+  $("#assign-list").innerHTML = ACCS().map((a) => {
+    const c = accColor(a);
+    return `<button type="button" class="acc-opt ${ui2.assignAcc === a.id ? "sel" : ""}" data-act="assign-pick" data-id="${a.id}" style="${ui2.assignAcc === a.id ? `border-color:${c.ink};background:${c.bg}` : ""}">
+          <span class="acc-dot"></span>${accAvatarHTML(a, "width:30px;height:30px;font-size:14px;border-radius:10px")}
+          <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${db.orders.filter((o) => o.accountId === a.id).length} \u5355</span></button>`;
+  }).join("");
+  showSheet2("sheet-assign");
+});
+registerAction("assign-pick", (t, oid) => {
+  ui2.assignAcc = +t.dataset.id;
+  {
+    const list = $("#assign-list");
+    list.querySelectorAll(".acc-opt").forEach((el) => {
+      const sel = +el.dataset.id === ui2.assignAcc;
+      el.classList.toggle("sel", sel);
+      el.style.borderColor = sel ? accColor(accById(ui2.assignAcc)).ink : "";
+      el.style.background = sel ? accColor(accById(ui2.assignAcc)).bg : "";
+    });
+  }
+});
+registerAction("assign-run", (t, oid) => {
+  const n = db.orders.filter((o) => o.accountId == null).length;
+  if (!n) {
+    toast2("\u6CA1\u6709\u672A\u6307\u5B9A\u7684\u8BA2\u5355");
+    return;
+  }
+  if (ui2.assignAcc == null) {
+    toast2("\u5148\u9009\u4E00\u4E2A\u8D26\u53F7");
+    return;
+  }
+  db.orders.forEach((o) => {
+    if (o.accountId == null) o.accountId = ui2.assignAcc;
+  });
+  save();
+  closeSheets2();
+  renderAll2();
+  toast2(`\u5DF2\u628A ${n} \u7B14\u8BA2\u5355\u6539\u6302\u5230\u300C${accById(ui2.assignAcc).name}\u300D`);
+});
+registerAction("set-review", (t, oid) => {
+  const o = byId(oid), v = t.dataset.v;
+  if (!o || !["pass", "fail"].includes(v)) return;
+  o.reviewResult = o.reviewResult === v ? "" : v;
+  save();
+  renderAll2();
+  rerenderDetail();
+  toast2(o.reviewResult ? `\u5DF2\u6807\u8BB0${REVIEW_LABEL[o.reviewResult]}` : "\u5DF2\u6E05\u9664\u9001\u5BA1\u7ED3\u679C");
+});
+registerAction("open-pay", (t, oid) => {
+  openPay(oid, t.dataset.kind);
+});
+registerAction("pay-method", (t, oid) => {
+  if (ui2.payCtx) {
+    ui2.payCtx.method = t.dataset.m;
+    openPay(ui2.payCtx.oid, ui2.payCtx.kind, ui2.payCtx.method);
+  }
+});
+registerAction("confirm-pay", (t, oid) => {
+  const ctx = ui2.payCtx;
+  ui2.payCtx = null;
+  if (!ctx) {
+    toast2("\u6536\u6B3E\u64CD\u4F5C\u5DF2\u7ED3\u675F\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u6536\u6B3E");
+    return;
+  }
+  const returnDetail = ui2.detail === ctx.oid ? ctx.oid : null;
+  closeSheets2();
+  pay(ctx.oid, ctx.kind, ctx.method);
+  if (returnDetail !== null && byId(returnDetail)) openDetail(returnDetail);
+});
+registerAction("snooze", (t, oid) => {
+  const o = byId(oid);
+  if (o) {
+    const d = +t.dataset.d;
+    o.remindAt = dOff(d, "09:00");
+    save();
+    renderAll2();
+    rerenderDetail();
+    Notify.scheduleSnooze(o, d);
+    Notify.syncDaily();
+    toast2(`\u5DF2\u5907\u5FD8:${d} \u5929\u540E(${fmtD(o.remindAt)})\u63D0\u9192\u50AC\u6536 \u2713`);
+  }
+});
+registerAction("notify-toggle", (t, oid) => {
+  Notify.toggle();
+});
+registerAction("clear-remind", (t, oid) => {
+  const o = byId(oid);
+  if (o) {
+    o.remindAt = null;
+    save();
+    renderAll2();
+    rerenderDetail();
+    Notify.cancelSnooze(oid);
+    Notify.syncDaily();
+    toast2("\u5DF2\u6E05\u9664\u50AC\u6536\u63D0\u9192");
+  }
+});
+registerAction("remind-open", (t, oid) => {
+  openRemind(oid);
+});
+registerAction("remind-quick", (t, oid) => {
+  const el = $("#remind-note");
+  if (el) {
+    el.value = t.dataset.v || "";
+    if (el.focus) el.focus();
+  }
+});
+registerAction("remind-save", (t, oid) => {
+  saveRemind();
+});
+registerAction("expect-open", (t, oid) => {
+  openExpect(oid);
+});
+registerAction("expect-save", (t, oid) => {
+  saveExpect();
+});
+registerAction("expect-clear", (t, oid) => {
+  clearExpect(oid);
+});
+registerAction("toast-undo", (t, oid) => {
+  const action = dismissToast();
+  if (action && typeof action.run === "function") action.run();
+});
+registerAction("mile", (t, oid) => {
+  const o = byId(oid), key = t.dataset.key;
+  if (!o || !Object.prototype.hasOwnProperty.call(MILE_LABEL, key)) return;
+  if (o[key]) {
+    const after = MILE_ORDER.slice(MILE_ORDER.indexOf(key) + 1).filter((k) => o[k]);
+    const msg = after.length ? `\u6E05\u9664\u300C${MILE_LABEL[key]}\u300D\uFF1F\u5176\u540E\u7684\u300C${after.map((k) => MILE_LABEL[k]).join("\u300D\u300C")}\u300D\u4E5F\u5C06\u4E00\u5E76\u6E05\u9664\u3002` : `\u6E05\u9664\u300C${MILE_LABEL[key]}\u300D\u8BB0\u5F55?`;
+    if (confirm(msg)) {
+      [key, ...after].forEach((k) => o[k] = null);
+      save();
+      renderAll2();
+      rerenderDetail();
+      Notify.syncDeliver();
+      Notify.syncDaily();
+      toast2("\u5DF2\u6E05\u9664,\u53EF\u91CD\u65B0\u6807\u8BB0");
+    }
+  } else if (mark(oid, key, "\u5DF2\u6807\u8BB0\u300C" + MILE_LABEL[key] + "\u300D") && key === "shotAt") capturePlace(oid);
+});
+registerAction("edit-order", (t, oid) => {
+  openEdit(oid);
+});
+registerAction("save-edit", (t, oid) => {
+  saveEdit();
+});
+registerAction("toggle-dep", (t, oid) => {
+  toggleReceipt(oid, "deposit");
+});
+registerAction("toggle-fin", (t, oid) => {
+  toggleReceipt(oid, "final");
+});
+registerAction("privacy", (t, oid) => {
+  ui2.privacy = !ui2.privacy;
+  renderAll2();
+  rerenderDetail();
+  toast2(ui2.privacy ? "\u5DF2\u9690\u85CF\u91D1\u989D \xB7 \u622A\u56FE\u6A21\u5F0F" : "\u5DF2\u6062\u590D\u663E\u793A\u91D1\u989D");
+});
+registerAction("app-store-soon", (t, oid) => {
+  toast2("iOS \u539F\u751F\u7248\u5373\u5C06\u4E0A\u67B6,\u4E0A\u7EBF\u540E\u53EF\u76F4\u63A5\u5728 App Store \u4E70\u65AD");
+});
+registerAction("share", (t, oid) => {
+  shareToday();
+});
+registerAction("share-confirm", (t, oid) => {
+  if (ui2.shareBlob) {
+    const name = "\u62CD\u6444\u884C\u7A0B-" + ui2.shareDay + ".png";
+    const file = new File([ui2.shareBlob], name, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: ui2.shareDay + " \u62CD\u6444\u884C\u7A0B" }).catch((error) => {
+        if (error.name !== "AbortError") toast2("\u5206\u4EAB\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5");
+      });
+    } else {
+      download2(name, ui2.shareBlob, "image/png");
+      toast2("\u56FE\u7247\u5DF2\u4FDD\u5B58");
+    }
+  }
+});
+registerAction("del-order", (t, oid) => {
+  if (confirm("\u5220\u9664\u8BE5\u8BA2\u5355\u53CA\u5176\u6D41\u6C34?")) {
+    db.orders = db.orders.filter((o) => o.id !== oid);
+    db.payments = db.payments.filter((p) => p.oid !== oid);
+    save();
+    closeSheets2();
+    renderAll2();
+    Notify.cancelOrder(oid);
+    Notify.syncDaily();
+    toast2("\u8BA2\u5355\u5DF2\u5220\u9664");
+  }
+});
+registerAction("export-csv", (t, oid) => {
+  exportCsv();
+});
+registerAction("export-json", (t, oid) => {
+  exportJson();
+});
+registerAction("export-db", (t, oid) => {
+  exportDb();
+});
+registerAction("open-schema", (t, oid) => {
+  showSheet2("sheet-schema");
+});
+registerAction("th", (t, oid) => {
+  const opts = [7, 15, 30, 45];
+  let i = opts.indexOf(db.threshold);
+  i = Math.min(opts.length - 1, Math.max(0, i + +t.dataset.v));
+  db.threshold = opts[i];
+  save();
+  renderAll2();
+  rerenderDetail();
+  Notify.syncDaily();
+  toast2(`\u50AC\u6536\u9608\u503C\u5DF2\u8BBE\u4E3A ${db.threshold} \u5929`);
+});
+registerAction("import-json", (t, oid) => {
+  $("#import-file").value = "";
+  $("#import-file").click();
+});
+registerAction("confirm-import", (t, oid) => {
+  confirmImport();
+});
+registerAction("restore-backup", (t, oid) => {
+  restoreCheckpoint();
+});
+registerAction("switch-mode", (t, oid) => {
+  switchMode(Store.mode === "demo" ? "work" : "demo");
+});
+registerAction("clear-data", (t, oid) => {
+  if (confirm("\u6E05\u7A7A\u5F53\u524D" + (Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A") + "\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [] }).then((ok) => {
+    if (ok) toast2("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
+  });
+});
+registerAction("export-checkpoint", (t, oid) => {
+  exportCheckpoint();
+});
+registerAction("retry-storage", (t, oid) => {
+  if (Store.lockedOut) {
+    location.reload();
+  } else if (Store.blocked) {
+    loadState().then(() => {
+      closeSheets2();
+      renderAll2();
+      showTab2("home");
+    });
+  } else save();
+});
 document.addEventListener("click", (e) => {
   const t = e.target.closest("[data-act]");
   if (!t) return;
@@ -2919,423 +3321,8 @@ document.addEventListener("click", (e) => {
     return;
   }
   refreshClock();
-  switch (act) {
-    case "tab":
-      showTab2(t.dataset.tab);
-      break;
-    case "open":
-      openDetail(oid);
-      break;
-    case "close-sheet":
-      closeSheets2();
-      break;
-    case "new-order":
-      openNew();
-      break;
-    case "save-order":
-      saveOrder();
-      break;
-    case "goto-collect":
-      ui2.bucket = db.orders.some((o) => isOver2(o) && !snoozed2(o)) ? "over" : "snoozed";
-      showTab2("pay");
-      renderAll2();
-      break;
-    case "chip":
-      ui2.chip = t.dataset.chip;
-      renderOrders();
-      break;
-    case "bucket":
-      ui2.bucket = t.dataset.bucket;
-      renderPay();
-      break;
-    case "period":
-      ui2.period = t.dataset.period;
-      renderStats();
-      break;
-    case "day": {
-      const day = t.dataset.day || ui2.selDay;
-      ui2.selDay = day;
-      const dy = +day.slice(0, 4), dm = +day.slice(5, 7);
-      if (dy !== ui2.vMon.y || dm !== ui2.vMon.m) ui2.vMon = { y: dy, m: dm };
-      renderTrip();
-      break;
-    }
-    case "mnav": {
-      let m = ui2.vMon.m + +t.dataset.d, y = ui2.vMon.y;
-      if (m < 1) {
-        m = 12;
-        y--;
-      }
-      if (m > 12) {
-        m = 1;
-        y++;
-      }
-      ui2.vMon = { y, m };
-      ui2.selDay = `${y}-${pad(m)}-${pad(Math.min(+ui2.selDay.slice(8, 10), new Date(y, m, 0).getDate()))}`;
-      renderTrip();
-      break;
-    }
-    case "mtoday":
-      ui2.vMon = { y: now.getFullYear(), m: now.getMonth() + 1 };
-      ui2.selDay = TODAY;
-      renderTrip();
-      break;
-    case "mark-shot":
-      if (mark(oid, "shotAt", "\u5DF2\u8BB0\u5F55\u5B9E\u9645\u62CD\u6444\u65F6\u95F4 \u2713")) capturePlace(oid);
-      break;
-    case "nav-place": {
-      const o = byId(oid);
-      if (!o) break;
-      const url = t.dataset.gps || !o.location ? TanJiGeo.mapUrl({ place: o.gpsPlace, name: o.store }) : TanJiGeo.mapUrl({ query: o.location });
-      if (!url) {
-        toast2("\u8FD9\u5355\u8FD8\u6CA1\u6709\u5730\u70B9,\u5148\u586B\u5730\u70B9\u6216\u8BB0\u5F55\u5F53\u524D\u4F4D\u7F6E");
-        break;
-      }
-      if (!TanJiGeo.open(url)) toast2("\u6253\u4E0D\u5F00\u5730\u56FE,\u8BF7\u624B\u52A8\u641C\u7D22\u8BE5\u5730\u5740");
-      break;
-    }
-    case "locate-now": {
-      const o = byId(oid);
-      if (!o) break;
-      toast2("\u6B63\u5728\u83B7\u53D6\u5F53\u524D\u4F4D\u7F6E\u2026");
-      TanJiGeo.locate().then((place) => {
-        const cur = byId(oid);
-        if (!cur) return;
-        cur.gpsPlace = place;
-        save();
-        renderAll2();
-        rerenderDetail();
-        toast2("\u5DF2\u8BB0\u5F55\u5230\u5E97\u5B9A\u4F4D \u2713");
-      }).catch(() => toast2("\u5B9A\u4F4D\u5931\u8D25,\u8BF7\u786E\u8BA4\u5DF2\u5141\u8BB8\u300C\u4F7F\u7528 App \u671F\u95F4\u300D\u5B9A\u4F4D"));
-      break;
-    }
-    case "mark-submit":
-      mark(oid, "submittedAt", "\u5DF2\u6807\u8BB0\u63D0\u5BA1 \u2713");
-      break;
-    case "mark-short":
-      mark(oid, "shortAt", "\u5DF2\u6807\u8BB0\u53D1\u526F\u7247 \u2713");
-      break;
-    case "mark-long":
-      mark(oid, "longAt", "\u5DF2\u6807\u8BB0\u53D1\u6B63\u7247 \u2713");
-      break;
-    case "acc-filter":
-      ui2.accFilter = t.dataset.id === "" ? null : +t.dataset.id;
-      renderAll2();
-      break;
-    case "acc-pick":
-      ui2.draftAccId = +t.dataset.id;
-      renderAccPick("f-acc-block", ui2.draftAccId);
-      renderAccPick("e-acc-block", ui2.draftAccId);
-      break;
-    case "prov-pick":
-      ui2.draftProv = t.dataset.v;
-      {
-        const ctx = t.closest('[id$="-block"]');
-        if (ctx) renderProvPick(ctx.id, ui2.draftProv);
-      }
-      break;
-    case "pal-pick":
-      ui2.draftColor = +t.dataset.i;
-      renderPal();
-      renderAvatarPreview();
-      break;
-    case "open-account":
-      openAccount(t.dataset.id != null ? +t.dataset.id : null);
-      break;
-    case "save-account":
-      saveAccount();
-      break;
-    case "delete-account":
-      deleteAccount();
-      break;
-    case "pick-avatar":
-      $("#avatar-file").click();
-      break;
-    case "shot-pick":
-      $("#shot-file").click();
-      break;
-    case "shot-clear": {
-      const target = byId(oid);
-      if (!target || !target.photoThumb) break;
-      if (!confirm("\u5220\u9664\u8FD9\u5F20\u968F\u624B\u62CD\u7167?")) return;
-      target.photoThumb = null;
-      save();
-      renderAll2();
-      rerenderDetail();
-      toast2("\u7167\u7247\u5DF2\u5220\u9664");
-      break;
-    }
-    case "remove-avatar":
-      ui2.draftAvatar = null;
-      renderAvatarPreview();
-      break;
-    case "copy-account": {
-      const a = accById(t.dataset.id);
-      if (!a) {
-        toast2("\u8BE5\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7,\u65E0\u8D44\u6599\u53EF\u62F7");
-        break;
-      }
-      copyText(accountCopyText(a)).then((ok) => toast2(ok ? `\u5DF2\u62F7\u8D1D\u300C${a.name}\u300D\u8D44\u6599 \u2713` : "\u62F7\u8D1D\u5931\u8D25,\u8BF7\u624B\u52A8\u957F\u6309\u590D\u5236"));
-      break;
-    }
-    case "assign-open": {
-      ui2.assignAcc = ACCS()[0] ? ACCS()[0].id : null;
-      $("#assign-list").innerHTML = ACCS().map((a) => {
-        const c = accColor(a);
-        return `<button type="button" class="acc-opt ${ui2.assignAcc === a.id ? "sel" : ""}" data-act="assign-pick" data-id="${a.id}" style="${ui2.assignAcc === a.id ? `border-color:${c.ink};background:${c.bg}` : ""}">
-          <span class="acc-dot"></span>${accAvatarHTML(a, "width:30px;height:30px;font-size:14px;border-radius:10px")}
-          <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${db.orders.filter((o) => o.accountId === a.id).length} \u5355</span></button>`;
-      }).join("");
-      showSheet2("sheet-assign");
-      break;
-    }
-    case "assign-pick":
-      ui2.assignAcc = +t.dataset.id;
-      {
-        const list = $("#assign-list");
-        list.querySelectorAll(".acc-opt").forEach((el) => {
-          const sel = +el.dataset.id === ui2.assignAcc;
-          el.classList.toggle("sel", sel);
-          el.style.borderColor = sel ? accColor(accById(ui2.assignAcc)).ink : "";
-          el.style.background = sel ? accColor(accById(ui2.assignAcc)).bg : "";
-        });
-      }
-      break;
-    case "assign-run": {
-      const n = db.orders.filter((o) => o.accountId == null).length;
-      if (!n) {
-        toast2("\u6CA1\u6709\u672A\u6307\u5B9A\u7684\u8BA2\u5355");
-        break;
-      }
-      if (ui2.assignAcc == null) {
-        toast2("\u5148\u9009\u4E00\u4E2A\u8D26\u53F7");
-        break;
-      }
-      db.orders.forEach((o) => {
-        if (o.accountId == null) o.accountId = ui2.assignAcc;
-      });
-      save();
-      closeSheets2();
-      renderAll2();
-      toast2(`\u5DF2\u628A ${n} \u7B14\u8BA2\u5355\u6539\u6302\u5230\u300C${accById(ui2.assignAcc).name}\u300D`);
-      break;
-    }
-    case "set-review": {
-      const o = byId(oid), v = t.dataset.v;
-      if (!o || !["pass", "fail"].includes(v)) break;
-      o.reviewResult = o.reviewResult === v ? "" : v;
-      save();
-      renderAll2();
-      rerenderDetail();
-      toast2(o.reviewResult ? `\u5DF2\u6807\u8BB0${REVIEW_LABEL[o.reviewResult]}` : "\u5DF2\u6E05\u9664\u9001\u5BA1\u7ED3\u679C");
-      break;
-    }
-    case "open-pay":
-      openPay(oid, t.dataset.kind);
-      break;
-    case "pay-method":
-      if (ui2.payCtx) {
-        ui2.payCtx.method = t.dataset.m;
-        openPay(ui2.payCtx.oid, ui2.payCtx.kind, ui2.payCtx.method);
-      }
-      break;
-    case "confirm-pay": {
-      const ctx = ui2.payCtx;
-      ui2.payCtx = null;
-      if (!ctx) {
-        toast2("\u6536\u6B3E\u64CD\u4F5C\u5DF2\u7ED3\u675F\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u6536\u6B3E");
-        break;
-      }
-      const returnDetail = ui2.detail === ctx.oid ? ctx.oid : null;
-      closeSheets2();
-      pay(ctx.oid, ctx.kind, ctx.method);
-      if (returnDetail !== null && byId(returnDetail)) openDetail(returnDetail);
-      break;
-    }
-    case "snooze": {
-      const o = byId(oid);
-      if (o) {
-        const d = +t.dataset.d;
-        o.remindAt = dOff(d, "09:00");
-        save();
-        renderAll2();
-        rerenderDetail();
-        Notify.scheduleSnooze(o, d);
-        Notify.syncDaily();
-        toast2(`\u5DF2\u5907\u5FD8:${d} \u5929\u540E(${fmtD(o.remindAt)})\u63D0\u9192\u50AC\u6536 \u2713`);
-      }
-      break;
-    }
-    case "notify-toggle":
-      Notify.toggle();
-      break;
-    case "clear-remind": {
-      const o = byId(oid);
-      if (o) {
-        o.remindAt = null;
-        save();
-        renderAll2();
-        rerenderDetail();
-        Notify.cancelSnooze(oid);
-        Notify.syncDaily();
-        toast2("\u5DF2\u6E05\u9664\u50AC\u6536\u63D0\u9192");
-      }
-      break;
-    }
-    case "remind-open":
-      openRemind(oid);
-      break;
-    case "remind-quick": {
-      const el = $("#remind-note");
-      if (el) {
-        el.value = t.dataset.v || "";
-        if (el.focus) el.focus();
-      }
-      break;
-    }
-    case "remind-save":
-      saveRemind();
-      break;
-    case "expect-open":
-      openExpect(oid);
-      break;
-    case "expect-save":
-      saveExpect();
-      break;
-    case "expect-clear":
-      clearExpect(oid);
-      break;
-    case "toast-undo": {
-      const action = dismissToast();
-      if (action && typeof action.run === "function") action.run();
-      break;
-    }
-    case "mile": {
-      const o = byId(oid), key = t.dataset.key;
-      if (!o || !Object.prototype.hasOwnProperty.call(MILE_LABEL, key)) break;
-      if (o[key]) {
-        const after = MILE_ORDER.slice(MILE_ORDER.indexOf(key) + 1).filter((k) => o[k]);
-        const msg = after.length ? `\u6E05\u9664\u300C${MILE_LABEL[key]}\u300D\uFF1F\u5176\u540E\u7684\u300C${after.map((k) => MILE_LABEL[k]).join("\u300D\u300C")}\u300D\u4E5F\u5C06\u4E00\u5E76\u6E05\u9664\u3002` : `\u6E05\u9664\u300C${MILE_LABEL[key]}\u300D\u8BB0\u5F55?`;
-        if (confirm(msg)) {
-          [key, ...after].forEach((k) => o[k] = null);
-          save();
-          renderAll2();
-          rerenderDetail();
-          Notify.syncDeliver();
-          Notify.syncDaily();
-          toast2("\u5DF2\u6E05\u9664,\u53EF\u91CD\u65B0\u6807\u8BB0");
-        }
-      } else if (mark(oid, key, "\u5DF2\u6807\u8BB0\u300C" + MILE_LABEL[key] + "\u300D") && key === "shotAt") capturePlace(oid);
-      break;
-    }
-    case "edit-order":
-      openEdit(oid);
-      break;
-    case "save-edit":
-      saveEdit();
-      break;
-    case "toggle-dep":
-      toggleReceipt(oid, "deposit");
-      break;
-    case "toggle-fin":
-      toggleReceipt(oid, "final");
-      break;
-    case "privacy":
-      ui2.privacy = !ui2.privacy;
-      renderAll2();
-      rerenderDetail();
-      toast2(ui2.privacy ? "\u5DF2\u9690\u85CF\u91D1\u989D \xB7 \u622A\u56FE\u6A21\u5F0F" : "\u5DF2\u6062\u590D\u663E\u793A\u91D1\u989D");
-      break;
-    case "app-store-soon":
-      toast2("iOS \u539F\u751F\u7248\u5373\u5C06\u4E0A\u67B6,\u4E0A\u7EBF\u540E\u53EF\u76F4\u63A5\u5728 App Store \u4E70\u65AD");
-      break;
-    case "share":
-      shareToday();
-      break;
-    case "share-confirm": {
-      if (ui2.shareBlob) {
-        const name = "\u62CD\u6444\u884C\u7A0B-" + ui2.shareDay + ".png";
-        const file = new File([ui2.shareBlob], name, { type: "image/png" });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: ui2.shareDay + " \u62CD\u6444\u884C\u7A0B" }).catch((error) => {
-            if (error.name !== "AbortError") toast2("\u5206\u4EAB\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5");
-          });
-        } else {
-          download2(name, ui2.shareBlob, "image/png");
-          toast2("\u56FE\u7247\u5DF2\u4FDD\u5B58");
-        }
-      }
-      break;
-    }
-    case "del-order":
-      if (confirm("\u5220\u9664\u8BE5\u8BA2\u5355\u53CA\u5176\u6D41\u6C34?")) {
-        db.orders = db.orders.filter((o) => o.id !== oid);
-        db.payments = db.payments.filter((p) => p.oid !== oid);
-        save();
-        closeSheets2();
-        renderAll2();
-        Notify.cancelOrder(oid);
-        Notify.syncDaily();
-        toast2("\u8BA2\u5355\u5DF2\u5220\u9664");
-      }
-      break;
-    case "export-csv":
-      exportCsv();
-      break;
-    case "export-json":
-      exportJson();
-      break;
-    case "export-db":
-      exportDb();
-      break;
-    case "open-schema":
-      showSheet2("sheet-schema");
-      break;
-    case "th": {
-      const opts = [7, 15, 30, 45];
-      let i = opts.indexOf(db.threshold);
-      i = Math.min(opts.length - 1, Math.max(0, i + +t.dataset.v));
-      db.threshold = opts[i];
-      save();
-      renderAll2();
-      rerenderDetail();
-      Notify.syncDaily();
-      toast2(`\u50AC\u6536\u9608\u503C\u5DF2\u8BBE\u4E3A ${db.threshold} \u5929`);
-      break;
-    }
-    case "import-json":
-      $("#import-file").value = "";
-      $("#import-file").click();
-      break;
-    case "confirm-import":
-      confirmImport();
-      break;
-    case "restore-backup":
-      restoreCheckpoint();
-      break;
-    case "switch-mode":
-      switchMode(Store.mode === "demo" ? "work" : "demo");
-      break;
-    case "clear-data":
-      if (confirm("\u6E05\u7A7A\u5F53\u524D" + (Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A") + "\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [] }).then((ok) => {
-        if (ok) toast2("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
-      });
-      break;
-    case "export-checkpoint":
-      exportCheckpoint();
-      break;
-    case "retry-storage":
-      if (Store.lockedOut) {
-        location.reload();
-      } else if (Store.blocked) {
-        loadState().then(() => {
-          closeSheets2();
-          renderAll2();
-          showTab2("home");
-        });
-      } else save();
-      break;
-  }
+  const fn = ACTIONS[act];
+  if (fn) fn(t, oid);
 });
 ["f-date", "f-time"].forEach((id) => $("#" + id).addEventListener("change", updateConflict));
 ["f-date", "f-time"].forEach((id) => $("#" + id).addEventListener("input", updateConflict));
