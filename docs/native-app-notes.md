@@ -663,3 +663,30 @@ deliver_sub 迁移缺省、计数封顶显示),冒烟 20 项 `consoleErrors` 空
 清除拍摄后撤销、撤销收款后恢复;逐条过去重即变红,杀伤力实测);`npm run test:smoke` 20 项
 `consoleErrors` 空;`npm run check` 无漂移(锁按新 `index.html` 重登记)。
 复现脚本实证:修复前 4/4 场景复现,修复后 4/4 符合预期。
+## 第四轮深度 review 补充修复(2026-11-22,zcode/glm-5.3)
+
+> 第四轮 review 的另一半:codebuddy 的五处 syncDaily 补排(上一节)之外,本轮独立发现
+> 1 个 P2 + 3 个 P3 并修复;与前一半合并验证,测试 117 → 124。
+
+1. **P2 演示数据排真通知且切回后永久驻留**:`switchMode` 只重排新模式通知,而演示种子
+   里有 41 天逾期的私收单(id13)和当日拍摄单(id2)——进过一次演示模式,就会排上
+   每日 09:00 假催收(id 500001,repeats:true)与假出片提醒(id 800002),切回 work 后
+   无任何入口能撤掉(work 的 toggle/syncDaily 只认 base=0)。修复:三个排程入口
+   (`syncDaily/syncDeliver/scheduleSnooze`)在 `Store.mode==='demo'` 时直接 return,
+   启动序列补一次 `cancelMode('demo')` 清理旧版本遗留;work 通知不受影响。
+2. **P3 清空数据连账号一起清**:clear-data 载荷没带 accounts/providers,确认文案却只说
+   "订单与流水会清空"。修复:清空时与 notifyEnabled 同口径保留账号与服务商预设,文案如实。
+3. **P3 里程碑清除无级联**:清掉「拍摄」后提审/发片/发布时间残留,出现"未拍摄已发布"
+   的脏时间线(mark 守卫只挡正向)。修复:新增 `MILE_ORDER`,清除上游节点时其后的
+   下游记录一并清掉,确认框明说。
+4. **P3 只读模式下随手拍假成功**:shot-pick 在 blocked 白名单里,但 change 处理器不经
+   data-act 守卫——直接改内存并报"已随手拍",save 却被拦下。修复:处理器开头判
+   `Store.blocked` 提前退出(wiring 静态钉住)。
+5. **死代码清理**:删 `Notify.cancelAll`/`isOurNotifyId`(replaceData 改用 cancelMode 后
+   无调用方,"撤双模式"语义留着会被误接)。
+
+**验证**:`npm test` **124/124**(改写双模式分段测试为"demo 不排"口径 + 新增 3 条:
+里程碑级联、清空保留账号、随手拍只读拦截;demo 守卫做过去除即变红的变异验证),
+冒烟 20 项 `consoleErrors` 空,`npm run check` 无漂移。
+**未修(移交)**:隐私/支持页线上仍 404(部署事务,上架硬阻断);sw.js 缓存策略
+(VERSION 停在 v0.4.1、logic/geo/imaging 永不重验)属 main 分支事务。

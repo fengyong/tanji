@@ -67,7 +67,7 @@ docs/               研发笔记 + 交互评估 + 上架清单 + 原型
 ## 常用命令
 
 ```bash
-npm test                # 111 项回归（node --test），全绿才算能提交
+npm test                # 124 项回归（node --test），全绿才算能提交
 npm run test:smoke      # 浏览器端到端冒烟（需本机 Chrome）
 npm run check           # main/native 漂移校验（指纹锁 scripts/web-sync.lock.json）
 npm run check:update    # 有意改了共享文件后重登记锁基线

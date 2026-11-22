@@ -488,13 +488,14 @@ async function nativeReadSnapshot(mode,suffix='json'){
 /* ================= 本地通知(仅 iOS 原生生效) =================
  * 每日 09:00 催收汇总(只报条数与最长天数,不含金额);
  * snooze 备忘在原生环境升级为一次性系统通知。
- * 通知 id 按「模式 × 类型」分段,work/demo 两套数据各占一段、互不覆盖:
- *   work(base=0):      每日汇总=1;     催收备忘=100000+orderId;出片提醒=300000+orderId
- *   demo(base=500000): 每日汇总=500001; 催收备忘=600000+orderId;出片提醒=800000+orderId
+ * 通知 id 按「模式 × 类型」分段:
+ *   work(base=0):每日汇总=1;催收备忘=100000+orderId;出片提醒=300000+orderId
+ * 演示数据不排系统通知(2026-11-22 第四轮 review 起):demo 种子里有 41 天逾期的单,
+ * 进过一次演示模式就会每天 09:00 推一条假催收(repeats:true),切回 work 后无从关闭。
+ * demo 段(500001 / 600000+ / 800000+)只在 cancelMode('demo') 清理旧版本遗留通知时用到。
  * 同模式内备忘段与出片段按 orderId 各占一段、互不重叠(要求 orderId<100000,个人记账远达不到)。 ================= */
 const NOTIFY_OFFSET={work:0,demo:500000};
 const notifyBase=()=>NOTIFY_OFFSET[Store.mode]||0;
-const isOurNotifyId=id=>id===1||id===500001||(id>=100000&&id<400000)||(id>=600000&&id<900000);
 
 /* ---- 出片要求(工作流 v0.5):规则实现在 logic.js,这里保留同名薄包装 ----
  * 业务规则统一收敛到 www/logic.js(纯函数),storage.js 只负责持久化与通知。 */
@@ -512,6 +513,8 @@ const Notify={
   },
   async syncDaily(){
     if(!this.native())return;
+    // 演示数据不排真通知(见文件头注释);work 的通知不受切模式影响,由各排程入口自行维护
+    if(Store.mode==='demo')return;
     try{
       const L=CAP.LocalNotifications;
       const base=notifyBase();
@@ -533,6 +536,7 @@ const Notify={
   // 已超期的不再排(应用内列表有红色角标),出齐/删单/清除拍摄时间后重排即撤销。
   async syncDeliver(){
     if(!this.native())return;
+    if(Store.mode==='demo')return;   // 演示数据不排真通知,与 syncDaily 同口径
     try{
       const L=CAP.LocalNotifications;
       const base=notifyBase();
@@ -556,6 +560,7 @@ const Notify={
   },
   async scheduleSnooze(o,d){
     if(!this.native())return;
+    if(Store.mode==='demo')return;   // 演示数据不排真通知,与 syncDaily 同口径
     try{
       const at=new Date(o.remindAt);
       if(isNaN(at))return;
@@ -575,14 +580,8 @@ const Notify={
       }]});
     }catch(e){console.warn('[TanJi] 单次提醒排程失败',e)}
   },
-  async cancelAll(){
-    if(!this.native())return;
-    try{
-      const L=CAP.LocalNotifications,pend=await L.getPending();
-      const ours=(pend.notifications||[]).filter(n=>isOurNotifyId(+n.id));
-      if(ours.length)await L.cancel({notifications:ours});
-    }catch(e){}
-  },
+  // (cancelAll/isOurNotifyId 已删:replaceData 改用 cancelMode 后无调用方,
+  //  而"撤双模式全部通知"的语义一旦被误接回单模式动作,会重演通知误杀)
   // 只撤当前模式的全部通知(导入/恢复/清空只替换当前模式数据,另一模式的通知指向的数据还在,不能动)
   async cancelMode(mode=Store.mode){
     if(!this.native())return;

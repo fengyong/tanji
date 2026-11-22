@@ -482,7 +482,7 @@ test('导入校验拒绝订单 id≥100000:通知 id 分段的前提不能只靠
   a.run(`validateState(${JSON.stringify(backup(99999))})`);
 });
 
-test('双模式通知分段:work/demo 同订单号互不覆盖,切换模式不撤另一模式的通知',async()=>{
+test('演示数据不排系统通知:切到 demo 不排假通知,work 通知保留,遗留 demo 通知可清理',async()=>{
   const device=newDevice();
   const a=app(device);
   setState(a,[order({id:2,store:'工作单',shotAt:'2026-11-22T09:00'})]);
@@ -491,22 +491,34 @@ test('双模式通知分段:work/demo 同订单号互不覆盖,切换模式不�
   await tick();
   assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'work 的出片提醒落在 300002');
 
-  // 切到 demo:演示种子的 id=2(澄川咖啡,今日拍摄)同样满足出片提醒条件,
-  // 旧实现会用同号 300002 把 work 的通知顶掉;分段后应排到 800002
+  // 切到 demo:演示种子里有当日拍摄的单(id=2,满足 24h 出片提醒)和 41 天逾期的
+  // 私收单(id=13,满足每日催收)。旧实现会排 800002/500001 —— 假数据产生真通知,
+  // 且切回 work 后永久驻留(repeats:true),work 模式下无从关闭
   await a.run('switchMode("demo")');
   await tick();
-  assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'work 的通知不能被 demo 同订单号顶掉');
-  const demoDeliver=a.device.pending.find(n=>+n.id===800002);
-  assert.ok(demoDeliver,'demo 的出片提醒应落在 800002 段');
-  assert.match(demoDeliver.body,/澄川咖啡/);
-  assert.equal(a.device.pending.filter(n=>+n.id===500001).length,1,'demo 每日汇总应落在 500001');
+  assert.equal(a.run('Store.mode'),'demo');
+  assert.equal(a.run('db.orders.length'),17);
+  assert.equal(a.device.pending.filter(n=>+n.id>=500000).length,0,'演示数据不应排任何系统通知');
+  assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'work 的通知不能因切模式被顶掉或撤掉');
 
-  // 切回 work:work 段重排,demo 段原样保留
+  // demo 里直接调排程接口也不排(保存/备忘/启动路径的兜底)
+  a.run('Notify.syncDaily()');
+  a.run('Notify.syncDeliver()');
+  a.run("db.orders[0].remindAt='2026-11-24T09:00';Notify.scheduleSnooze(db.orders[0],3);");
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id>=500000).length,0,'demo 内任何排程入口都不该排通知');
+
+  // 切回 work:work 段原样
   await a.run('switchMode("work")');
   await tick();
-  assert.equal(a.device.pending.filter(n=>+n.id===800002).length,1,'切回 work 后 demo 的通知不能被撤');
-  assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'work 的出片提醒仍在排');
-  assert.equal(a.device.pending.filter(n=>+n.id===500001).length,1,'demo 的每日汇总也不受影响');
+  assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'切回 work 后通知仍在');
+
+  // 旧版本升级遗留的 demo 通知:启动序列的 cancelMode('demo') 一键清掉,不伤 work 段
+  device.pending.push({id:500001,title:'遗留'},{id:800002,title:'遗留'},{id:600002,title:'遗留'});
+  await a.run('Notify.cancelMode("demo")');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id>=500000).length,0,'遗留 demo 通知应被清掉');
+  assert.equal(a.device.pending.filter(n=>+n.id===300002).length,1,'清理不能误伤 work 段');
 });
 
 test('没有可排的出片提醒时不请求通知权限,有需求时才请求',async()=>{
@@ -537,6 +549,41 @@ test('里程碑不能乱序:前置节点未完成时拒绝标记,不产生早于
   assert.equal(a.run('mark(1,"publishedAt","x")'),false,'双片单只出正片不算出齐,不能发布');
   assert.equal(a.run('mark(1,"shortAt","x")'),true,'补发副片');
   assert.equal(a.run('mark(1,"publishedAt","x")'),true,'出齐后才能发布');
+});
+
+test('清除上游里程碑会级联清掉下游记录,不残留"未拍摄已发布"的时间线',()=>{
+  const a=app();
+  // 走完五步的单:清「拍摄」,提审/发片/发布必须一起消失
+  setState(a,[order({shotAt:'2026-11-01T11:00',submittedAt:'2026-11-01T20:00',shortAt:'2026-11-02T10:00',longAt:'2026-11-02T15:00',publishedAt:'2026-11-03T09:00'})]);
+  a.events.click({target:{closest:()=>({dataset:{act:'mile',oid:'1',key:'shotAt'}})}});
+  for(const k of ['shotAt','submittedAt','shortAt','longAt','publishedAt'])
+    assert.equal(a.run(`db.orders[0].${k}`),null,`清除拍摄后 ${k} 应一并清掉`);
+
+  // 清中间节点:只截断其后,上游保留
+  setState(a,[order({shotAt:'2026-11-01T11:00',submittedAt:'2026-11-01T20:00',shortAt:null,longAt:'2026-11-02T15:00',publishedAt:'2026-11-03T09:00'})]);
+  a.events.click({target:{closest:()=>({dataset:{act:'mile',oid:'1',key:'submittedAt'}})}});
+  assert.equal(a.run('db.orders[0].shotAt'),'2026-11-01T11:00','清除提审不应动拍摄');
+  for(const k of ['submittedAt','longAt','publishedAt'])
+    assert.equal(a.run(`db.orders[0].${k}`),null,`清除提审后 ${k} 应一并清掉`);
+});
+
+test('清空当前数据:订单与流水清空,账号与服务商预设保留',async()=>{
+  const a=app();
+  setState(a,[order(),order({id:2,store:'第二家'})]);
+  a.run(`db.accounts=[{id:1,name:'吃货号',color:2}];db.providers=['蜂向','自定义MCN'];`);
+  await a.run('save()');
+  // 走真实点击路径(与用户在统计页点「清空」同一载荷)
+  a.events.click({target:{closest:()=>({dataset:{act:'clear-data'}})}});
+  await tick();await tick();
+  assert.equal(a.run('db.orders.length'),0,'订单应被清空');
+  assert.equal(a.run('db.payments.length'),0,'流水应被清空');
+  assert.equal(a.run('db.accounts.length'),1,'账号资料应保留');
+  assert.equal(a.run('db.accounts[0].name'),'吃货号');
+  const provs=a.json('db.providers');
+  assert.equal(provs.length,2,'服务商预设应保留');
+  assert.ok(provs.includes('蜂向')&&provs.includes('自定义MCN'),'两个预设都在');
+  // 替换前备份里仍是完整旧数据(含账号),可在统计页恢复
+  assert.equal(a.run('Store.backup.orders.length'),2,'替换前备份应保留旧数据');
 });
 
 test('删除订单应撤销该订单残留的一次性通知',async()=>{

@@ -91,3 +91,16 @@ test('保存按钮必须落在常驻操作条里,而不是滚动区', () => {
   );
   assert.equal((index.match(/data-act="save-edit"/g) || []).length, 1, '保存修改按钮应只有一个');
 });
+
+test('随手拍输入在只读模式下必须拒绝写入(change 处理器绕过 data-act 白名单)', () => {
+  // shot-pick 在 blocked 白名单里(能打开相册),但 initShotInput 的 change 处理器
+  // 不经过 data-act 守卫——若不自带 Store.blocked 检查,只读模式下会改内存、
+  // 报"已随手拍"的成功提示,而 save() 已被拦截,关 App 即丢。
+  const m = index.match(/function initShotInput\(\)\{[\s\S]*?\n\}/);
+  assert.ok(m, '找不到 initShotInput(函数结构可能变了)');
+  const guardIdx = m[0].indexOf('Store.blocked');
+  const writeIdx = m[0].indexOf('photoThumb=');
+  assert.ok(guardIdx > 0, 'initShotInput 里应有 Store.blocked 检查');
+  assert.ok(writeIdx > 0, 'initShotInput 里应能定位到 photoThumb 写入');
+  assert.ok(guardIdx < writeIdx, '只读检查必须发生在写入 photoThumb 之前');
+});

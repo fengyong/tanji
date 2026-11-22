@@ -960,6 +960,10 @@ function initShotInput(){
   input.addEventListener('change',async()=>{
     const file=input.files&&input.files[0];input.value='';
     if(!file)return;
+    // 只读保护:shot-pick 在 blocked 白名单里、能打开相册,但这个 change 处理器
+    // 不经过 data-act 守卫——不拦的话用户会看到"已随手拍"的成功提示,实际 save 被
+    // Store.blocked 拦下,什么都没存上
+    if(Store.blocked){toast('本机数据读取异常,写入已暂停;请先点「重试保存 / 读取」');return}
     const target=byId(ui.detail);
     if(!target){toast('先打开一笔订单再拍');return}
     try{
@@ -1296,6 +1300,9 @@ function rerenderDetail(){if(ui.detail!=null&&ui.editId==null&&byId(ui.detail))o
 /* 里程碑前置依赖:时间线只能向前走,不允许跳过中间节点直接标记,
    否则会出现"未拍摄就已发布"这类发布时间早于拍摄的脏数据。 */
 const MILE_PRE={shotAt:null,submittedAt:'shotAt',shortAt:'submittedAt',longAt:'submittedAt'};
+/* 时间线全序:清除上游节点时,其后的下游记录一并清掉(截断),
+   否则会残留"未拍摄已发布"这类脏时间线——mark 的前置守卫只挡正向标记 */
+const MILE_ORDER=['shotAt','submittedAt','shortAt','longAt','publishedAt'];
 function mark(id,key,label){
   const o=byId(id);
   if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key)||o[key])return false;
@@ -2137,7 +2144,7 @@ function renderStats(){
         <div class="menu-t"><div class="menu-name">${Store.mode==='demo'?'进入工作数据':'切换到演示数据'}</div><div class="menu-sub">当前为${Store.mode==='demo'?'演示':'工作'}数据；两套数据独立保存，互不覆盖</div></div>
       </div>
       <div class="menu-row" data-act="clear-data" role="button" tabindex="0">
-        <div class="menu-t"><div class="menu-name" style="color:var(--red)">清空当前${Store.mode==='demo'?'演示':'工作'}数据</div><div class="menu-sub">需确认；清空前自动备份，不影响另一套数据</div></div>
+        <div class="menu-t"><div class="menu-name" style="color:var(--red)">清空当前${Store.mode==='demo'?'演示':'工作'}数据</div><div class="menu-sub">需确认；清空订单与流水，账号与设置保留；替换前自动备份，不影响另一套数据</div></div>
       </div>
       <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0;white-space:normal">探记 TanJi v0.6 · 数据仅存本机，请定期导出备份</div>
     </div>
@@ -2306,7 +2313,11 @@ document.addEventListener('click',e=>{
       break}
     case 'mile':{const o=byId(oid),key=t.dataset.key;
       if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key))break;
-      if(o[key]){if(confirm('清除「'+MILE_LABEL[key]+'」记录?')){o[key]=null;save();renderAll();rerenderDetail();Notify.syncDeliver();Notify.syncDaily();toast('已清除,可重新标记')}}
+      if(o[key]){
+        const after=MILE_ORDER.slice(MILE_ORDER.indexOf(key)+1).filter(k=>o[k]);
+        const msg=after.length?`清除「${MILE_LABEL[key]}」？其后的「${after.map(k=>MILE_LABEL[k]).join('」「')}」也将一并清除。`:`清除「${MILE_LABEL[key]}」记录?`;
+        if(confirm(msg)){[key,...after].forEach(k=>o[k]=null);save();renderAll();rerenderDetail();Notify.syncDeliver();Notify.syncDaily();toast('已清除,可重新标记')}
+      }
       else if(mark(oid,key,'已标记「'+MILE_LABEL[key]+'」')&&key==='shotAt')capturePlace(oid);
       break}
     case 'edit-order':openEdit(oid);break;
@@ -2341,7 +2352,9 @@ document.addEventListener('click',e=>{
     case 'restore-backup':restoreCheckpoint();break;
     case 'switch-mode':switchMode(Store.mode==='demo'?'work':'demo');break;
     case 'clear-data':
-      if(confirm('清空当前'+(Store.mode==='work'?'工作':'演示')+'数据？订单与流水会清空，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold}).then(ok=>{if(ok)toast('已清空，替换前数据可在统计页恢复')});
+      // 账号资料与服务商预设跟 notifyEnabled 一样随清空保留:用户"重新开始记账"
+      // 不该把精心录好的账号资料一并抹掉(订单与流水才是"数据"的本体)
+      if(confirm('清空当前'+(Store.mode==='work'?'工作':'演示')+'数据？订单与流水会清空，账号与设置保留，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold,notifyEnabled:db.notifyEnabled,accounts:db.accounts||[],providers:db.providers||[]}).then(ok=>{if(ok)toast('已清空，替换前数据可在统计页恢复')});
       break;
     case 'export-checkpoint':exportCheckpoint();break;
     case 'retry-storage':
@@ -2379,6 +2392,9 @@ $('#f-date').value=TODAY;
   await acquireWriter();
   const had=await loadState();
   renderAll();showTab('home');
+  // 演示数据不排系统通知(Notify 各排程入口有守卫);这里再兜底清一次 demo 段,
+  // 把旧版本升级前可能排过的演示通知撤干净——demo 段此后不可能再被新排
+  Notify.cancelMode('demo');
   Notify.syncDaily();
   Notify.syncDeliver();
   initAvatarInput();
