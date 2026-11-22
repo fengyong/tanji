@@ -369,4 +369,4 @@ git push git@github-fengyong:fengyong/tanji.git HEAD:refs/heads/<分支>
 | [`docs/native-app-notes.md`](native-app-notes.md) | 动原生持久化 / 通知 / 导出之前，看技术决策与踩坑记录 |
 | [`docs/creator-workflow-review.md`](creator-workflow-review.md) | 做产品取舍前，达人真实工作流与缺口优先级 |
 | [`docs/appstore-release-checklist.md`](appstore-release-checklist.md) | 上架前逐条对账 |
-| `main` 分支的 [`AGENTS.md`](../AGENTS.md) / `docs/git-push-guide.md` | 改 Web / PWA 侧时看，那边是同一套硬规则的精简版 |
+| `main` 分支的 [`AGENTS.md`](https://github.com/fengyong/tanji/blob/main/AGENTS.md) / [`docs/git-push-guide.md`](https://github.com/fengyong/tanji/blob/main/docs/git-push-guide.md) | 改 Web / PWA 侧时看，那边是同一套硬规则的精简版 |
