@@ -565,7 +565,7 @@ function buildSqliteBytes(state=db){
       id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
       paid_at TEXT, method TEXT, note TEXT);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
-    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     state.orders.forEach(o=>{
       so.bind([o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
                o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.channel||null,o.partner||null,
@@ -753,8 +753,9 @@ CREATE TABLE payments (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id INTEGER REFERENCES orders(id),
   kind     TEXT,  <span class="c">-- deposit 定金 / final 尾款 / extra 追加</span>
-  amount   REAL, paid_at TEXT, note TEXT,
-  method   TEXT   <span class="c">-- 微信 / 支付宝 / 银行卡 / 抖音商单 / 其他(仅记录,不做支付)</span>
+  amount   REAL, paid_at TEXT,
+  method   TEXT,   <span class="c">-- 微信 / 支付宝 / 银行卡 / 抖音商单 / 其他(仅记录,不做支付)</span>
+  note     TEXT
 );
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
 <span class="c">-- collect_threshold_days = 15 · app_version = 0.2</span>
