@@ -1,7 +1,7 @@
 {
   "$schema": "tanji-web-sync-lock/v1",
   "mainRef": "main",
-  "mainCommit": "9e8f8cd77e9c0b6935effdea956e17ad0edf971b",
+  "mainCommit": "d74ffd4b9cd62516a1a1bd22f3ae9c9da46fcb39",
   "updatedAt": "2026-11-22",
   "files": {
     "index.html": {
@@ -29,14 +29,14 @@
       "note": "PWA 清单"
     },
     "privacy.html": {
-      "main": "2909699cfe3fef97654fba619e7ebaeca5e0f6e9",
-      "native": "2909699cfe3fef97654fba619e7ebaeca5e0f6e9",
+      "main": "f469e7988690a5293e79034413c3693b7459d92a",
+      "native": "f469e7988690a5293e79034413c3693b7459d92a",
       "nativePath": "www/privacy.html",
       "note": "隐私政策（App Store 必需）"
     },
     "support.html": {
-      "main": "3558ac9d016559fd505d02f2a24ee1f2a6665be3",
-      "native": "3558ac9d016559fd505d02f2a24ee1f2a6665be3",
+      "main": "2c04d9f8ed4b5bacdeaea7a70eec2a5250a01942",
+      "native": "2c04d9f8ed4b5bacdeaea7a70eec2a5250a01942",
       "nativePath": "www/support.html",
       "note": "支持页（App Store 必需）"
     },
