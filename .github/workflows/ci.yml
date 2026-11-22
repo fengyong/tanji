@@ -19,12 +19,7 @@ jobs:
           node-version: '22'
 
       - name: 单元回归
-        run: |
-          if [ -f tests/reliability.test.cjs ]; then
-            node --test tests/reliability.test.cjs
-          else
-            node --test tests/web-reliability.test.cjs
-          fi
+        run: node --test tests/
 
       - name: 浏览器端到端冒烟
         env:
@@ -54,7 +49,7 @@ jobs:
           git diff --exit-code www/cap-plugins.js
 
       - name: 原生路径回归
-        run: node --test tests/native-reliability.test.cjs tests/web-reliability.test.cjs
+        run: node --test tests/
 
       - name: 浏览器端到端冒烟
         env:
