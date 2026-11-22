@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, native-app]
+  pull_request:
+    branches: [main, native-app]
+  workflow_dispatch:
+
+jobs:
+  web:
+    name: Web (PWA) 回归
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 单元回归
+        run: |
+          if [ -f tests/reliability.test.cjs ]; then
+            node --test tests/reliability.test.cjs
+          else
+            node --test tests/web-reliability.test.cjs
+          fi
+
+      - name: 浏览器端到端冒烟
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: node tests/browser-smoke.cjs
+
+  native:
+    name: Native (iOS) 回归 + main/native 漂移校验
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'native-app'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 漂移校验要拿 main 侧的版本做比对，必须能取到完整历史
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 安装依赖
+        run: npm ci --no-audit --no-fund
+
+      - name: 重建插件桥并校验产物一致
+        run: |
+          npm run build:plugins
+          git diff --exit-code www/cap-plugins.js
+
+      - name: 原生路径回归
+        run: node --test tests/native-reliability.test.cjs tests/web-reliability.test.cjs
+
+      - name: 浏览器端到端冒烟
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: node tests/browser-smoke.cjs
+
+      - name: main / native 漂移校验
+        run: node scripts/check-web-sync.cjs --main-ref origin/main
+
+  privacy:
+    name: iOS 隐私清单合规
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'native-app'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 隐私清单存在且能被解析
+        run: |
+          test -f ios/App/App/PrivacyInfo.xcprivacy
+          plutil -lint ios/App/App/PrivacyInfo.xcprivacy
+
+      - name: 隐私清单已登记进 Xcode 工程
+        run: |
+          grep -q "PrivacyInfo.xcprivacy in Resources" ios/App/App.xcodeproj/project.pbxproj
+          grep -q "NSPrivacyAccessedAPICategoryFileTimestamp" ios/App/App/PrivacyInfo.xcprivacy
+          # 纯本地应用不得声明任何数据收集
+          ! grep -q "NSPrivacyCollectedDataTypes</key>[[:space:]]*<array>[[:space:]]*<dict>" ios/App/App/PrivacyInfo.xcprivacy

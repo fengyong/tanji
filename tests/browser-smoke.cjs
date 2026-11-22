@@ -10,7 +10,7 @@ const chrome=process.env.CHROME_BIN||'/Applications/Google Chrome.app/Contents/M
 const server=http.createServer((request,response)=>{
   const pathname=new URL(request.url,'http://localhost').pathname;
   const relative=pathname==='/'?'index.html':pathname.slice(1);
-  if(!/^(index\.html|storage\.js|sw\.js|manifest\.webmanifest|icons\/[a-z0-9.-]+|vendor\/sqlite3\.(mjs|wasm))$/.test(relative)){response.writeHead(404);response.end();return}
+  if(!/^(index\.html|storage\.js|sw\.js|manifest\.webmanifest|privacy\.html|support\.html|icons\/[a-z0-9.-]+|vendor\/sqlite3\.(mjs|wasm))$/.test(relative)){response.writeHead(404);response.end();return}
   const types={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.wasm':'application/wasm','.png':'image/png','.webmanifest':'application/manifest+json'};
   response.setHeader('Content-Type',types[path.extname(relative)]||'application/octet-stream');
   response.setHeader('Cache-Control','no-cache');fs.createReadStream(path.join(root,relative)).pipe(response);
@@ -104,6 +104,16 @@ const server=http.createServer((request,response)=>{
     await click('#v-stats [data-act="clear-data"]');await evaluate('new Promise(resolve=>{const check=()=>Store.busy?setTimeout(check,25):resolve();check()})');
     await call('Page.reload');await ready();assert.equal(await evaluate('db.orders.length'),0);
     await click('.tab[data-tab="stats"]');await capture('stats-mobile');
+    // 隐私政策 / 支持页：入口存在、指向可访问的同源页面、内容含关键条款
+    const legalLinks=await evaluate(`(()=>{const rows=[...document.querySelectorAll('#v-stats a[href]')].map(a=>({href:a.getAttribute('href'),name:a.querySelector('.menu-name')?.textContent||''}));return rows})()`);
+    assert.ok(legalLinks.some(l=>l.href==='privacy.html'),'缺少隐私政策入口');
+    assert.ok(legalLinks.some(l=>l.href==='support.html'),'缺少支持页入口');
+    for(const p of ['privacy.html','support.html']){
+      const status=await evaluate(`fetch('${p}').then(r=>r.status)`);
+      assert.equal(status,200,`${p} 不可访问`);
+    }
+    assert.match(await evaluate(`fetch('privacy.html').then(r=>r.text())`),/不收集|不上传/);
+    assert.match(await evaluate(`fetch('support.html').then(r=>r.text())`),/备份|迁移/);
     await click('#v-stats [data-act="restore-backup"]');await evaluate('new Promise(resolve=>{const check=()=>Store.busy?setTimeout(check,25):resolve();check()})');
     assert.equal(await evaluate('db.orders.length'),1);assert.equal(await evaluate('db.payments.length'),1);
     await evaluate('navigator.serviceWorker.ready');await evaluate('Store.queue');
@@ -112,7 +122,7 @@ const server=http.createServer((request,response)=>{
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
+    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload','privacy policy + support pages'],consoleErrors:errors},null,2));
     await send('Browser.close');
   }finally{
     if(socket)socket.close();
