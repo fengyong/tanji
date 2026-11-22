@@ -518,3 +518,26 @@ func TestOrderDTOShape(t *testing.T) {
 		t.Fatalf("必须是合法 JSON")
 	}
 }
+
+// 第一轮 review 修复回归:settings 聚合 ID 必须是操作者本人(不能以他人 ID 提交)。
+func TestSettingsAggregateMustBeSelf(t *testing.T) {
+	env := newEnv(t)
+	ca := registerAndLogin(t, env, "agg-a@example.com", "甲", "11111111-1111-4111-8111-111111111111")
+	cb := registerAndLogin(t, env, "agg-b@example.com", "乙", "22222222-2222-4222-8222-222222222222")
+	res := pushOp(t, ca, map[string]any{
+		"op_id": "aaaaaaaa-0000-4000-8000-0000000000k1", "aggregate_type": "settings",
+		"aggregate_id": cb.userID, "type": "settings.update",
+		"payload": map[string]any{"collect_threshold_days": 7},
+	})
+	if res["result"] != "rejected" {
+		t.Fatalf("他人 settings 聚合必须拒绝: %v", res)
+	}
+	var threshold int
+	if err := env.db.QueryRow(`SELECT collect_threshold_days FROM users WHERE id = UUID_TO_BIN(?)`,
+		ca.userID).Scan(&threshold); err != nil {
+		t.Fatal(err)
+	}
+	if threshold != 15 {
+		t.Fatalf("甲的设置不得被改动, got %d", threshold)
+	}
+}

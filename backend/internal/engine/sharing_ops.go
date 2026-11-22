@@ -260,6 +260,10 @@ func (e *Engine) opScheduleRevoke(ctx context.Context, tx *sql.Tx, oc *opContext
 	if g == nil || g.Owner != oc.sess.UserID {
 		return reject(oc, domain.CodeGrantMissing, "共享不存在或不属于当前账号"), nil
 	}
+	// grant_set 聚合 ID 必须与 (owner, order, recipient) 三元组一致(防跨授权误操作)
+	if oc.aggID != grantSetID(g.Owner, g.OrderID, g.Recipient) {
+		return reject(oc, domain.CodeInvalidPayload, "aggregate_id 与授权三元组不一致"), nil
+	}
 	if g.Status == "revoked" {
 		return domain.OpResult{OpID: oc.op.OpID, Result: domain.ResultAlreadyApplied}, nil
 	}
@@ -283,6 +287,10 @@ func (e *Engine) opScheduleRevoke(ctx context.Context, tx *sql.Tx, oc *opContext
 }
 
 func (e *Engine) opSettingsUpdate(ctx context.Context, tx *sql.Tx, oc *opContext) (domain.OpResult, error) {
+	// settings 聚合的 ID 必须是操作者本人(协议完整性;写入目标本就锁定为会话用户)
+	if oc.aggID != oc.sess.UserID {
+		return reject(oc, domain.CodeInvalidPayload, "settings 聚合 ID 必须是当前账号"), nil
+	}
 	var p domain.SettingsUpdatePayload
 	if err := domain.DecodeJSON(oc.payload, &p, 8<<10); err != nil {
 		return reject(oc, domain.CodeInvalidPayload, err.Error()), nil

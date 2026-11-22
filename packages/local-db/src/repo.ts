@@ -612,29 +612,49 @@ export function resolveConflictRetry(db: DBApi, conflictID: string): void {
     const c = db.get(`SELECT * FROM conflicts WHERE id = ? AND status='open'`, [conflictID]) as Row | undefined;
     if (!c) throw new Error('冲突不存在或已处理');
     const intent = JSON.parse(c.intent as string) as { aggregate_id: string; payload: Record<string, unknown>; type: string; op_id: string };
-    // 以当前基线创建新的更正操作(新 op_id,旧操作标记被取代)。
+    // 以当前基线创建新的更正操作(新 op_id,旧操作标记被取代;不复用旧 op_id 或旧 payload 的版本条件)。
     const base = db.get(
       `SELECT version, content FROM server_base WHERE aggregate_type='order' AND aggregate_id = ?`,
       [intent.aggregate_id],
     ) as { version: string; content: string } | undefined;
     if (!base) throw new Error('缺少服务端基线,无法重试');
-    const newOpID = crypto.randomUUID();
-    const payload = { ...intent.payload };
-    // 基线版本之上重新提交(把本地字段变更应用到新基线行)。
     const dto = JSON.parse(base.content) as OrderDTO;
+    if (dto.status === 'deleted') {
+      // 云端已删除:不能以重试复活;保留冲突由用户决定(走 keep-server 或新建订单)。
+      throw new Error('该订单已在云端删除,不能重试修改;请选择"采用云端"或新建订单');
+    }
     upsertFromDTO(db as unknown as Tx, dto, { keepDirty: false, prevDirty: 0 });
-    applyIntentToRow(db as unknown as Tx, intent.type, payload, intent.aggregate_id);
+    // 把本地意图按新基线生成等价更正 payload(字段级,版本条件取新基线)。
+    const newOpID = crypto.randomUUID();
+    const payload = sanitizeIntentPayload(intent.payload);
+    // 工作视图 = 新基线 + 本地意图(供用户确认界面展示)
+    const tz = dto.timezone || 'Asia/Shanghai';
+    const row = db.get(`SELECT * FROM orders WHERE id = ?`, [intent.aggregate_id]) as Row | undefined;
+    if (row && payload.appt_start) {
+      db.run(`UPDATE orders SET appt_local=? WHERE id=?`, [toLocalInput(payload.appt_start as string, tz), intent.aggregate_id]);
+    }
+    void row;
     db.run(
       `INSERT INTO outbox (op_id, aggregate_type, aggregate_id, type, payload, precondition, requires_success, status, session_id, created_at, updated_at)
-       VALUES (?,?,?,?,?, 'pending', NULL, 'pending', NULL, ?, ?)`,
-      [newOpID, 'order', intent.aggregate_id, intent.type, JSON.stringify(payload), nowRFC3339(), nowRFC3339()],
+       VALUES (?,?,?,?,?, ?, NULL, 'pending', NULL, ?, ?)`,
+      [newOpID, 'order', intent.aggregate_id,
+        intent.type === 'order.create' ? 'order.update' : intent.type,
+        JSON.stringify(payload),
+        JSON.stringify({ expected_version: base.version }),
+        nowRFC3339(), nowRFC3339()],
     );
+    db.run(`UPDATE orders SET dirty=1, updated_at=? WHERE id=?`, [nowRFC3339(), intent.aggregate_id]);
     db.run(`UPDATE outbox SET status='superseded', updated_at=? WHERE op_id = ?`, [nowRFC3339(), intent.op_id]);
     db.run(`UPDATE conflicts SET status='resolved_retry', created_at=? WHERE id = ?`, [nowRFC3339(), conflictID]);
   });
 }
 
-function applyIntentToRow(tx: Tx, type: string, payload: Record<string, unknown>, orderID: string): void {
-  void type; void payload; void orderID;
-  // 更正操作直接作为新的 update op 提交;字段级应用由服务端按新基线校验。
+/** 旧意图 payload → 新基线上的更正 payload:去掉 create 专有字段,保留字段级变更。 */
+function sanitizeIntentPayload(raw: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ['store', 'category', 'contact', 'note', 'channel', 'settle_via', 'price_cents',
+    'deposit_cents', 'appt_start', 'appt_end', 'clear_appt_end', 'timezone', 'place'] as const) {
+    if (raw[key] !== undefined) out[key] = raw[key];
+  }
+  return out;
 }
