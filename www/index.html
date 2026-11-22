@@ -111,6 +111,9 @@
   /* ===== 通用组件 ===== */
   .card{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
   .row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:.5px solid var(--line);min-width:0}
+  /* 账号色条:比整行底色克制,多账号并列时也不打架 */
+  .row.acc-bar{position:relative}
+  .row.acc-bar::before{content:'';position:absolute;left:-9px;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--acc)}
   .row:last-child{border-bottom:none}
   .rmain{flex:1;min-width:0}
   .rname{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -768,7 +771,12 @@ const accById=id=>ACCS().find(a=>a.id===+id);
 const accColor=a=>ACC_COLORS[(a&&a.color!=null?a.color:0)%8];
 const accMatch=o=>ui.accFilter==null||o.accountId===ui.accFilter;
 const providerList=()=>[...new Set([...PRESET_PROVIDERS,...(db.providers||[])])];
-const accTint=o=>o&&accMulti()&&o.accountId!=null?`background:${accColor(accById(o.accountId)).bg};border-radius:14px`:'';
+/*
+ * 多账号的区分方式:行首一条 3px 账号色条,不再整行铺底色。
+ * 整行底色会被卡片的 padding 和行间 0.5px 分隔线切成"白框套色块",账号一多就显得脏。
+ */
+const accTint=o=>o&&accMulti()&&o.accountId!=null?`--acc:${accColor(accById(o.accountId)).ink}`:'';
+const accBar=o=>accTint(o)?' acc-bar':'';
 const accOrderTag=o=>accMulti()?accTagHTML(accById(o.accountId)):'';
 function accAvatarHTML(a,style=''){
   const c=accColor(a);
@@ -1562,7 +1570,7 @@ function renderHome(){
     const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
     // 到店第一件事就是打卡:首页行内一键完成,顺手记下当时的 GPS(详情页仍可补拍)
     const punch=o.shotAt?'':`<button class="mini-btn" style="padding:6px 10px;font-size:12px" data-act="mark-shot" data-oid="${esc(o.id)}">打卡</button>`;
-    return `<div class="row" style="${accTint(o)}${o.shotAt?';opacity:.66':''}" data-act="open" data-oid="${o.id}">
+    return `<div class="row${accBar(o)}" style="${accTint(o)}${o.shotAt?';opacity:.66':''}" data-act="open" data-oid="${o.id}">
       <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">预约</div></div>
       <div class="rmain"><div class="rname">${esc(o.store)}</div>
         <div class="chiprow">${accOrderTag(o)}${workChip(o)}${depChip||payChip(o)}<span class="chip c-gray">${esc(o.cat)}</span></div></div>
@@ -1579,7 +1587,7 @@ function renderHome(){
       .map(t=>`<span class="chip c-orange">${t}</span>`).join('');
     const late=deliverLate(o)?`<span class="chip c-red">超24h</span>`:'';
     // 回家批量交付:行内直接点下一个动作,不用每单都进详情
-    return `<div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
+    return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">拍摄于 ${fmtD(o.shotAt)} · ${fmtMoney(o.price)}</div>
         <div class="chiprow">${accOrderTag(o)}${late}${miss}</div></div>
       ${stepBtn(o,'padding:8px 12px')||'<svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>'}
@@ -1616,7 +1624,7 @@ function renderHome(){
 /* ================= 渲染:行程 ================= */
 function orderRowTrip(o){
   const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
-  return `<div class="row" data-act="open" data-oid="${o.id}">
+  return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
     <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
     <div class="rmain"><div class="rname">${esc(o.store)}</div>
       <div class="chiprow">${workChip(o)}${depChip||payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}</div></div>
@@ -1711,7 +1719,7 @@ function renderOrders(){
   const chips=[['all','全部'],['wait','待拍摄'],['doing','进行中'],['unpaid','待收款'],['over','逾期'],['done','已完结']]
     .map(([k,l])=>`<button class="fchip ${ui.chip===k?'on':''}" data-act="chip" data-chip="${k}">${l} <b>${cnt(k)}</b></button>`).join('');
   const rows=all.length?all.map(o=>`
-    <div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
+    <div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain">
         <div class="rname">${esc(o.store)}</div>
         <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${esc(o.cat)}${o.partner?' · 出镜 '+esc(o.partner):''}</div>
@@ -1760,7 +1768,7 @@ function renderPay(){
       :isDy?'<span class="chip c-blue">平台结算</span>'
       :isOver(o)?(sn?`<span class="chip c-gray">已设提醒 · ${fmtD(o.remindAt)}再催</span>`:`<span class="chip c-red">逾期 · 欠 ${d} 天</span>`)
       :`<span class="chip ${d>7?'c-orange':'c-gray'}">${o.shotAt?'欠款 '+d+' 天':'未拍摄 · 尚未起算账期'}</span>`;
-    return `<div class="row" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
+    return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain"><div class="rname">${esc(o.store)}</div>
         <div class="rsub">${due.sub} ${fmtMoney(due.amt)}</div>
         <div class="chiprow">${accOrderTag(o)}${chip}${!isDep&&unDep(o)>0?`<span class="chip c-gray">另待定金 ${fmtMoney(unDep(o))}</span>`:''}</div>
@@ -1771,7 +1779,7 @@ function renderPay(){
 
   const flow=[...db.payments].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8).map(p=>{
     const po=db.orders.find(x=>x.id===p.oid);
-    return `<div class="row" style="${accTint(po)}">
+    return `<div class="row${accBar(po)}" style="${accTint(po)}">
       <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} · ${esc(storeOf(p.oid))}</div>
         <div class="rsub">${esc(p.kind)} · ${fmtD(p.at)} ${fmtHM(p.at)}${accMulti()?` · ${accTagHTML(po?accById(po.accountId):null)}`:''}</div></div>
       <span class="chip ${METHOD_CLS[p.method]||'c-gray'}">${esc(p.method)}</span>
