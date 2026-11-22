@@ -1208,7 +1208,7 @@ function toggleReceipt(oid,kind){
     if(!confirm('撤销'+spec.label+'记录并删除对应流水？仅用于纠正错误收款，不表示退款。'))return;
     o[spec.field]=null;
     db.payments=db.payments.filter(p=>!(p.oid===oid&&(p.kind===spec.label||p.kind===kind)));
-    save();renderAll();toast('已撤销'+spec.label+'记录(含流水)');
+    save();renderAll();Notify.syncDaily();toast('已撤销'+spec.label+'记录(含流水)');
   }else{
     if(editDraft()!==ui.editSnapshot){toast('有未保存的修改，请先保存，再补记收款');return}
     if(!pay(oid,kind,o.settleVia==='douyin'?'抖音商单':'微信'))return;
@@ -1286,7 +1286,7 @@ function saveEdit(){
   o.appt=appt;o.price=priceCents/100;o.deposit=depositCents/100;
   o.contact=$('#e-contact').value.trim();o.note=$('#e-note').value.trim();
   const returnDetail=ui.detail===o.id?o.id:null;
-  save();closeSheets();renderAll();Notify.syncDeliver();
+  save();closeSheets();renderAll();Notify.syncDeliver();Notify.syncDaily();
   if(returnDetail!==null)openDetail(returnDetail);
   toast('已保存修改');
 }
@@ -2289,9 +2289,9 @@ document.addEventListener('click',e=>{
       closeSheets();pay(ctx.oid,ctx.kind,ctx.method);
       if(returnDetail!==null&&byId(returnDetail))openDetail(returnDetail);
       break}
-    case 'snooze':{const o=byId(oid);if(o){const d=+t.dataset.d;o.remindAt=dOff(d,'09:00');save();renderAll();rerenderDetail();Notify.scheduleSnooze(o,d);toast(`已备忘:${d} 天后(${fmtD(o.remindAt)})提醒催收 ✓`)}break}
+    case 'snooze':{const o=byId(oid);if(o){const d=+t.dataset.d;o.remindAt=dOff(d,'09:00');save();renderAll();rerenderDetail();Notify.scheduleSnooze(o,d);Notify.syncDaily();toast(`已备忘:${d} 天后(${fmtD(o.remindAt)})提醒催收 ✓`)}break}
     case 'notify-toggle':Notify.toggle();break;
-    case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();Notify.cancelSnooze(oid);toast('已清除催收提醒')}break}
+    case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();Notify.cancelSnooze(oid);Notify.syncDaily();toast('已清除催收提醒')}break}
     case 'remind-open':openRemind(oid);break;
     case 'remind-quick':{const el=$('#remind-note');if(el){el.value=t.dataset.v||'';if(el.focus)el.focus()}break}
     case 'remind-save':saveRemind();break;
@@ -2306,7 +2306,7 @@ document.addEventListener('click',e=>{
       break}
     case 'mile':{const o=byId(oid),key=t.dataset.key;
       if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key))break;
-      if(o[key]){if(confirm('清除「'+MILE_LABEL[key]+'」记录?')){o[key]=null;save();renderAll();rerenderDetail();Notify.syncDeliver();toast('已清除,可重新标记')}}
+      if(o[key]){if(confirm('清除「'+MILE_LABEL[key]+'」记录?')){o[key]=null;save();renderAll();rerenderDetail();Notify.syncDeliver();Notify.syncDaily();toast('已清除,可重新标记')}}
       else if(mark(oid,key,'已标记「'+MILE_LABEL[key]+'」')&&key==='shotAt')capturePlace(oid);
       break}
     case 'edit-order':openEdit(oid);break;

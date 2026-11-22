@@ -355,6 +355,87 @@ test('收尾款后每日催收通知应重新排程',async()=>{
   assert.equal(a.device.pending.filter(n=>+n.id===1).length,0,'已结清后每日通知应被撤掉');
 });
 
+/* ---------- 每日汇总口径变化后必须重排(汇总是 09:00 重复通知,内容按排程时冻结) ----------
+ * 首页/收款页把「已设提醒(snoozed)」的单排除在催收口径外,每日汇总通知也必须同一口径:
+ * 设备用后不撤销,用户照样收到"1 笔尾款已逾期";改平台单/清除拍摄后不撤销,平台单也被催。 */
+
+test('设了催收备忘后,每日汇总按新口径重排;清除备忘后恢复',async()=>{
+  const a=app();
+  setState(a,[OVERDUE]);
+  await a.run('save()');
+  await a.run('Notify.syncDaily()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'逾期时应排每日通知');
+
+  // 点「3天后提醒」:该单被 snoozed 从每日汇总排除,09:00 的汇总必须按新口径撤销
+  a.events.click({target:{closest:()=>({dataset:{act:'snooze',oid:'1',d:'3'}})}});
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,0,'唯一的逾期单设了备忘后,每日汇总应撤销');
+  assert.equal(a.device.pending.filter(n=>+n.id===100001).length,1,'备忘本身要排上');
+
+  // 清除备忘:该单重新计入催收口径,每日汇总要恢复(与设备用时的撤销互为反向)
+  a.events.click({target:{closest:()=>({dataset:{act:'clear-remind',oid:'1'}})}});
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'清除备忘后每日汇总应恢复');
+  assert.equal(a.device.pending.filter(n=>+n.id===100001).length,0,'备忘通知应被撤掉');
+});
+
+test('编辑把私收单改为平台单后,每日汇总按新口径撤销(平台单不催收)',async()=>{
+  const a=app();
+  setState(a,[OVERDUE]);
+  await a.run('save()');
+  await a.run('Notify.syncDaily()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'编辑前每日通知在排');
+
+  a.run('openEdit(1)');
+  a.element('#e-store').value='测试店';
+  a.element('#e-price').value='1000';
+  a.element('#e-deposit').value='200';
+  a.element('#e-need-main').checked=true;
+  a.element('#e-need-sub').checked=true;
+  a.element('#e-settle').value='douyin';
+  a.element('#e-date').value='2026-11-01';
+  a.element('#e-time').value='10:00';
+  a.events.click({target:{closest:()=>({dataset:{act:'save-edit',oid:'1'}})}});
+  await tick();
+  assert.equal(a.run('db.orders[0].settleVia'),'douyin','结算方式应已改为抖音商单');
+  assert.equal(a.run('isOver(db.orders[0])'),false,'平台单不计逾期');
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,0,'改为平台单后每日汇总应撤销');
+});
+
+test('清除「拍摄」里程碑后,每日汇总按新口径撤销(逾期起算基础消失)',async()=>{
+  const a=app();
+  setState(a,[OVERDUE]);
+  await a.run('save()');
+  await a.run('Notify.syncDaily()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'清除前每日通知在排');
+
+  a.events.click({target:{closest:()=>({dataset:{act:'mile',oid:'1',key:'shotAt'}})}});
+  await tick();
+  assert.equal(a.run('db.orders[0].shotAt'),null,'拍摄记录应被清除');
+  assert.equal(a.run('isOver(db.orders[0])'),false,'没有拍摄时间不计逾期');
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,0,'清除拍摄后每日汇总应撤销');
+});
+
+test('撤销收款记录后,每日汇总按新口径重排(与 undoPay 同一口径)',async()=>{
+  const a=app();
+  // 已结清的单:尾款标记在、拍摄已逾期 → 撤销尾款记录后重新待收,汇总要恢复
+  setState(a,[order({depositPaidAt:'2026-11-01T09:00',finalPaidAt:'2026-11-02T10:00'})]);
+  await a.run('save()');
+  await a.run('Notify.syncDaily()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,0,'已结清时不排每日通知');
+
+  a.run('ui.editId=1');
+  a.events.click({target:{closest:()=>({dataset:{act:'toggle-fin',oid:'1'}})}});
+  await tick();
+  assert.equal(a.run('db.orders[0].finalPaidAt'),null,'尾款标记应被撤销');
+  assert.equal(a.run('isOver(db.orders[0])'),true,'尾款恢复待收且拍摄已逾期');
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'撤销收款后每日汇总应恢复');
+});
+
 test('清除催收备忘应撤销已排程的本地通知',async()=>{
   const a=app();
   setState(a,[OVERDUE]);
