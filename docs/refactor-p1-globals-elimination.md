@@ -9,11 +9,11 @@
 > - 静态扫描(查自由引用残留,脚本见本文附录)
 > - `npm test`(136 项)+ `npm run test:smoke` + `npm run build:app`
 >
-> 进度:T0 ✅(7 个)| T1 ✅(renderAll/showTab/buildSqliteBytes 注入化,3 个;
->   buildSqliteBytes 因冒烟直接求值归入 T2-D 调试面)| T2 待做
-> 当前挂回:生产 10(accMatch/isOver/snoozed/overdueDays/ui/closeSheets/showSheet/
->   toast/download/mark)+ 调试 5(renderTrip/statsFor/backupDocument/previewImport/
->   buildSqliteBytes)+ Store/db
+> 进度:**全部完成(2026-11-22)** ✅
+> T0 ✅ 7 个直引 | T1 ✅ 注入化 3 个 | T2-A ✅ 导入导出搬家解 4 个 |
+> T2-B ✅ accMatch 归位 derived + 角标注入 | T2-C ✅ Notify 独立 notify.js |
+> T2-D ✅ 调试面收口 __TANJI__;mark 系扫描误报直接摘除
+> **终态达成:生产模块 globalThis 依赖为零,全局只剩 __TANJI__ 调试面。**
 
 ## 剩余挂回清单(18 + Store/db)
 

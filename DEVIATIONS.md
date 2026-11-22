@@ -25,7 +25,7 @@
 |---|---|
 | 位置 | src/app/main.js |
 | 实际冲突 | storage.js / ui.js / derived.js / views 的函数体逐字节搬运,按经典脚本时代的全局晚绑定调用 `buildSqliteBytes` `demoSeed` `accMatch` `workOf` 等符号;§3/§5 禁止这些模块互相 import(成环) |
-| 处理 | 组合根统一 `Object.assign(globalThis,{…})` 挂回,恢复原语义。glm 初版 16 个;kimi 验收时经全模块静态扫描补齐 5 个漏项(`mark/nowStr/workOf/storeOf/accChipbarHTML`)+ 冒烟依赖 4 个(`renderTrip/statsFor/backupDocument/previewImport`)+ `Store` 与 `db`(db 为活 getter)。**这是过渡性设计**:后续 P1+ 应逐个改显式 import 并从此表删除,每删一个都是依赖关系的真实修复。**批准** |
+| 处理 | 组合根统一 `Object.assign(globalThis,{…})` 挂回,恢复原语义。glm 初版 16 个;kimi 验收时经全模块静态扫描补齐 5 个漏项(`mark/nowStr/workOf/storeOf/accChipbarHTML`)+ 冒烟依赖 4 个(`renderTrip/statsFor/backupDocument/previewImport`)+ `Store` 与 `db`(db 为活 getter)。**这是过渡性设计**:后续 P1+ 应逐个改显式 import 并从此表删除,每删一个都是依赖关系的真实修复。**批准** —— **已于 P1 全部消除(2026-11-22),收口为 `__TANJI__` 调试面,本条关闭。** |
 
 ## #4 main.js 副作用引入 actions.js(kimi)
 
