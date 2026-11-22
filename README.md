@@ -8,7 +8,7 @@
 |---|---|---|
 | **正式版（给达人用）** | https://tanji-app-guvc.zai.site | v0.4：双数据集（工作/演示）、JSON 导入恢复、月历勋章、全环节可改 |
 | **点子实验室（验收用）** | https://tanji-lab-1v7g.zai.site | 8 个产品点子可交互 demo + 自测试机制（26 条断言 + 12 步 UAT） |
-| **代码仓库** | https://github.com/fengyong/tanji | main / native-app / lab / feat 分支 |
+| **代码仓库** | https://github.com/fengyong/tanji | main / native-app / fix/native-persistence-review / lab / feat 分支 |
 
 实验室与正式版相互独立、分开部署；实验室数据全部虚构，正式版默认演示数据。
 
@@ -90,6 +90,6 @@ node tests/browser-smoke.cjs
 
 - `main` — Web/PWA 版（线上部署即此分支），包含可靠性修复与备份恢复
 - `lab` — 点子实验室（8 个点子 demo + 自测试机制），独立部署于实验室链接，待验收合入
-- `native-app` — 本地 App 版（Capacitor 壳 + 原生 SQLite/本地通知），独立 worktree 开发；已同步 v0.4，待装 Xcode 后验证编译
+- `native-app` — 本地 App 版（Capacitor 壳 + 原生 SQLite/本地通知），独立 worktree（`tanji-native/`）开发；已同步 v0.4，并叠加 native 专属的 v0.5 工作流与 v0.6 多账号；Xcode 27.2 模拟器构建与 SQLite/通知实测已通过（当前开发分支 `fix/native-persistence-review` → PR 目标 `native-app`）
 - `feat/reliability-recovery` — 可靠性修复开发分支，保留独立 worktree
 - `feat/cloud-local-first` — 云端/本地优先策略实验分支（未合入）
