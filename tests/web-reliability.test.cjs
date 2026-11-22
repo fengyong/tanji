@@ -7,6 +7,8 @@ const root=path.join(__dirname,'..','www');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const script=html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>'));
 const storage=fs.readFileSync(path.join(root,'storage.js'),'utf8');
+const logic=fs.readFileSync(path.join(root,'logic.js'),'utf8');
+const imaging=fs.readFileSync(path.join(root,'imaging.js'),'utf8');
 function app({mockDisk=true}={}){
   let time=new Date('2026-11-21T12:00:00').getTime();
   class Clock extends Date{constructor(...args){super(...(args.length?args:[time]))}static now(){return time}}
@@ -17,7 +19,8 @@ function app({mockDisk=true}={}){
   };
   const context=vm.createContext({console,Date:Clock,Blob,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},File:class{},document:{querySelector:element,querySelectorAll:()=>[],createElement:tag=>element('created:'+tag),addEventListener:(name,fn)=>{events[name]=fn},visibilityState:'visible'},window:{},navigator:{},location:{hostname:'localhost',protocol:'http:',reload(){}},localStorage:{getItem:key=>local.get(key)??null,setItem:(key,value)=>local.set(key,value)},setTimeout:()=>1,clearTimeout(){},setInterval(){},clearInterval(){},addEventListener(){},confirm:()=>true,indexedDB:{open(){throw new Error('test must supply IDB')}},elements,texts});
   const run=code=>vm.runInContext(code,context);
-  run(storage+'\n'+script.slice(0,script.indexOf('/* ================= 启动')));
+  // 加载顺序与 index.html 一致:imaging(图像) → logic(规则) → storage(持久化/通知) → 页面脚本
+  run(imaging+'\n'+logic+'\n'+storage+'\n'+script.slice(0,script.indexOf('/* ================= 启动')));
   context.readDisk=async key=>({ok:true,value:disk.get(key)??null});
   context.writeDisk=async entries=>{for(const [key,value] of entries)disk.set(key,JSON.parse(JSON.stringify(value)));return true};
   if(mockDisk)run('idb.get=readDisk;idb.setMany=writeDisk;');

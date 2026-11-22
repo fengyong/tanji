@@ -20,6 +20,8 @@ const root=path.join(__dirname,'..','www');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const script=html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>'));
 const storage=fs.readFileSync(path.join(root,'storage.js'),'utf8');
+const logic=fs.readFileSync(path.join(root,'logic.js'),'utf8');
+const imaging=fs.readFileSync(path.join(root,'imaging.js'),'utf8');
 
 /* ---------- 模拟一台设备：SQLite 库 + 通知队列（跨 app 实例共享 = 重启） ---------- */
 function newDevice(options={}){
@@ -144,7 +146,8 @@ function app(device=newDevice()){
   context.window.TanjiCap=mock.cap;
 
   const run=code=>vm.runInContext(code,context);
-  run(storage+'\n'+script.slice(0,script.indexOf('/* ================= 启动')));
+  // 加载顺序与 index.html 一致:imaging(图像) → logic(规则) → storage(持久化/通知) → 页面脚本
+  run(imaging+'\n'+logic+'\n'+storage+'\n'+script.slice(0,script.indexOf('/* ================= 启动')));
   // IndexedDB 在原生端不该被读写；这里给一个「读得到但为空」的实现，模拟 WKWebView 正常行为
   run('idb.get=async()=>({ok:true,value:null});idb.setMany=async()=>true;');
   run('Store.ready=true;Store.mode="work";');
@@ -545,4 +548,30 @@ test('账号:备份文档包含 accounts/providers',async()=>{
   assert.equal(a.json(`validateState({version:'0.6',orders:[],payments:[]}).threshold`),15,'0.6 备份必须能导入');
   assert.throws(()=>a.run(`validateState({version:'0.7',orders:[],payments:[]})`),/暂不支持这个备份版本/,'未知版本必须拒绝');
   assert.equal(a.json(`validateState(${JSON.stringify({orders:[order({accountId:42})],payments:[],accounts:[],providers:[]})}).orders[0].accountId`),null,'导入含悬空引用的备份应安全归一');
+});
+
+test('随手拍:只接受烘焙过的小图,非法格式或超限直接拒绝',()=>{
+  const a=app();
+  const ok='data:image/jpeg;base64,'+'A'.repeat(2400);        // ≈2.4KB 字符,典型成品
+  const tooBig='data:image/jpeg;base64,'+'A'.repeat(14000);   // 超过 12KB 上限
+  const badFormat='data:image/svg+xml;base64,AAAA';
+  const kept=a.json(`validateState({orders:[${JSON.stringify(order({photoThumb:ok}))}],payments:[]}).orders[0].photoThumb`);
+  assert.equal(kept,ok,'合法缩略图应保留');
+  assert.throws(()=>a.run(`validateState({orders:[${JSON.stringify(order({photoThumb:tooBig}))}],payments:[]})`),/随手拍照片无效或过大/,'超限必须拒绝');
+  assert.throws(()=>a.run(`validateState({orders:[${JSON.stringify(order({photoThumb:badFormat}))}],payments:[]})`),/随手拍照片无效或过大/,'非 jpeg/png/webp 必须拒绝');
+  // 没有随手拍的订单不应写入空字段,保持与旧备份同构
+  const none=a.json(`validateState({orders:[${JSON.stringify(order())}],payments:[]}).orders[0]`);
+  assert.equal('photoThumb' in none,false);
+});
+
+test('账号:标识色板渲染出 8 个带颜色的可点色块(曾因缺样式整块不可见)',()=>{
+  const a=app();
+  a.run(`db.accounts=[{id:1,name:'吃货号',color:2}];openAccount(1);`);
+  const html=a.run(`$('#a-pal').innerHTML`);
+  assert.equal((html.match(/class="sw/g)||[]).length,8,'应渲染 8 个色块');
+  // 色块必须是 button + 内联墨色,否则在浅底卡片上等于隐形
+  assert.match(html,/<button type="button" class="sw[^"]*"[^>]*data-act="pal-pick"/);
+  assert.match(html,/background:#339966/,'第 3 色(抹茶)应带墨色底');
+  assert.match(html,/class="sw sel"[^>]*data-i="2"/,'当前色应有选中态');
+  assert.match(a.run(`$('#a-pal-name').innerHTML`),/抹茶/,'应显示当前色名');
 });

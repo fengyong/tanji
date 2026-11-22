@@ -11,6 +11,8 @@
 <meta name="apple-mobile-web-app-title" content="探记"/>
 <meta name="theme-color" content="#F2F2F7"/>
 <script src="cap-plugins.js"></script>
+<script src="imaging.js"></script>
+<script src="logic.js"></script>
 <script src="storage.js"></script>
 <script type="module">
   import sqlite3InitModule from './vendor/sqlite3.mjs';
@@ -101,6 +103,12 @@
   .rsub{font-size:12px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rside{text-align:right;flex-shrink:0}
   .rprice{font-size:15px;font-weight:800}
+  /* 随手拍的淡化小图直接做金额格底图(图已烘焙 53% 白,这里只再补一点点白保证数字对比) */
+  .rprice.shot{position:relative;display:inline-flex;align-items:center;justify-content:flex-end;
+    min-width:82px;height:36px;padding:0 8px;border-radius:10px;overflow:hidden;
+    background-size:cover;background-position:center;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+  .rprice.shot::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.15),rgba(255,255,255,.55))}
+  .rprice.shot>span{position:relative;z-index:1;text-shadow:0 1px 0 rgba(255,255,255,.7)}
   .row:active{background:#F7F7FA}
   .rows{padding:2px 12px}
 
@@ -123,6 +131,9 @@
   .btn.tint-blue{background:var(--blue-soft);color:var(--blue)}
   .btn.ghost{background:#F1F1F5;color:#3a3a40}
   .btn.danger-ghost{background:var(--red-soft);color:var(--red)}
+  /* 收款是钱:降色阶(不再和主按钮抢),靠体量和金额字号表达重要性 */
+  .btn.pay{background:#fff;color:#239648;border:1.5px solid rgba(47,160,95,.4);height:54px;font-size:15px;box-shadow:none}
+  .btn.pay .pmoney{font-size:20px;font-weight:800;margin-left:5px;font-variant-numeric:tabular-nums;letter-spacing:-.4px}
   .btn+.btn{margin-top:10px}
   .btn2{display:flex;gap:8px}.btn2 .btn{margin-top:0;flex:1;min-width:0;font-size:13.5px;padding:11px 6px}
   .mini-btn{border:none;border-radius:16px;padding:7px 12px;font-size:12.5px;font-weight:700;background:var(--brand-soft);color:var(--brand);flex-shrink:0}
@@ -250,14 +261,22 @@
   .mchip:active{opacity:.75}
 
   /* 里程碑 */
+  /* ===== 里程碑:每阶段一色(--c) + 发片节点放大 + 已走完的段跟着变色 ===== */
   .mile{display:flex;position:relative;margin:16px 2px 6px}
-  .mile::before{content:"";position:absolute;top:13px;left:14%;right:14%;height:2.5px;background:#E6E6EB;border-radius:2px}
+  .mile::before{content:"";position:absolute;top:17px;left:14%;right:14%;height:2.5px;background:#E6E6EB;border-radius:2px}
+  .mile::after{content:"";position:absolute;top:17px;left:14%;height:2.5px;width:var(--p,0%);background:var(--brand);border-radius:2px;transition:width .25s}
   .mstep{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative;z-index:1}
-  .mdot{width:28px;height:28px;border-radius:50%;background:#EDEDF2;color:#B6B6BE;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;border:2.5px solid #EDEDF2}
-  .mstep.done .mdot{background:var(--brand);border-color:var(--brand);color:#fff}
-  .mstep.now .mdot{border-color:var(--brand);color:var(--brand);background:#fff}
+  .mdotwrap{height:36px;display:flex;align-items:center;justify-content:center}
+  .mdot{width:26px;height:26px;border-radius:50%;background:#EDEDF2;color:#B6B6BE;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;border:2.5px solid #EDEDF2;overflow:hidden}
+  /* 副片 / 正片是交付核心,圆点大一号 */
+  .mstep.big .mdot{width:34px;height:34px;font-size:15px}
+  .mstep.done .mdot{background:var(--c,var(--brand));border-color:var(--c,var(--brand));color:#fff}
+  .mstep.done .mdot img{width:100%;height:100%;object-fit:cover}
+  .mstep.now .mdot{border-color:var(--c,var(--brand));color:var(--c,var(--brand));background:#fff;box-shadow:0 0 0 4px var(--soft,var(--brand-soft))}
+  .mstep.done .mlab{color:var(--c,var(--brand))}
   .mlab{font-size:11.5px;font-weight:700;color:#55555c}
   .mtime{font-size:10px;color:var(--sub);height:13px}
+  .shotline{display:flex;gap:8px;justify-content:center;margin:4px 0 2px}
 
   .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:12px;overflow:hidden;margin-top:12px}
   .ig{background:#fff;padding:10px 12px}
@@ -291,6 +310,46 @@
   .schema-pre{background:#1E1E24;color:#D9D9E3;font-family:"SF Mono",Menlo,monospace;font-size:11px;line-height:1.75;padding:14px;border-radius:12px;overflow-x:auto;white-space:pre}
   .schema-pre .c{color:#8A8A95}
   .tag-badge{font-size:10px;font-weight:800;padding:2.5px 7px;border-radius:6px;background:var(--blue-soft);color:var(--blue);flex-shrink:0}
+
+  /* ===== v0.6 多账号(样式合并自 docs/proto 原型) =====
+     账号专属色是运行时数据,底色/墨色由 JS 内联注入(列表行 accTint、标签 accTagHTML),
+     这里只定义结构与选中态,不再写死 acc-a1/acc-a2 那种固定色。 */
+  .chipbar{display:flex;gap:7px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:-4px 0 14px;padding:2px}
+  .chipbar::-webkit-scrollbar{display:none}
+  .chip.acc-chip{background:#F1F1F5;color:var(--ink);cursor:pointer;flex-shrink:0}
+  .chip.acc-chip:active{opacity:.75}
+  .acc-avatar{width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:17px;flex-shrink:0;overflow:hidden}
+  .acc-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+  .acc-tag{display:inline-flex;align-items:center;gap:3px;font-size:11px;border-radius:8px;padding:2px 7px;
+    font-weight:600;flex-shrink:0;max-width:150px;color:var(--sub);background:#F1F1F5}
+  .acc-tag>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acc-tag .tav,.tav{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+    border-radius:50%;font-size:9px;flex-shrink:0;overflow:hidden}
+  .tav img{width:100%;height:100%;object-fit:cover;display:block}
+  .acc-sel{display:flex;flex-direction:column;gap:8px;padding:10px 0 4px}
+  .acc-opt{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;border:1.5px solid var(--line);
+    border-radius:14px;padding:11px 13px;background:#fff;font:inherit;color:inherit;text-align:left}
+  .acc-opt:active{background:#FAFAFC}
+  .acc-dot{width:19px;height:19px;border-radius:50%;border:2px solid #C6C6CD;flex-shrink:0;position:relative;background:#fff}
+  .acc-opt.sel .acc-dot{border-color:var(--brand)}
+  .acc-opt.sel .acc-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--brand)}
+  .acc-opt .acc-name{font-size:14.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acc-opt .acc-cnt{margin-left:auto;font-size:12px;color:var(--sub);flex-shrink:0}
+  .avpick{display:flex;align-items:center;gap:14px;padding:4px 2px 12px}
+  .bigav{width:62px;height:62px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:30px;font-weight:800;flex-shrink:0;border:1.5px solid rgba(0,0,0,.06);overflow:hidden}
+  .bigav img{width:100%;height:100%;object-fit:cover;display:block}
+  /* 标识色板:34px 色点(底色=该账号墨色,一眼可辨),选中打勾 + 外圈 */
+  .pal{display:flex;gap:9px;padding:10px 2px 2px;flex-wrap:wrap}
+  .pal .sw{width:32px;height:32px;border-radius:50%;border:none;padding:0;position:relative;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+  .pal .sw.sel::after{content:'';position:absolute;inset:-4px;border:2px solid var(--ink);border-radius:50%}
+  .pal .sw.sel::before{content:'✓';color:#fff;font-size:15px;font-weight:800;line-height:1}
+  .pal-name{font-size:12px;color:var(--sub);margin-top:9px}
+  .pal-name b{color:var(--ink);font-weight:700}
+  .prov-chip{cursor:pointer}
+  .prov-chip.on{background:var(--ink);color:#fff;font-weight:700}
 </style>
 </head>
 <body>
@@ -343,12 +402,12 @@
             <button class="btn ghost" data-act="remove-avatar" style="padding:9px 14px">移除头像</button>
           </div><div class="rsub" style="margin:6px 0 0">自动裁圆压缩到小尺寸,仅存本机</div></div>
         </div>
-        <div class="frow"><label>昵称 *</label><input id="a-name" placeholder="如:大王叫我逛深圳"></div>
+        <div class="frow"><label>昵称 *</label><input id="a-name" placeholder="如:饿了才要吃饱饱"></div>
         <div class="frow"><label>手机号</label><input id="a-phone" type="tel" placeholder="13800006678"></div>
         <div class="frow"><label>抖音账号</label><input id="a-douyin" placeholder="抖音号(或主页链接)"></div>
         <div style="padding:12px 2px 0"><div style="font-size:14px;font-weight:600">标识色 <span class="rsub" style="font-weight:400;margin-left:4px">新账号自动分配,可点色板自定义</span></div>
           <div class="pal" id="a-pal"></div>
-          <div class="rsub" style="margin-top:6px">蜜橙 · 雾蓝 · 抹茶 · 香芋 · 杏黄 · 玫瑰 · 黛青 · 卵石灰</div></div>
+          <div class="pal-name" id="a-pal-name"></div></div>
         <div class="ferr" id="a-err">请填写昵称</div>
         <div style="padding:14px 0 4px"><button class="btn primary" data-act="save-account">保存账号</button></div>
         <div style="padding:0 0 8px"><button class="btn danger-ghost" id="a-delete" data-act="delete-account" style="display:none">删除账号</button></div>
@@ -364,6 +423,7 @@
       </div>
     </div>
     <input type="file" id="avatar-file" accept="image/*" hidden>
+    <input type="file" id="shot-file" accept="image/*" capture="environment" hidden>
     <div class="sheet" id="sheet-import">
       <div class="grabber"></div>
       <div class="sheet-head"><span class="sheet-title">恢复 JSON 备份</span><button class="sheet-close" data-act="close-sheet" aria-label="取消导入">×</button></div>
@@ -488,11 +548,7 @@ function refreshClock(){
 }
 function dOff(days,hm='10:00'){const t=new Date();t.setDate(t.getDate()+days);return `${toISO(t)}T${hm}`}
 function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function validDateTime(value){
-  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?$/.test(value))return false;
-  const d=new Date(value);
-  return Number.isFinite(d.getTime())&&toISO(d)===value.slice(0,10)&&`${pad(d.getHours())}:${pad(d.getMinutes())}`===value.slice(11,16);
-}
+function validDateTime(value){return TanJiLogic.validDateTime(value)}
 function nowStr(){const n=new Date();return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}T${pad(n.getHours())}:${pad(n.getMinutes())}`}
 function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function fmtD(s){if(!s)return '—';const d=new Date(s);return `${d.getMonth()+1}-${pad(d.getDate())}`}
@@ -500,10 +556,7 @@ function fmtHM(s){return s?s.slice(11,16):'—'}
 function fmtDT(s){return s?`${fmtD(s)} ${fmtHM(s)}`:'—'}
 function fmtMoney(n){return ui.privacy?'¥✱✱✱':'¥'+n.toLocaleString('zh-CN',{maximumFractionDigits:2})}
 const DOW='一二三四五六日',dowOf=s=>DOW[(new Date(s.length===10?s+'T00:00':s).getDay()+6)%7];
-function daysBetween(fromStr){
-  const f=new Date(fromStr),t=new Date();
-  return Math.max(0,Math.round((Date.UTC(t.getFullYear(),t.getMonth(),t.getDate())-Date.UTC(f.getFullYear(),f.getMonth(),f.getDate()))/864e5));
-}
+function daysBetween(fromStr){return TanJiLogic.daysBetween(fromStr,new Date())}
 function greeting(){const h=new Date().getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
 
 /* ================= UI 状态(先于数据定义,fmtMoney 依赖) ================= */
@@ -647,51 +700,23 @@ async function initSqlite(){
   }catch(e){return null}
 }
 
-/* ================= 派生逻辑(双轨状态机) ================= */
-function workOf(o){
-  if(!o.shotAt)return '待拍摄';
-  if(!o.submittedAt)return '后期中';
-  if(deliveredAll(o))return '已交付';
-  return '发片中';
-}
-function moneyCents(value,blankZero=false){
-  if(typeof value!=='number'&&typeof value!=='string')return null;
-  const text=String(value).trim();
-  if(!text)return blankZero?0:null;
-  if(!/^\d+(?:\.\d{1,2})?$/.test(text))return null;
-  const [whole,fraction='']=text.split('.');
-  const cents=Number(whole)*100+Number(fraction.padEnd(2,'0'));
-  return Number.isSafeInteger(cents)&&cents>=0?cents:null;
-}
-function orderMoney(o){
-  const price=moneyCents(o.price),deposit=moneyCents(o.deposit);
-  return price!==null&&deposit!==null&&deposit<=price?{price,deposit,final:price-deposit}:null;
-}
-function paymentSpec(kind){
-  if(kind==='deposit')return {field:'depositPaidAt',label:'定金'};
-  if(kind==='final')return {field:'finalPaidAt',label:'尾款'};
-  return null;
-}
-function hasReceipt(o,kind){
-  const spec=paymentSpec(kind);
-  return !!(spec&&(o[spec.field]||db.payments.some(p=>p.oid===o.id&&(p.kind===spec.label||p.kind===kind))));
-}
-function hasAnyReceipt(o){return !!(o.depositPaidAt||o.finalPaidAt||db.payments.some(p=>p.oid===o.id))}
-function unDep(o){const m=orderMoney(o);return m&&!hasReceipt(o,'deposit')?m.deposit/100:0}
-function unFin(o){const m=orderMoney(o);return m&&!hasReceipt(o,'final')?m.final/100:0}
-function owedOf(o){return Math.round((unDep(o)+unFin(o))*100)/100}
-function payOf(o){
-  if(unDep(o)>0)return '待定金';
-  if(unFin(o)<=0)return '已结清';
-  if(o.settleVia==='douyin')return '平台结算'; // 平台结算尾款不催收、不逾期
-  return '待尾款';
-}
-function overdueDays(o){
-  if(o.settleVia==='douyin'||unFin(o)<=0||!validDateTime(o.shotAt))return 0;
-  return daysBetween(o.shotAt);
-}
-function snoozed(o){return !!(o.remindAt&&o.remindAt>nowStr())}
-function isOver(o){return o.settleVia!=='douyin'&&unFin(o)>0&&validDateTime(o.shotAt)&&overdueDays(o)>=db.threshold}
+/* ================= 派生逻辑(双轨状态机) =================
+ * 规则实现集中在 logic.js(纯函数,不碰 DOM/全局)。这里只保留「读全局 → 调规则」
+ * 的薄包装,保证既有调用点与签名不变。改口径请改 logic.js 并补测试:那是将来
+ * 换 SwiftUI 时唯一需要逐条翻译的规格文件。 */
+function workOf(o){return TanJiLogic.workOf(o)}
+function moneyCents(value,blankZero){return TanJiLogic.moneyCents(value,blankZero)}
+function orderMoney(o){return TanJiLogic.orderMoney(o)}
+function paymentSpec(kind){return TanJiLogic.paymentSpec(kind)}
+function hasReceipt(o,kind){return TanJiLogic.hasReceipt(o,kind,db.payments)}
+function hasAnyReceipt(o){return TanJiLogic.hasAnyReceipt(o,db.payments)}
+function unDep(o){return TanJiLogic.unDep(o,db.payments)}
+function unFin(o){return TanJiLogic.unFin(o,db.payments)}
+function owedOf(o){return TanJiLogic.owedOf(o,db.payments)}
+function payOf(o){return TanJiLogic.payOf(o,db.payments)}
+function overdueDays(o){return TanJiLogic.overdueDays(o,db.payments,now)}
+function snoozed(o){return TanJiLogic.snoozed(o,nowStr())}
+function isOver(o){return TanJiLogic.isOver(o,db.payments,db.threshold,now)}
 
 const WORK_CLS={'待拍摄':'c-blue','后期中':'c-purple','发片中':'c-orange','已交付':'c-green'};
 const PAY_CLS={'待定金':'c-gray','待尾款':'c-orange','平台结算':'c-blue','已逾期':'c-red','已结清':'c-green'};
@@ -700,7 +725,7 @@ const METHOD_CLS={'微信':'c-green','支付宝':'c-blue','银行卡':'c-orange'
 function payChip(o){const s=payOf(o);const label=isOver(o)?'已逾期':s;return `<span class="chip ${PAY_CLS[label]}">${label}</span>`}
 function workChip(o){return `<span class="chip ${WORK_CLS[workOf(o)]}">${workOf(o)}</span>`}
 /* 工作流 v0.5:拍摄完成超 24h 仍未出齐(按该单正/副片配置)→ 红色角标;正/副片 = 长片/短片 */
-function deliverLate(o){return !!o.shotAt&&!deliveredAll(o)&&Date.now()-new Date(o.shotAt).getTime()>=864e5}
+function deliverLate(o){return TanJiLogic.deliverLate(o,Date.now())}
 const REVIEW_LABEL={pass:'送审合格',fail:'送审不合格'};
 
 /* ================= 多账号体系 v0.6 ================= */
@@ -797,7 +822,12 @@ function renderAvatarPreview(){
     :`<span class="bigav" style="background:${c.bg};color:${c.ink}">${esc($('#a-name').value.trim().slice(0,1)||'·')}</span>`;
 }
 function renderPal(){
-  $('#a-pal').innerHTML=ACC_COLORS.map((c,i)=>`<span class="sw ${ui.draftColor%8===i?'sel':''}" data-act="pal-pick" data-i="${i}" title="${c.name}"></span>`).join('');
+  const idx=ui.draftColor%8,cur=ACC_COLORS[idx];
+  // 色点用「该账号的墨色」填充:浅底(bg)在白卡片上几乎看不出差别,墨色才一眼可辨,选中打勾+外圈。
+  $('#a-pal').innerHTML=ACC_COLORS.map((c,i)=>
+    `<button type="button" class="sw ${i===idx?'sel':''}" data-act="pal-pick" data-i="${i}" aria-label="${c.name}" title="${c.name}" style="background:${c.ink}"></button>`).join('');
+  const label=$('#a-pal-name');
+  if(label)label.innerHTML=`当前标识色:<b>${cur.name}</b> · 列表底色与行内小标同步跟随`;
 }
 function saveAccount(){
   const name=$('#a-name').value.trim();
@@ -826,24 +856,30 @@ function deleteAccount(){
 }
 function initAvatarInput(){
   const input=$('#avatar-file');
-  input.addEventListener('change',()=>{
+  input.addEventListener('change',async()=>{
     const file=input.files&&input.files[0];input.value='';
     if(!file)return;
-    const reader=new FileReader();
-    reader.onload=()=>{
-      const img=new Image();
-      img.onload=()=>{
-        try{
-          const side=Math.min(img.width,img.height);
-          const size=128,cv=document.createElement('canvas');cv.width=cv.height=size;
-          cv.getContext('2d').drawImage(img,(img.width-side)/2,(img.height-side)/2,side,side,0,0,size,size);
-          ui.draftAvatar=cv.toDataURL('image/jpeg',0.82);
-          renderAvatarPreview();toast('头像已就绪,保存后生效');
-        }catch(e){toast('这张图处理不了,换一张试试')}
-      };
-      img.src=reader.result;
-    };
-    reader.readAsDataURL(file);
+    try{
+      // 裁剪/压缩/体积上限统一交给图像模块,页面不再自己碰 canvas
+      ui.draftAvatar=await TanJiImage.avatar(file);
+      renderAvatarPreview();toast('头像已就绪,保存后生效');
+    }catch(e){toast('这张图处理不了,换一张试试')}
+  });
+}
+function initShotInput(){
+  const input=$('#shot-file');
+  input.addEventListener('change',async()=>{
+    const file=input.files&&input.files[0];input.value='';
+    if(!file)return;
+    const target=byId(ui.detail);
+    if(!target){toast('先打开一笔订单再拍');return}
+    try{
+      // 原图只在内存里过一次,入库的永远是烘焙过淡化的小图(约 3KB),备份和全量重写都不会被撑爆
+      target.photoThumb=await TanJiImage.doorThumb(file);
+      if(!target.shotAt)target.shotAt=nowStr();   // 到店拍照 = 开始拍摄,不用再点一次"标记已拍摄"
+      await save();renderAll();rerenderDetail();
+      toast('已随手拍 · 拍摄时间已记录');
+    }catch(e){toast('这张图处理不了,换一张试试')}
   });
 }
 const byId=id=>db.orders.find(o=>o.id===id);
@@ -979,11 +1015,8 @@ $('#schema-pre').innerHTML=SCHEMA;
 /* ================= 新建预约(含时段冲突提醒,不禁止) ================= */
 function toMin(appt){return +appt.slice(11,13)*60 + +appt.slice(14,16)}
 function conflictFor(date,time,excludeId){
-  if(!date)return '';
-  const same=db.orders.filter(o=>validDateTime(o.appt)&&o.appt.slice(0,10)===date&&o.id!==excludeId);
+  const {same,overlap}=TanJiLogic.apptOverlap(db.orders,date,time,excludeId);
   if(!same.length)return '';
-  const t=toMin(date+'T'+time);
-  const overlap=same.filter(o=>Math.abs(toMin(o.appt)-t)<=120);
   if(overlap.length)return `<b>该时段已有排期:</b>${overlap.map(o=>`「${esc(o.store)}」${esc(fmtHM(o.appt))}`).join('、')}。不影响保存——可找人代拍或错峰。`;
   return `当天已有 ${same.length} 个排期:${same.map(o=>`${esc(o.store)} ${esc(fmtHM(o.appt))}`).join('、')}`;
 }
@@ -1184,10 +1217,33 @@ function openPay(oid,kind,keepMethod){
 
 /* ================= 详情弹层 ================= */
 const MILE_LABEL={shotAt:'拍摄',submittedAt:'提审',shortAt:'副片发出',longAt:'正片发出',publishedAt:'发布'};
+/* 每个里程碑一种颜色:起点暖橙 → 审核蓝 → 两种交付物(紫/绿) → 终点中性灰蓝 */
+const MILE_COLOR={
+  shotAt:{c:'#E8663C',soft:'#FCEFE8'},
+  submittedAt:{c:'#3B7DD8',soft:'#EDF3FC'},
+  shortAt:{c:'#8B6BC4',soft:'#F3EEFA'},
+  longAt:{c:'#2FA05F',soft:'#EAF6EE'},
+  publishedAt:{c:'#5C6B7A',soft:'#EDEFF2'},
+};
+const MILE_BIG=new Set(['shortAt','longAt']);  // 发片是交付核心,圆点放大一号
 function mileStep(oid,key,label,time,done,nowFlag){
-  return `<button class="mstep ${done?'done':''} ${!done&&nowFlag?'now':''}" data-act="mile" data-oid="${esc(oid)}" data-key="${esc(key)}" style="background:none;border:none;padding:0">
-    <div class="mdot">${done?'✓':(nowFlag?'·':'')}</div>
+  const tone=MILE_COLOR[key]||{c:'var(--brand)',soft:'var(--brand-soft)'};
+  const big=MILE_BIG.has(key)?'big':'';
+  // 拍摄完成且有随手拍 → 圆点直接显示门口照:流程条本身就能证明"到过店",不必再加文字
+  const target=byId(oid);
+  const photo=key==='shotAt'&&done&&target&&target.photoThumb
+    ? `<img src="${target.photoThumb}" alt="">`
+    : (done?'✓':(nowFlag?'·':''));
+  return `<button class="mstep ${big} ${done?'done':''} ${!done&&nowFlag?'now':''}" data-act="mile" data-oid="${esc(oid)}" data-key="${esc(key)}" style="background:none;border:none;padding:0;--c:${tone.c};--soft:${tone.soft}">
+    <div class="mdotwrap"><div class="mdot">${photo}</div></div>
     <div class="mlab">${esc(label)}</div><div class="mtime">${done?esc(fmtDT(time)):(nowFlag?'点击标记':'')}</div></button>`;
+}
+/* 金额格:有随手拍就把淡化小图铺成底图,扫列表一眼分出"去过店"和"还没去" */
+function priceCell(o){
+  const money=fmtMoney(o.price);
+  return o.photoThumb
+    ? `<div class="rprice shot" style="background-image:url('${o.photoThumb}')"><span>${money}</span></div>`
+    : `<div class="rprice">${money}</div>`;
 }
 function detailActions(o){
   if(!o.shotAt)return `<button class="btn primary" data-act="mark-shot" data-oid="${esc(o.id)}">标记已拍摄(记录实际拍摄时间)</button>`;
@@ -1206,11 +1262,14 @@ function openDetail(id){
   const visibleSteps=steps.filter(s=>s[1]!=='skip');
   const nextIdx=visibleSteps.findIndex(s=>!s[1]);
   const mile=visibleSteps.map((s,i)=>mileStep(o.id,s[0],MILE_LABEL[s[0]],s[1],!!s[1],i===nextIdx)).join('');
+  // 进度线画到"最后一个已完成节点的中心":可用宽度 = 100% - 左右各 14% 缩进
+  let lastDone=-1;visibleSteps.forEach((s,i)=>{if(s[1])lastDone=i});
+  const progress=lastDone<0?0:((lastDone+0.5)/visibleSteps.length)*72;
   const received=db.payments.filter(p=>p.oid===o.id).reduce((s,p)=>s+(moneyCents(p.amount)||0),0)/100;
 
   const payBtns=[];
   if(unDep(o)>0)payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="deposit">收定金 ${esc(fmtMoney(unDep(o)))}</button>`);
-  if(unFin(o)>0)payBtns.push(`<button class="btn ${isOver(o)?'primary':'green'}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">收尾款 ${esc(fmtMoney(unFin(o)))}</button>`);
+  if(unFin(o)>0)payBtns.push(`<button class="btn ${isOver(o)?'primary':'pay'}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">收尾款<span class="pmoney">${esc(fmtMoney(unFin(o)))}</span></button>`);
   if(!payBtns.length)payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">款项已全部结清</div>`);
 
   let snoozeHtml='';
@@ -1238,8 +1297,11 @@ function openDetail(id){
     <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${o.reviewResult?`<span class="chip ${o.reviewResult==='pass'?'c-green':'c-red'}">${REVIEW_LABEL[o.reviewResult]}</span>`:''}${deliverLate(o)?`<span class="chip c-red">超24h未出片</span>`:''}${isOver(o)?`<span class="chip c-red">欠款 ${esc(od)} 天</span>`:''}${snoozed(o)?`<span class="chip c-gray">已设提醒</span>`:''}</div>
     ${isOver(o)?`<div class="banner-red"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
       <span>尾款自拍摄日(${esc(fmtD(o.shotAt))})起已欠 <b>${esc(od)} 天</b>,达到 ${esc(db.threshold)} 天催收阈值,建议电话跟进。${snoozed(o)?`已备忘:${esc(fmtD(o.remindAt))} 再提醒。`:''}</span></div>`:''}
-    <div class="mile">${mile}</div>
-    <div class="rsub" style="text-align:center;margin:0 0 4px">点里程碑可标记 / 清除 · 记错随时改</div>
+    <div class="mile" style="--p:${progress.toFixed(1)}%">${mile}</div>
+    <div class="shotline">
+      <button class="mini-btn" data-act="shot-pick" data-oid="${esc(o.id)}">📷 ${o.photoThumb?'重拍门口照':'随手拍 · 到店门口来一张'}</button>
+      ${o.photoThumb?`<button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="shot-clear" data-oid="${esc(o.id)}">删除照片</button>`:''}
+    </div>
     <div style="margin-top:10px">${detailActions(o)}</div>
     ${o.submittedAt?`<div class="sec-title" style="margin-top:14px">送审结果</div>
       <div class="btn2">
@@ -1336,16 +1398,8 @@ function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show')
 
 /* ================= 统计 ================= */
 function statsFor(period,list){
-  refreshClock();
-  const orders=list||db.orders;
-  const start=new Date(now.getFullYear(),now.getMonth(),period==='M'?1:now.getDate()-(+period-1));
-  const inWin=t=>t&&new Date(t)>=start&&new Date(t)<=now;
-  const deals=orders.filter(o=>inWin(o.appt));
-  const paid=(list?db.payments.filter(p=>orders.some(o=>o.id===p.oid)):db.payments).filter(p=>inWin(p.at));
-  const done=orders.filter(o=>workOf(o)==='已交付'&&inWin(o.shortAt>o.longAt?o.shortAt:o.longAt));
-  return {start,deals,paid,done,
-    dealSum:deals.reduce((s,o)=>s+Math.round(o.price*100),0)/100,
-    paidSum:paid.reduce((s,p)=>s+Math.round(p.amount*100),0)/100};
+  refreshClock();                       // 窗口终点依赖"现在",时钟刷新留在 UI 层
+  return TanJiLogic.statsFor({orders:db.orders,payments:db.payments,period,list,now});
 }
 
 /* ================= 顶部右侧按钮(分享 / 隐私) ================= */
@@ -1398,7 +1452,7 @@ function renderHome(){
       <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">预约</div></div>
       <div class="rmain"><div class="rname">${esc(o.store)}</div>
         <div class="chiprow">${accOrderTag(o)}${workChip(o)}${depChip||payChip(o)}<span class="chip c-gray">${esc(o.cat)}</span></div></div>
-      <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div></div>
+      <div class="rside">${priceCell(o)}</div>
       <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
     </div>`;}).join('')
     : `<div class="empty"><div class="e-ic">🌙</div>今日无拍摄安排<br>去「行程」页看看接下来的档期</div>`;
@@ -1539,7 +1593,7 @@ function renderOrders(){
         <div class="rsub">${o.shotAt?`拍摄 ${fmtD(o.shotAt)}`:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} · ${esc(o.cat)}${o.partner?' · 出镜 '+esc(o.partner):''}</div>
         <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}${isOver(o)?`<span class="chip c-red">欠 ${overdueDays(o)} 天</span>`:''}${snoozed(o)?'<span class="chip c-gray">已设提醒</span>':''}</div>
       </div>
-      <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div>
+      <div class="rside">${priceCell(o)}
         <div class="rsub" style="${owedOf(o)>0?'color:var(--red);font-weight:700':''}">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div>
       </div>
     </div>`).join('')
@@ -1798,7 +1852,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
   if(!Store.ready||Store.busy){toast('正在读写数据，请稍候');return}
-  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
+  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','shot-pick'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
   refreshClock();
   switch(act){
     case 'tab':showTab(t.dataset.tab);break;
@@ -1828,6 +1882,14 @@ document.addEventListener('click',e=>{
     case 'save-account':saveAccount();break;
     case 'delete-account':deleteAccount();break;
     case 'pick-avatar':$('#avatar-file').click();break;
+    case 'shot-pick':$('#shot-file').click();break;
+    case 'shot-clear':{
+      const target=byId(oid);
+      if(!target||!target.photoThumb)break;
+      if(!confirm('删除这张随手拍照?'))return;
+      target.photoThumb=null;save();renderAll();rerenderDetail();toast('照片已删除');
+      break;
+    }
     case 'remove-avatar':ui.draftAvatar=null;renderAvatarPreview();break;
     case 'copy-account':{
       const a=accById(t.dataset.id);
@@ -1949,6 +2011,7 @@ $('#f-date').value=TODAY;
   renderAll();showTab('home');
   Notify.syncDaily();
   initAvatarInput();
+  initShotInput();
   if(!had&&!Store.blocked)await save();
   initSqlite().then(s=>{if(s){Store.sqlite3=s;if(!Store.blocked&&!Store.busy)persistFull()}else if(!isNative)toast('SQLite 引擎未能加载，JSON 保存和备份仍可用')});
 })();

@@ -10,7 +10,7 @@ const chrome=process.env.CHROME_BIN||'/Applications/Google Chrome.app/Contents/M
 const server=http.createServer((request,response)=>{
   const pathname=new URL(request.url,'http://localhost').pathname;
   const relative=pathname==='/'?'index.html':pathname.slice(1);
-  if(!/^(index\.html|storage\.js|sw\.js|manifest\.webmanifest|privacy\.html|support\.html|icons\/[a-z0-9.-]+|vendor\/sqlite3\.(mjs|wasm))$/.test(relative)){response.writeHead(404);response.end();return}
+  if(!/^(index\.html|imaging\.js|logic\.js|storage\.js|sw\.js|manifest\.webmanifest|privacy\.html|support\.html|icons\/[a-z0-9.-]+|vendor\/sqlite3\.(mjs|wasm))$/.test(relative)){response.writeHead(404);response.end();return}
   const types={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.wasm':'application/wasm','.png':'image/png','.webmanifest':'application/manifest+json'};
   response.setHeader('Content-Type',types[path.extname(relative)]||'application/octet-stream');
   response.setHeader('Cache-Control','no-cache');fs.createReadStream(path.join(root,relative)).pipe(response);

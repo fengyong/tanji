@@ -58,7 +58,8 @@ tanji-native/
 ├── package.json               # scripts: build:plugins / sync / open:ios / serve
 ├── src/cap-plugins.js         # esbuild 入口:@capacitor/core + 4 插件 → window.TanjiCap
 ├── www/                       # Web 资源(main 同源:v0.4 已同步,v0.5/v0.6 为 native 专属改动)
-│   ├── index.html             # UI/状态机(与 main 同源)+ 平台自适应持久化 + 原生桥接
+│   ├── index.html             # UI/页面状态(与 main 同源)+ 平台自适应持久化 + 原生桥接
+│   ├── logic.js               # 业务规则纯函数层(工作线/资金线/逾期/出片/统计/排期),不碰 DOM,可单测
 │   ├── cap-plugins.js         # esbuild 产物(45KB,IIFE)
 │   ├── vendor/sqlite3.mjs+was # sql.js WASM(生成真 .db 字节;Web 与原生 WKWebView 都可用)
 │   ├── sw.js / manifest / icons  # PWA 资产(原生端 sw.js 注册被跳过)
@@ -257,7 +258,7 @@ npm run check              # 再确认一遍
 
 ## 多账号体系 v0.6(2026-11-22,仅 native,main/html 版不动)
 
-> 达人可能同时运营多个账号(如「大王叫我逛深圳」+「大西瓜」),订单要挂账号方便记后续动作;数据默认合为一体看,一键按账号拆开。原型(docs/proto/)确认后实现,口径全部按用户拍板。
+> 达人可能同时运营多个账号(如「饿了才要吃饱饱」+「吃饱饱才不饿」),订单要挂账号方便记后续动作;数据默认合为一体看,一键按账号拆开。原型(docs/proto/)确认后实现,口径全部按用户拍板。
 
 ### 数据模型
 
@@ -321,12 +322,37 @@ npm run check              # 再确认一遍
 
 ### 新增测试
 
-- `tests/native-reliability.test.cjs` —— 原生路径回归(**29 项**),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
+- `tests/native-reliability.test.cjs` —— 原生路径回归(**31 项**),mock 里复刻了 iOS 的 `values` 键强校验契约,并用 `node:sqlite` 跑真实 SQL。
 - `tests/web-reliability.test.cjs` —— 移植自 main 的 39 项 Web 回归,指向 `www/`。
 - `tests/export-schema.test.cjs` —— 导出表结构护栏 5 项(列数/占位符/accounts 表一致性)。
+- `tests/logic.test.cjs` —— 业务规则规格 **8 项**(正副片四种配置、四态推进、资金线、逾期起算、24h 边界、排期 ±120、统计窗口、分制金额)。
 - `tests/browser-smoke.cjs` —— 移植自 main 的浏览器端到端冒烟(13 步,需本机 Chrome)。
 
-合计 `npm test` **73 项**(29 + 39 + 5)。
+合计 `npm test` **83 项**(31 + 39 + 5 + 8)。
+
+### 业务规则层(www/logic.js)
+
+v0.6 之后把「产品口径」从 `index.html` 里抽成独立纯函数文件,目的是给将来可能的
+SwiftUI 迁移留一份**唯一可翻译的规格**,同时让规则可以脱离 DOM 单测。
+
+- 命名空间 `window.TanJiLogic`,无构建步骤,`<script src="logic.js">` 在 `storage.js` 之前加载
+- 不引用 `db` / `now` / `ui` / `document`;`orders` / `payments` / `threshold` / `today` 全部由调用方传入
+- `index.html` 与 `storage.js` 保留同名薄包装(`workOf` / `payOf` / `deliveredAll` …),既有调用点与签名不变
+- 改口径只改 `logic.js` + `tests/logic.test.cjs`;若要换 SwiftUI,Swift 实现对不上这 8 条规格即为实现错误
+- 注意:`sw.js` 的 precache 清单**未**包含 `logic.js`(该文件是 main/native 共享资产,而 main 没有它);
+  native 端不注册 Service Worker,不影响运行
+
+### 随手拍与图像模块(www/imaging.js)
+
+- 入口:详情页「随手拍 · 到店门口来一张」,用 `<input type="file" capture="environment">` 直接调起相机;
+  真机需要 `Info.plist` 的 `NSCameraUsageDescription` / `NSPhotoLibraryUsageDescription`,否则一点就崩
+- 拍完立即处理(不落原图):2:1 居中裁切 → 256×128 → `saturate(.72) contrast(.9) blur(.6px)` → 叠白 53% → JPEG q0.65,
+  **成品约 3KB / 每张**,体积上限 12KB 字符写死在模块里
+- 淡化是**烘焙进图片**的,渲染端不再叠 opacity(两层淡化会发灰);金额格只补一层很轻的白色渐变保数字对比
+- 存 `order.photoThumb`(dataURL),`validateState` 校验格式与体积;原图不进 DB
+- 拍完自动写 `shotAt`(到店拍照 = 开始拍摄),不需要再点一次「标记已拍摄」
+- 展示位置:订单列表 / 首页今日拍摄的**金额格底图**;详情页里程碑的「拍摄」节点直接显示这张小图
+- 导出差异:CSV 与 `.db` **不含**照片(列固定);JSON 备份**会带**(每张约 3KB),换机可恢复
 
 ```sh
 node --test tests/native-reliability.test.cjs

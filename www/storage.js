@@ -117,6 +117,12 @@ function validateState(input){
       accountId:order.accountId!=null&&accountIds.has(order.accountId)?order.accountId:null};
     for(const field of ['cat','contact','channel','partner','note'])clean[field]=text(order[field],`${label}的${field}`,field==='cat'?'其他':field==='channel'?'直客':'');
     for(const field of dates){if(order[field]!=null&&!validDateTime(order[field]))throw new Error(`${label}的${field}时间无效`);clean[field]=order[field]??null}
+    // 随手拍:只存烘焙过淡化的小图(≤12KB 字符);原图不入库,避免备份和全量重写被撑爆
+    if(order.photoThumb!=null){
+      const ok=typeof TanJiImage!=='undefined'&&TanJiImage.isValidStored(order.photoThumb,TanJiImage.LIMIT.door);
+      if(!ok)throw new Error(`${label}的随手拍照片无效或过大`);
+      clean.photoThumb=order.photoThumb;
+    }
     return clean;
   });
   const payments=input.payments.map((payment,index)=>{
@@ -446,10 +452,11 @@ async function nativeReadSnapshot(mode,suffix='json'){
  * snooze 备忘在原生环境升级为一次性系统通知。
  * 通知 id:每日汇总=1;单订单催收=100000+orderId*100+天数;出片提醒=300000+orderId。 ================= */
 
-/* ---- 出片要求(工作流 v0.5):正片/副片按单配置,旧数据缺省=都要 ---- */
-function needMain(o){return o.deliverMain!==false}
-function needSub(o){return o.deliverSub!==false}
-function deliveredAll(o){return (!needMain(o)||!!o.longAt)&&(!needSub(o)||!!o.shortAt)}
+/* ---- 出片要求(工作流 v0.5):规则实现在 logic.js,这里保留同名薄包装 ----
+ * 业务规则统一收敛到 www/logic.js(纯函数),storage.js 只负责持久化与通知。 */
+const needMain=o=>TanJiLogic.needMain(o);
+const needSub=o=>TanJiLogic.needSub(o);
+const deliveredAll=o=>TanJiLogic.deliveredAll(o);
 
 const Notify={
   native(){return isNative&&CAP&&CAP.LocalNotifications},
