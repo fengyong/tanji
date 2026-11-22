@@ -5,6 +5,7 @@
 
 仓库：`fengyong/tanji` ｜ 当前分支：`native-app`（iOS 原生版独立主线）
 配套详情：[`docs/git-push-guide.md`](docs/git-push-guide.md)（提交与推送）
+装机指南：[`docs/device-install.md`](docs/device-install.md)（真机安装 · 免费 Apple ID · 故障对照表 · 模拟器）
 
 ---
 
