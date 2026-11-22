@@ -424,3 +424,40 @@ JS 不会报错,但后果是 **`CAP = null` → `isNative = false`:整条原生�
 
 - 没做逆地理(坐标 → 文字地址):国内可用的免费服务不稳定,拉一个随时挂的外部依赖不值得;点「看位置」在地图里就能看到地址。
 - 模拟器/真机的定位授权弹窗、弱信号超时、前后台切换没有实测(需真机点验),失败路径已按"静默不阻塞"设计。
+
+## 真机安装(免费 Apple ID · 7 天有效,2026-11-22)
+
+> 目标:还没申请付费开发者账号之前,先把包装到 iPhone 上做真机点验(GPS/相机/地图/安全区这些模拟器验不了)。
+
+### 为什么免费账号就够
+
+- 本工程**没有 entitlements 文件**,也没有声明 Push / App Groups / Associated Domains —— 这些正是免费签名不给的;
+- 通知走 `LocalNotifications`(本地),不依赖 APNs;
+- 付费账号才有的能力(TestFlight、Ad Hoc 分发)现在用不上。
+
+免费签名只有两条硬限制:**证书 7 天有效**、**不能上架/TestFlight**。
+
+### 一次性准备
+
+1. **Xcode → Settings → Accounts → 加普通 Apple ID**(不需要付费),会自动生成 `Personal Team`;
+2. iPhone:设置 → 隐私与安全性 → **开发者模式** → 打开(要求重启并确认);
+3. USB 连接 Mac,手机上点「信任此电脑」;
+4. 记下 **Team ID**:Xcode → Settings → Accounts → 选中账号 → 右侧 Team 列表里的 10 位串。
+
+### 一条命令
+
+```bash
+# 手机连上后先拿 UDID
+xcrun devicectl list devices
+
+DEVELOPMENT_TEAM=你的TeamID DEVICE_UDID=手机UDID npm run install:ios:device
+```
+
+脚本(`scripts/build-device.sh`)按顺序做:`npm run sync` → `xcodebuild -allowProvisioningUpdates`(首次会自动注册设备与 App ID)
+→ `devicectl device install` → 启动。bundle id 默认在构建时覆盖为 `com.olatanji.app`,**不写进工程文件**,避免占用正式 id 的配额
+(可用 `BUNDLE_ID=` 改)。
+
+### 两个坑
+
+- 首次启动若提示「不受信任的开发者」:设置 → 通用 → VPN与设备管理 → 信任你的证书;
+- **7 天后** App 打不开是正常过期:重跑同一条命令覆盖安装即可,**沙盒数据保留**;千万别卸载再装(卸载=删沙盒=丢数据)。

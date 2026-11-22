@@ -13,6 +13,7 @@
     "test:smoke": "node tests/browser-smoke.cjs",
     "build:ios": "xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build",
     "build:ios:device": "xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphoneos -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build",
+    "install:ios:device": "bash scripts/build-device.sh",
     "open:ios": "cap open ios",
     "serve": "python3 -m http.server 8765 --directory www"
   },
