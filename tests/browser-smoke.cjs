@@ -104,6 +104,10 @@ const server=http.createServer((request,response)=>{
     await click('#v-stats [data-act="clear-data"]');await evaluate('new Promise(resolve=>{const check=()=>Store.busy?setTimeout(check,25):resolve();check()})');
     await call('Page.reload');await ready();assert.equal(await evaluate('db.orders.length'),0);
     await click('.tab[data-tab="stats"]');await capture('stats-mobile');
+    // 付费漏斗:必须有 iOS 原生版入口(未上架显示「即将上架」,上架后是可点的 App Store 链接)
+    const iosRow=await evaluate(`(()=>{const r=[...document.querySelectorAll('#v-stats .menu-row')].find(x=>(x.querySelector('.menu-name')?.textContent||'').includes('iOS 原生版'));if(!r)return null;return {isLink:r.tagName==='A',href:r.getAttribute('href')||'',badge:r.querySelector('.tag-badge')?.textContent||''}})()`);
+    assert.ok(iosRow,'统计页缺少 iOS 原生版入口(免费体验 → 付费版的转化入口)');
+    assert.ok(iosRow.isLink?/^https:\/\/apps\.apple\.com\//.test(iosRow.href):iosRow.badge==='即将上架','iOS 原生版入口状态异常: '+JSON.stringify(iosRow));
     await click('#v-stats [data-act="restore-backup"]');await evaluate('new Promise(resolve=>{const check=()=>Store.busy?setTimeout(check,25):resolve();check()})');
     assert.equal(await evaluate('db.orders.length'),1);assert.equal(await evaluate('db.payments.length'),1);
     await evaluate('navigator.serviceWorker.ready');await evaluate('Store.queue');

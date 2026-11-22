@@ -1,12 +1,12 @@
 {
   "$schema": "tanji-web-sync-lock/v1",
   "mainRef": "main",
-  "mainCommit": "40a313575a7a69945836ae8aeeb9f72ded8848a3",
+  "mainCommit": "93cfa31f192525056f4fd5011b0ee72a025f6eb2",
   "updatedAt": "2026-11-22",
   "files": {
     "index.html": {
-      "main": "be9a27975c9f3a484b9b5354cea79759a87ebf02",
-      "native": "042e4f87548ebc78693cc36f81bc8f920a9ad8a9",
+      "main": "3d4f454769af69ccf2d68622ed9504c5072015ad",
+      "native": "4476daae577723ac027071fcb5a9e08a69d8a752",
       "nativePath": "www/index.html",
       "note": "主应用 UI + 业务状态"
     },

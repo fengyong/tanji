@@ -476,6 +476,12 @@ function greeting(){const h=new Date().getHours();return h<11?'早上好':h<14?'
 /* ================= UI 状态(先于数据定义,fmtMoney 依赖) ================= */
 const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1}};
 
+/* iOS 原生版(买断付费,App Store)的落地页地址。
+   空字符串 = 还没上架,「关于」里显示为「即将上架」而不是死链;
+   上架拿到 App ID 后,把 https://apps.apple.com/app/id<数字> 填进来即可自动变成可点入口。
+   这一行就是「免费 PWA 体验 → 付费 iOS App」的转化入口。 */
+const APP_STORE_URL='';
+
 /* 隐私政策 / 支持页的线上地址。
    原生端 WebView 用的是 capacitor:// 协议，相对链接无法交给系统浏览器打开，
    而应用内跳转会把用户带离主界面且没有返回键 —— 故原生端统一走线上绝对地址，
@@ -1515,6 +1521,15 @@ function renderStats(){
         <div class="menu-t"><div class="menu-name">支持与常见问题</div><div class="menu-sub">备份、迁移、通知与导出问题</div></div>
         <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
       </a>
+      ${APP_STORE_URL?`<a class="menu-row" href="${APP_STORE_URL}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+        <span class="menu-ic" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span>
+        <div class="menu-t"><div class="menu-name">iOS 原生版 · 买断</div><div class="menu-sub">离线更稳 · 推送更新 · 本地通知提醒</div></div>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </a>`:`<div class="menu-row" data-act="app-store-soon">
+        <span class="menu-ic" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span>
+        <div class="menu-t"><div class="menu-name">iOS 原生版 · 买断</div><div class="menu-sub">离线更稳 · 推送更新 · 本地通知提醒</div></div>
+        <span class="tag-badge">即将上架</span>
+      </div>`}
     </div>`;
 }
 
@@ -1538,7 +1553,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
   if(!Store.ready||Store.busy){toast('正在读写数据，请稍候');return}
-  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
+  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
   refreshClock();
   switch(act){
     case 'tab':showTab(t.dataset.tab);break;
@@ -1590,6 +1605,7 @@ document.addEventListener('click',e=>{
     case 'toggle-dep':toggleReceipt(oid,'deposit');break;
     case 'toggle-fin':toggleReceipt(oid,'final');break;
     case 'privacy':ui.privacy=!ui.privacy;renderAll();rerenderDetail();toast(ui.privacy?'已隐藏金额 · 截图模式':'已恢复显示金额');break;
+    case 'app-store-soon':toast('iOS 原生版即将上架,上线后可直接在 App Store 买断');break;
     case 'share':shareToday();break;
     case 'share-confirm':{
       if(ui.shareBlob){
