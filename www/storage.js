@@ -69,7 +69,7 @@ function validateState(input){
   if(![7,15,30,45].includes(threshold))throw new Error('催收阈值应为 7、15、30 或 45 天');
   const amount=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0&&Number.isSafeInteger(Math.round(value*100))&&Math.abs(value*100-Math.round(value*100))<0.00001;
   const text=(value,label,fallback='')=>{if(value==null)return fallback;if(typeof value!=='string')throw new Error(`${label}必须是文本`);return value};
-  const dates=['shotAt','submittedAt','shortAt','longAt','depositPaidAt','finalPaidAt','remindAt'];
+  const dates=['shotAt','submittedAt','shortAt','longAt','depositPaidAt','finalPaidAt','remindAt','publishedAt'];
   const ids=new Set();
   const orders=input.orders.map((order,index)=>{
     const label=`第 ${index+1} 笔订单`;
@@ -79,7 +79,11 @@ function validateState(input){
     if(!amount(order.price)||!amount(order.deposit)||order.deposit>order.price)throw new Error(`${label}的总价或定金不合法`);
     if(!validDateTime(order.appt))throw new Error(`${label}的预约时间无效`);
     if(order.settleVia&&!['private','douyin'].includes(order.settleVia))throw new Error(`${label}的结算方式无效`);
-    const clean={id:order.id,store:order.store,price:Math.round(order.price*100)/100,deposit:Math.round(order.deposit*100)/100,appt:order.appt,settleVia:order.settleVia||'private'};
+    // 工作流字段:正片/副片要求(旧数据无此字段 → 都要,保持 v0.4 前语义)、送审结果、发布时间
+    if(order.reviewResult!=null&&!['','pass','fail'].includes(order.reviewResult))throw new Error(`${label}的送审结果无效`);
+    const clean={id:order.id,store:order.store,price:Math.round(order.price*100)/100,deposit:Math.round(order.deposit*100)/100,appt:order.appt,settleVia:order.settleVia||'private',
+      location:text(order.location,`${label}的地点`),deliverMain:order.deliverMain!==false,deliverSub:order.deliverSub!==false,
+      reviewResult:order.reviewResult||''};
     for(const field of ['cat','contact','channel','partner','note'])clean[field]=text(order[field],`${label}的${field}`,field==='cat'?'其他':field==='channel'?'直客':'');
     for(const field of dates){if(order[field]!=null&&!validDateTime(order[field]))throw new Error(`${label}的${field}时间无效`);clean[field]=order[field]??null}
     return clean;
@@ -217,7 +221,7 @@ async function switchMode(mode){
     if(!await rememberMode(mode)){setStorageStatus('无法保存切换状态，请导出备份后重试。');return}
     Store.mode=mode;db=target.value?validateState(target.value):mode==='work'?{orders:[],payments:[],threshold:15}:demoSeed();
     Store.revision=Math.max(Store.revision,target.value?.revision||0);Store.backup=target.value?.previous||null;
-    closeSheets();ui.q='';ui.chip='all';ui.bucket='all';await save();renderAll();showTab('home');Notify.syncDaily();
+    closeSheets();ui.q='';ui.chip='all';ui.bucket='all';await save();renderAll();showTab('home');Notify.syncDaily();Notify.syncDeliver();
     toast(mode==='work'?'已切换到工作数据':'已切换到独立演示数据，工作数据未改动');
   }finally{Store.busy=false}
 }
@@ -281,7 +285,7 @@ async function exportCheckpoint(){
 
 /* --- 原生:Capacitor SQLite(双数据集:mode 列;settings 以 mode:suffix 为键) --- */
 const NATIVE_DB='tanji';
-const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','note','created_at','updated_at'];
+const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','deliver_main','deliver_sub','review_result','published_at','note','created_at','updated_at'];
 async function nativeOpen(){
   if(Store.conn)return Store.conn;
   const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
@@ -297,6 +301,8 @@ async function nativeOpen(){
   appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
   deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
   channel TEXT, partner TEXT,
+  location TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
+  review_result TEXT DEFAULT '', published_at TEXT,
   note TEXT, created_at TEXT, updated_at TEXT,
   PRIMARY KEY(mode,id))`,values:[]},
     {statement:`CREATE TABLE IF NOT EXISTS payments(
@@ -304,6 +310,15 @@ async function nativeOpen(){
   order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`,values:[]},
     {statement:`CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`,values:[]},
   ],true);
+  // 旧库升级:v0.4 及之前的库没有工作流新列。重复 ADD COLUMN 会报 duplicate column,
+  // 逐条吞掉即可;新库建表已含这些列,ALTER 同样报重复,一起吞。
+  for(const stmt of [
+    'ALTER TABLE orders ADD COLUMN location TEXT',
+    'ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1',
+    'ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 0',
+    `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
+    'ALTER TABLE orders ADD COLUMN published_at TEXT',
+  ]){try{await conn.execute(stmt,false)}catch(e){/* 列已存在,忽略 */}}
   Store.conn=conn;
   return conn;
 }
@@ -312,6 +327,8 @@ function rowToOrder(mode,r){
     appt:r.appt_at??'',shotAt:r.shot_at??null,submittedAt:r.submitted_at??null,shortAt:r.short_sent_at??null,
     longAt:r.long_sent_at??null,depositPaidAt:r.deposit_paid_at??null,finalPaidAt:r.final_paid_at??null,
     settleVia:r.settle_via||'private',remindAt:r.remind_at??null,channel:r.channel||'直客',partner:r.partner??'',
+    location:r.location??'',deliverMain:r.deliver_main!==0,deliverSub:r.deliver_sub!==0,
+    reviewResult:r.review_result||'',publishedAt:r.published_at??null,
     note:r.note??''};
 }
 async function nativePersistSnapshot(payload){
@@ -321,7 +338,7 @@ async function nativePersistSnapshot(payload){
       {statement:'DELETE FROM orders WHERE mode=?',values:[payload.mode]},
       {statement:'DELETE FROM payments WHERE mode=?',values:[payload.mode]},
     ];
-    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.note||null,ts,ts]}));
+    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.location||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,o.note||null,ts,ts]}));
     payload.payments.forEach(p=>set.push({statement:'INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)',values:[payload.mode,p.oid,p.kind,p.amount,p.at,p.method||null,p.note||null]}));
     const doc={...cloneState(payload),savedAt:ts};
     set.push({statement:'INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)',values:[payload.mode,'json',JSON.stringify(doc)]});
@@ -378,7 +395,13 @@ async function nativeReadSnapshot(mode,suffix='json'){
 /* ================= 本地通知(仅 iOS 原生生效) =================
  * 每日 09:00 催收汇总(只报条数与最长天数,不含金额);
  * snooze 备忘在原生环境升级为一次性系统通知。
- * 通知 id:每日汇总=1;单订单=100000+orderId*100+天数。 ================= */
+ * 通知 id:每日汇总=1;单订单催收=100000+orderId*100+天数;出片提醒=300000+orderId。 ================= */
+
+/* ---- 出片要求(工作流 v0.5):正片/副片按单配置,旧数据缺省=都要 ---- */
+function needMain(o){return o.deliverMain!==false}
+function needSub(o){return o.deliverSub!==false}
+function deliveredAll(o){return (!needMain(o)||!!o.longAt)&&(!needSub(o)||!!o.shortAt)}
+
 const Notify={
   native(){return isNative&&CAP&&CAP.LocalNotifications},
   async ensurePermission(){
@@ -404,6 +427,29 @@ const Notify={
         schedule:{on:{hour:9,minute:0},repeats:true,allowWhileIdle:true},
       }]});
     }catch(e){console.warn('[TanJi] 催收提醒排程失败',e)}
+  },
+  // 出片提醒:拍摄完成 +24h 仍未出齐(按该单的正/副片配置) → 一次性本地通知。
+  // 已超期的不再排(应用内列表有红色角标),出齐/删单/清除拍摄时间后重排即撤销。
+  async syncDeliver(){
+    if(!this.native())return;
+    try{
+      const L=CAP.LocalNotifications;
+      const pend=await L.getPending();
+      const mine=(pend.notifications||[]).filter(n=>+n.id>=300000&&+n.id<400000);
+      if(mine.length)await L.cancel({notifications:mine});
+      if(!await this.ensurePermission())return;
+      const now=Date.now();
+      const list=db.orders
+        .filter(o=>o.shotAt&&!deliveredAll(o))
+        .map(o=>({o,at:new Date(new Date(o.shotAt).getTime()+864e5)}))
+        .filter(x=>!isNaN(x.at.getTime())&&x.at.getTime()>now);
+      if(!list.length)return;
+      await L.schedule({notifications:list.map(({o,at})=>({
+        id:300000+o.id,title:'探记 · 出片提醒',
+        body:`「${o.store}」拍摄已超 24 小时,还有片子没出齐,记得跟进`,
+        schedule:{at,allowWhileIdle:true},
+      }))});
+    }catch(e){console.warn('[TanJi] 出片提醒排程失败',e)}
   },
   async scheduleSnooze(o,d){
     if(!this.native())return;
@@ -434,7 +480,7 @@ const Notify={
     if(!this.native())return;
     try{
       const L=CAP.LocalNotifications,pend=await L.getPending();
-      const mine=(pend.notifications||[]).filter(n=>{const v=+n.id-100000;return v>=0&&Math.floor(v/100)===+id&&v%100!==0});
+      const mine=(pend.notifications||[]).filter(n=>{const v=+n.id-100000;return (v>=0&&v<200000&&Math.floor(v/100)===+id&&v%100!==0)||+n.id===300000+(+id)});
       if(mine.length)await L.cancel({notifications:mine});
     }catch(e){}
   },

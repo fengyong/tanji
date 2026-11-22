@@ -12,7 +12,7 @@ function app({mockDisk=true}={}){
   class Clock extends Date{constructor(...args){super(...(args.length?args:[time]))}static now(){return time}}
   const elements=new Map(),events={},local=new Map(),disk=new Map(),texts=[];
   const element=selector=>{
-    if(!elements.has(selector))elements.set(selector,{value:'',innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
+    if(!elements.has(selector))elements.set(selector,{value:'',checked:false,innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
     return elements.get(selector);
   };
   const context=vm.createContext({console,Date:Clock,Blob,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},File:class{},document:{querySelector:element,querySelectorAll:()=>[],createElement:tag=>element('created:'+tag),addEventListener:(name,fn)=>{events[name]=fn},visibilityState:'visible'},window:{},navigator:{},location:{hostname:'localhost',protocol:'http:',reload(){}},localStorage:{getItem:key=>local.get(key)??null,setItem:(key,value)=>local.set(key,value)},setTimeout:()=>1,clearTimeout(){},setInterval(){},clearInterval(){},addEventListener(){},confirm:()=>true,indexedDB:{open(){throw new Error('test must supply IDB')}},elements,texts});
@@ -24,11 +24,14 @@ function app({mockDisk=true}={}){
   run('Store.ready=true;Store.mode="work";');
   return {run,context,local,disk,elements,element,events,texts,tick:milliseconds=>{time+=milliseconds},json:code=>JSON.parse(run('JSON.stringify('+code+')'))};
 }
-const order=overrides=>({id:1,store:'测试店',cat:'餐饮',contact:'',channel:'直客',partner:'',price:1000,deposit:200,settleVia:'private',appt:'2026-11-01T10:00',shotAt:'2026-11-01T11:00',submittedAt:null,shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,note:'',...overrides});
+const order=overrides=>({id:1,store:'测试店',cat:'餐饮',contact:'',channel:'直客',partner:'',price:1000,deposit:200,settleVia:'private',appt:'2026-11-01T10:00',shotAt:'2026-11-01T11:00',submittedAt:null,shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,location:'',deliverMain:true,deliverSub:true,reviewResult:'',publishedAt:null,note:'',...overrides});
 function setState(a,orders=[order()],payments=[]){a.run(`db=${JSON.stringify({orders,payments,threshold:15,notifyEnabled:true})}`)}
 function seedForm(a,prefix,values={}){
-  const base={store:'新店',cat:'餐饮',price:'1000',deposit:'200',date:'2026-11-22',time:'10:00',contact:'',note:'',channel:'直客',partner:'',settle:'private',...values};
-  for(const [key,value] of Object.entries(base))a.element(`#${prefix}-${key}`).value=value;
+  const base={store:'新店',cat:'餐饮',price:'1000',deposit:'200',date:'2026-11-22',time:'10:00',contact:'',note:'',channel:'直客',partner:'',settle:'private','need-main':true,'need-sub':false,...values};
+  for(const [key,value] of Object.entries(base)){
+    const el=a.element(`#${prefix}-${key}`);
+    if(typeof value==='boolean')el.checked=value;else el.value=value;
+  }
 }
 test('empty persisted state is restored instead of demo',async()=>{
   const a=app();setState(a,[]);await a.run('save()');a.run('db=demoSeed()');assert.equal(await a.run('loadState()'),true);assert.equal(a.run('db.orders.length'),0);

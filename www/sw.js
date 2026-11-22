@@ -1,5 +1,5 @@
-const VERSION='tanji-v0.4.0';
-const ASSETS=['./','./index.html','./storage.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png','./vendor/sqlite3.mjs','./vendor/sqlite3.wasm'];
+const VERSION='tanji-v0.4.1';
+const ASSETS=['./','./index.html','./storage.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png','./vendor/sqlite3.mjs','./vendor/sqlite3.wasm','./privacy.html','./support.html'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });

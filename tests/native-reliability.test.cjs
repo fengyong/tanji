@@ -125,7 +125,7 @@ function app(device=newDevice()){
   }
   const elements=new Map(),events={},local=device.local,texts=[];
   const element=selector=>{
-    if(!elements.has(selector))elements.set(selector,{value:'',innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
+    if(!elements.has(selector))elements.set(selector,{value:'',checked:false,innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
     return elements.get(selector);
   };
   const context=vm.createContext({
@@ -156,7 +156,9 @@ const order=overrides=>({
   price:1000,deposit:200,settleVia:'private',
   appt:'2026-11-01T10:00',shotAt:'2026-11-01T11:00',
   submittedAt:null,shortAt:null,longAt:null,
-  depositPaidAt:null,finalPaidAt:null,remindAt:null,note:'',...overrides,
+  depositPaidAt:null,finalPaidAt:null,remindAt:null,
+  location:'',deliverMain:true,deliverSub:true,reviewResult:'',publishedAt:null,
+  note:'',...overrides,
 });
 
 const OVERDUE=order({shotAt:'2026-01-01T11:00'});
@@ -385,4 +387,92 @@ test('原生导出：文本导出带 UTF-8 BOM，与 Web 版一致（Excel 打�
   const written=a.device.written[a.device.written.length-1];
   assert.equal(written.encoding,'utf8');
   assert.ok(String(written.data).startsWith('\ufeff'),'文本导出应带 BOM，与 Web 版行为一致');
+});
+
+/* ---------- 工作流 v0.5:出片配置/送审/发布/24h 出片提醒 ---------- */
+
+test('工作流:旧库自动迁移,缺列 ALTER 补齐后新字段可读写',async()=>{
+  const device=newDevice();
+  // 预置 v0.4 旧表(无工作流新列)
+  device.db.exec(`CREATE TABLE orders(
+    mode TEXT NOT NULL, id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
+    price REAL NOT NULL, deposit REAL DEFAULT 0,
+    appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
+    deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+    channel TEXT, partner TEXT, note TEXT, created_at TEXT, updated_at TEXT,
+    PRIMARY KEY(mode,id))`);
+  device.db.exec(`CREATE TABLE payments(mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`);
+  device.db.exec(`CREATE TABLE settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`);
+  const a=app(device);
+  setState(a,[order({location:'万象城 3 层',deliverSub:false,reviewResult:'pass',publishedAt:'2026-11-02T10:00'})]);
+  assert.equal(await a.run('save()'),true,'写入不应因旧库缺列而失败');
+  const cols=a.run(`Store.conn.db.prepare("PRAGMA table_info(orders)").all().map(r=>r.name)`);
+  for(const col of ['location','deliver_main','deliver_sub','review_result','published_at']){
+    assert.ok(cols.includes(col),`迁移后缺列 ${col}`);
+  }
+  assert.equal(await a.run('loadState()'),true);
+  assert.equal(a.run('db.orders[0].location'),'万象城 3 层');
+  assert.equal(a.run('db.orders[0].deliverSub'),false);
+  assert.equal(a.run('db.orders[0].reviewResult'),'pass');
+  assert.equal(a.run('db.orders[0].publishedAt'),'2026-11-02T10:00');
+});
+
+test('工作流:旧数据缺正/副片配置时默认都要(保持 v0.4 语义)',async()=>{
+  const a=app();
+  await a.run('db={orders:[{id:1,store:"旧单",cat:"餐饮",contact:"",channel:"直客",partner:"",price:1000,deposit:0,settleVia:"private",appt:"2026-11-01T10:00",shotAt:"2026-11-01T11:00",submittedAt:"2026-11-01T20:00",shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,note:""}],payments:[],threshold:15}');
+  assert.equal(a.run('validateState(db).orders[0].deliverMain'),true);
+  assert.equal(a.run('validateState(db).orders[0].deliverSub'),true);
+  assert.equal(a.run('validateState(db).orders[0].reviewResult'),'');
+});
+
+test('工作流:仅正片单发完正片即算出齐(已交付),且不排出片提醒',async()=>{
+  const a=app();
+  setState(a,[order({deliverMain:true,deliverSub:false,shotAt:'2026-11-20T11:00',submittedAt:'2026-11-20T20:00'})]);
+  await a.run('save()');await a.run('loadState()');
+  assert.equal(a.run('workOf(db.orders[0])'),'发片中');
+  a.run("db.orders[0].longAt='2026-11-21T10:00';Notify.syncDeliver();");
+  await tick();
+  assert.equal(a.run('workOf(db.orders[0])'),'已交付');
+  assert.equal(a.device.pending.filter(n=>+n.id>=300000&&+n.id<400000).length,0,'出齐后不应残留出片提醒');
+});
+
+test('工作流:拍摄+24h 排出片提醒(id=300000+id),双片单须都出齐才撤',async()=>{
+  const a=app();
+  // 当前时间 2026-11-21T12:00,拍摄于 11-21T11:00 → 提醒时刻 11-22T11:00 在未来,应排程
+  setState(a,[order({shotAt:'2026-11-21T11:00'})]);
+  await a.run('save()');await a.run('loadState()');
+  a.run('Notify.syncDeliver()');
+  await tick();
+  const pending=a.device.pending.filter(n=>+n.id===300001);
+  assert.equal(pending.length,1,'应排出片提醒');
+  assert.equal(new Date(pending[0].schedule.at).getTime(),new Date('2026-11-22T11:00').getTime(),'提醒时刻应为拍摄+24h');
+  a.run("db.orders[0].shortAt='2026-11-21T13:00';Notify.syncDeliver();");
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===300001).length,1,'仅出副片不算出齐,提醒仍在');
+  a.run("db.orders[0].longAt='2026-11-21T14:00';Notify.syncDeliver();");
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===300001).length,0,'正副片出齐后提醒应撤销');
+});
+
+test('工作流:删除订单撤销其出片提醒',async()=>{
+  const a=app();
+  setState(a,[order({shotAt:'2026-11-21T11:00'})]);
+  await a.run('save()');await a.run('loadState()');
+  a.run('Notify.syncDeliver()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===300001).length,1);
+  a.run('db.orders=[];Notify.cancelOrder(1);');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===300001).length,0,'删单后不应残留出片提醒');
+});
+
+test('工作流:送审结果/发布时间经备份往返保留,非法值被拒',async()=>{
+  const a=app();
+  setState(a,[order({reviewResult:'fail',publishedAt:'2026-11-03T09:00'})]);
+  await a.run('save()');await a.run('loadState()');
+  assert.equal(a.run('db.orders[0].reviewResult'),'fail');
+  assert.equal(a.run('validateState(backupDocument()).orders[0].reviewResult'),'fail');
+  assert.equal(a.run('validateState(backupDocument()).orders[0].publishedAt'),'2026-11-03T09:00');
+  assert.throws(()=>a.run(`validateState({orders:[order({reviewResult:'weird'})],payments:[]})`),'非法送审结果应被拒');
+  assert.throws(()=>a.run(`validateState({orders:[order({publishedAt:'2026-13-40T10:00'})],payments:[]})`),'非法发布时间应被拒');
 });
