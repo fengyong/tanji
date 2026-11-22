@@ -1,8 +1,8 @@
 /* ================= 详情弹层(P0 §3,含 rerenderDetail) ================= */
 import {$,esc,fmtMoney,fmtD,fmtHM,fmtDT} from './util.js';
-import {db,needMain,needSub,deliveredAll} from './storage.js';
+import {db} from './storage.js';
 import {ui} from './ui.js';
-import {byId,overdueDays,orderMoney,moneyCents,unDep,unFin,isOver,payOf,remindLogOf,expectOverdue,snoozed,owedOf,workChip,payChip,deliverLate,REVIEW_LABEL,gpsText} from './derived.js';
+import {byId,overdueDays,orderMoney,moneyCents,unDep,unFin,isOver,payOf,remindLogOf,expectOverdue,snoozed,owedOf,workChip,payChip,deliverLate,REVIEW_LABEL,gpsText,needMain,needSub,deliveredAll} from './derived.js';
 import {accMulti,accTagHTML,accById} from './accounts.js';
 import {showSheet} from './sheets.js';
 

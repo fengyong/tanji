@@ -1,6 +1,6 @@
 /* ================= UI 状态(P0 §3:ui 对象 + 时钟/日切 + Tab 路由/全量重绘) ================= */
 import {$,now,TODAY,tickClock} from './util.js';
-import {db,Store,Notify,setStorageStatus} from './storage.js';
+import {db,Store,setStorageStatus} from './storage.js';
 
 export const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1},accFilter:null,editAccountId:null,draftAvatar:null,draftColor:0,draftProv:'',draftAccId:null,assignAcc:null,remindOid:null,expectOid:null};
 
@@ -10,10 +10,13 @@ export const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:''
    这里按自然日节流补排一次:跨零点、或 App 整夜开着从后台回到前台时重排,
    保证 09:00 响的那条用的是当天口径,而不是昨天冻结的那份。 */
 export let lastDailySyncDay='';
+/* T2-C:通知排程实现住 notify.js(notify→derived→ui,本模块若直引即成环)——注入 */
+let dailySyncFn=null;
+export function registerDailySync(fn){dailySyncFn=fn}
 export function syncDailyOnNewDay(){
   if(lastDailySyncDay===TODAY)return;
   lastDailySyncDay=TODAY;
-  Notify.syncDaily();
+  if(dailySyncFn)dailySyncFn();
 }
 /* 特许调整 B(§4):refreshClock 留在 ui,时钟前拨经 tickClock,逐行等价。 */
 export function refreshClock(){

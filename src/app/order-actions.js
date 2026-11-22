@@ -1,8 +1,9 @@
 /* ================= 状态操作 + 催收跟进/平台预计到账 + 到店定位回写(P0 §3) ================= */
 import {$,esc,fmtMoney,fmtD,fmtDT,nowStr,validDateTime,dOff} from './util.js';
-import {db,save,Notify,deliveredAll} from './storage.js';
+import {db,save} from './storage.js';
+import {Notify} from './notify.js';
 import {ui,renderAll} from './ui.js';
-import {byId,paymentSpec,orderMoney,hasReceipt,METHODS,remindLogOf,lastRemind,unFin} from './derived.js';
+import {byId,paymentSpec,orderMoney,hasReceipt,METHODS,remindLogOf,lastRemind,unFin,deliveredAll} from './derived.js';
 import {toast,showSheet,closeSheets} from './sheets.js';
 import {MILE_LABEL,rerenderDetail,openDetail} from './detail.js';
 

@@ -1,7 +1,8 @@
 /* ================= 事件委托(P0 §3;P0-3 起改为 action 注册表) ================= */
 import {$,esc,pad,now,TODAY,dOff,fmtD,copyText} from './util.js';
 import {ui,showTab,renderAll,refreshClock} from './ui.js';
-import {db,Store,save,Notify,switchMode,replaceData,loadState,accountCopyText} from './storage.js';
+import {db,Store,save,switchMode,replaceData,loadState,accountCopyText} from './storage.js';
+import {Notify} from './notify.js';
 import {byId,isOver,snoozed,REVIEW_LABEL} from './derived.js';
 import {ACCS,accById,accColor,accAvatarHTML,renderAccPick,renderProvPick,renderPal,renderAvatarPreview,openAccount,saveAccount,deleteAccount} from './accounts.js';
 import {openNew,saveOrder,openEdit,saveEdit,toggleReceipt,updateConflict} from './order-forms.js';

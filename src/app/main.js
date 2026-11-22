@@ -1,8 +1,9 @@
 /* ================= 启动(P0 §3:组合根) ================= */
 import {isNative} from './env.js';
 import {$,TODAY} from './util.js';
-import {ui,renderAll,showTab,refreshVisible,registerRenderers,registerDetailRerender,registerBadgeCounter,markDailySynced} from './ui.js';
-import {Store,save,loadState,persistFull,acquireWriter,storageKey,setStorageStatus,Notify,nativeOpen,backupDocument,db as liveDb} from './storage.js';
+import {ui,renderAll,showTab,refreshVisible,registerRenderers,registerDetailRerender,registerBadgeCounter,registerDailySync,markDailySynced} from './ui.js';
+import {Store,save,loadState,persistFull,acquireWriter,storageKey,setStorageStatus,nativeOpen,backupDocument,db as liveDb} from './storage.js';
+import {Notify} from './notify.js';
 import {previewImport} from './export.js';
 import {isOver,snoozed,overdueDays,accMatch} from './derived.js';
 import {buildSqliteBytes} from './sqlite-bytes.js';
@@ -12,7 +13,6 @@ import {initAvatarInput} from './accounts.js';
 import {initShotInput} from './order-forms.js';
 import {initSheetGestures} from './sheets.js';
 import {initSqlite} from './sqlite-bytes.js';
-import {mark} from './order-actions.js';
 import './actions.js'; // 副作用引入:注册全局 click 事件委托(无导出,esbuild 不引用即 tree-shake)
 import {statsFor} from './stats.js';
 import {rerenderDetail} from './detail.js';
@@ -25,22 +25,22 @@ import {renderStats} from './views/stats.js';
 /* P0 偏差 #1–#3(见 DEVIATIONS.md):storage.js / ui.js / derived.js 的函数体是
    逐字节搬运,仍按经典脚本时代的全局晚绑定调用下列符号;§3/§5 又禁止它们
    import 这些符号。在组合根统一挂回 globalThis —— 恢复原语义,不新增行为。 */
-Object.assign(globalThis,{isOver,snoozed,overdueDays,ui,
-  mark,
-  renderTrip,statsFor,backupDocument,previewImport,buildSqliteBytes});
-/* 冒烟测试与 WKWebView 调试控制台依赖 Store.ready / Store.blocked / db.orders —
-   经典脚本时代它们是天然全局,拆层后在这里挂回(见 DEVIATIONS #4)。
-   db 会被 loadState 整体重赋值,必须挂活 getter。 */
-Object.defineProperty(globalThis,'db',{get:()=>liveDb,configurable:true});
-globalThis.Store=Store;
+/* P1-T2-D 终态:生产模块零 globalThis 依赖。冒烟测试与 WKWebView 调试台
+   统一走 __TANJI__ 调试面;db 会被 loadState 整体重赋值,挂活 getter。 */
+Object.defineProperty(globalThis,'__TANJI__',{value:{
+  Store,ui,
+  get db(){return liveDb},
+  renderTrip,statsFor,backupDocument,previewImport,buildSqliteBytes,
+},configurable:true});
 
 /* §5 规则 1/2:五个渲染器与详情重绘由组合根注入 */
 registerRenderers({home:renderHome,trip:renderTrip,orders:renderOrders,pay:renderPay,stats:renderStats});
 registerDetailRerender(rerenderDetail);
 /* P1-T1:storage 的 UI 刷新与 SQLite 字节构建经注入回调,不再走 globalThis */
 import {registerStorageHooks,registerBytesBuilder} from './storage.js';
-registerStorageHooks({renderAll,showTab,toast,closeSheets});
-registerBadgeCounter(()=>db.orders.filter(accMatch).filter(o=>isOver(o)&&!snoozed(o)).length);
+registerStorageHooks({renderAll,showTab,toast,closeSheets,notify:Notify,resetFilters(){ui.q='';ui.chip='all';ui.bucket='all'}});
+registerBadgeCounter(()=>liveDb.orders.filter(accMatch).filter(o=>isOver(o)&&!snoozed(o)).length);
+registerDailySync(()=>Notify.syncDaily());
 registerBytesBuilder(buildSqliteBytes);
 
 /* ================= 启动 ================= */

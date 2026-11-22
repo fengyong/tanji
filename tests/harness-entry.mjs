@@ -17,6 +17,7 @@ import * as exportNS from '../src/app/export.js';
 import * as sqliteNS from '../src/app/sqlite-bytes.js';
 import * as statsNS from '../src/app/stats.js';
 import * as shareNS from '../src/app/share-image.js';
+import * as notifyNS from '../src/app/notify.js';
 import '../src/app/actions.js'; // 顶层 click 委托(与旧加载顺序一致,启动段除外)
 import * as homeNS from '../src/app/views/home.js';
 import * as tripNS from '../src/app/views/trip.js';
@@ -27,7 +28,7 @@ const { renderHome } = homeNS, { renderTrip } = tripNS, { renderOrders } = order
   { renderPay } = payNS, { renderStats } = statsViewNS;
 
 Object.assign(globalThis, storageNS, utilNS, envNS, uiNS, derivedNS, demoNS, accountsNS,
-  orderFormsNS, orderActionsNS, detailNS, sheetsNS, exportNS, sqliteNS, statsNS, shareNS,
+  orderFormsNS, orderActionsNS, detailNS, sheetsNS, exportNS, sqliteNS, statsNS, shareNS, notifyNS,
   homeNS, tripNS, ordersNS, payNS, statsViewNS);
 
 /* export let 是模块 live binding,Object.assign 只拷当前值,之后读到的是死副本。
@@ -68,10 +69,11 @@ globalThis.__replaceDb = state => {
 uiNS.registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats });
 uiNS.registerDetailRerender(detailNS.rerenderDetail);
 uiNS.registerBadgeCounter(() => storageNS.db.orders.filter(derivedNS.accMatch).filter(o => derivedNS.isOver(o) && !derivedNS.snoozed(o)).length);
+uiNS.registerDailySync(() => notifyNS.Notify.syncDaily());
 
 /* P1-T1:storage 的 UI 刷新/字节构建走注入;buildSqliteBytes 的全局 set 转发给
    当前实现,保住旧测试「buildSqliteBytes=stub」的猴子补丁语义 */
-storageNS.registerStorageHooks({ renderAll: uiNS.renderAll, showTab: uiNS.showTab, toast: sheetsNS.toast, closeSheets: sheetsNS.closeSheets });
+storageNS.registerStorageHooks({ renderAll: uiNS.renderAll, showTab: uiNS.showTab, toast: sheetsNS.toast, closeSheets: sheetsNS.closeSheets, notify: notifyNS.Notify, resetFilters() { uiNS.ui.q=''; uiNS.ui.chip='all'; uiNS.ui.bucket='all'; } });
 let bytesImpl = sqliteNS.buildSqliteBytes;
 Object.defineProperty(globalThis, 'buildSqliteBytes', {
   get: () => (...a) => bytesImpl(...a),

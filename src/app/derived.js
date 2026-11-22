@@ -44,3 +44,8 @@ export const byId=id=>db.orders.find(o=>o.id===id);
 /* 到店定位的可读文本:geo.js 缺失时也返回空串,不让详情页/导出因为一个可选模块崩掉 */
 export const gpsText=o=>(o&&o.gpsPlace&&typeof TanJiGeo!=='undefined')?TanJiGeo.label(o.gpsPlace):'';
 export const storeOf=id=>{const o=byId(id);return o?o.store:''};
+
+/* 出片配置三件套(自 storage.js 归位:与全部 TanJiLogic 包装同层) */
+export const needMain=o=>TanJiLogic.needMain(o);
+export const needSub=o=>TanJiLogic.needSub(o);
+export const deliveredAll=o=>TanJiLogic.deliveredAll(o);
