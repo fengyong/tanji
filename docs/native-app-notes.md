@@ -123,31 +123,71 @@ JS 模型(camelCase)↔ 行(snake_case)映射:`rowToOrder / rowToPayment / nativ
 |---|---|
 | `npm run build:plugins`(esbuild 打包) | ✅ 45.5KB IIFE |
 | `npm run sync`(`cap sync ios`) | ✅ www → ios/App/App/public;4 插件 SPM 引用生成 |
-| `xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator build` | ❌ **未执行**:`xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance`;`xcrun --sdk iphonesimulator` 无 SDK。**本机未安装 Xcode,属环境缺失而非代码错误** |
+| `xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator build` | ❌→✅ **2026-11-22 已通过**(见下方「模拟器实测记录」) |
 | CLT 下的替代校验 | ✅ `plutil -lint` Info.plist / project.pbxproj 均 OK;capacitor.config.json JSON 校验 OK;pbxproj 含 9 处 CapApp-SPM 引用;deployment target iOS 15.0;bundle id com.tanji.app |
 | Web 冒烟(浏览器模拟 WebView 行为) | ✅ 17 笔种子载入、隐私模式、snooze、save→localStorage、.db 字节构建(49KB)、通知模块静默降级 |
 
-**结论**:代码层面就绪,卡在机器无 Xcode。装 Xcode 后按第七节清单执行,大概率一次通过;若报错预计集中在 SPM 网络解析或最低 iOS 版本,均已预留处理办法。
+## 六·五、模拟器实测记录(2026-11-22,本机 macOS + Xcode 27.2)
 
-## 七、明日实测清单(装好 Xcode 后)
+本机环境:`/Users/ola`,Apple Silicon,Xcode 27.2 (27B52),`xcode-select -p` → /Applications/Xcode.app;Node 26.8.1(homebrew,≥22 满足 Capacitor 8);模拟器 iPhone 17 / iOS 27.2。**注意:Xcode 27 不再自带 Simulator.app,模拟器 GUI 由 `Xcode.app/Contents/Applications/DeviceHub.app` 承载。**
 
-1. **装机**:App Store 安装 Xcode(16+);`sudo xcode-select -s /Applications/Xcode.app`;首次启动装 iOS Simulator runtime。
-2. **首次构建**:
-   ```bash
-   npm run sync
-   xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' build
-   ```
-   SPM 首次解析需联网拉 `github.com/ionic-team/capacitor-swift-pm`。若 SPM 超时,改用 CocoaPods 路线:`rm -rf ios && npx cap add ios --packagemanager CocoaPods`(需先 `sudo gem install cocoapods`,ruby 2.6 可用)。
-3. **模拟器跑通**:Xcode 选 iPhone 模拟器 Cmd+R;核对:首页载入 17 笔示例数据 → 新建预约(试冲突提醒)→ 标记拍摄/提审/发片 → 收定金/尾款(选渠道)→ 统计页开关通知。
-4. **SQLite 验证**:新增一笔订单 → 导出 .db → `sqlite3 探记-xxxx.db '.schema orders'` 与 `SELECT * FROM orders` 核对表结构与数据;同时验证 Web 端导出的 .db 结构一致。
-5. **通知验证**(模拟器即可):首次触发 snooze 授权弹窗 → 允许 → 设置 1 天后提醒;另验证每日 09:00 汇总(可临时把系统时间调快或把 hour 改成 2 分钟后);关闭通知开关后确认 pending 清空。
-6. **导出验证**:CSV/JSON/.db/分享图四种导出都调起系统分享面板(模拟器可分享到"存储到文件"或备忘录)。
+| 验证项 | 结果 | 证据 |
+|---|---|---|
+| xcodebuild 模拟器构建 | ✅ BUILD SUCCEEDED | 首次构建自动完成 SPM 解析(capacitor-swift-pm 8.6.2 / ion-ios-filesystem 2.0.1 / SQLCipher.swift 4.20.0);`PrivacyInfo.xcprivacy` 进包 |
+| 安装 + 启动 + 渲染 | ✅ | `simctl install/launch com.tanji.app`;首屏 17 笔种子、逾期横幅、五页签正常(截图) |
+| SQLite 落盘 | ✅ | 沙盒 `Documents/tanjiSQLite.db`:orders(mode,id 主键)17 行、payments 18 行、settings `demo/json` 7046 字节——修复后的 INSERT 模板真实写入 |
+| SQLite 读取回环(强验证) | ✅ | 抹掉 WKWebView localStorage 镜像 + 直接 `UPDATE settings` 改店名 → 重启 App 后 UI 显示改后店名,证明 UI 读的是 SQLite 文件而非种子/镜像 |
+| 通知权限弹窗 | ✅ | 启动即弹「“探记”想给你发送通知」——原生通知桥接生效(Web 端此处静默降级) |
+| 运行日志 | ✅ 无 Capacitor/SQLite/JS 错误 | `log show` 过滤 App 进程,仅系统框架噪声 |
+| target=_blank → 系统浏览器 | ✅ 源码已核实 | Capacitor 8 `WebViewDelegationHandler.swift:324`:`createWebViewWith` 调 `UIApplication.shared.open`,「关于」页外链机制成立 |
+
+**模拟器实测后仍待人工验证(需 UI 交互,DeviceHub 里点即可)**:
+
+- [ ] 允许通知授权后:snooze 一次性提醒实际到达;每日 09:00 催收汇总(临时把 hour 改到 2 分钟后验证);关闭开关后 pending 清空
+- [ ] 四种导出(CSV/JSON/.db/分享图)调起系统分享面板
+- [ ] 「统计 → 关于」两个外链在真机/模拟器实际跳系统浏览器
+- [ ] 真机签名 + SQLite 读写与通知到达率(上架清单第五节第 1 步的收尾)
+
+**已发现的外部依赖问题(2026-11-22 实测)**:「统计 → 关于」链接的线上隐私政策/支持页 **404**(`tanji-app-guvc.zai.site/privacy.html`、`/support.html`;站点根路径是旧版 Web App)——`privacy.html`/`support.html` 现已在 main 分支提交(commit `1d1c28f`),**但尚未重新部署站点**,线上仍是 404。上架前必须先部署站点让这两个 URL 可访问,属 main 分支事务。
+
+## 六·六、main/native 漂移防护机制(2026-11-22 建立)
+
+main 是唯一真源,native 的 `www/` 是同源副本,两者靠 `scripts/` 下的两个脚本 + GitHub Actions 锁死:
+
+| 机制 | 文件 | 作用 |
+|---|---|---|
+| 同步 | `scripts/sync-web-assets.cjs` | 纯资产(sw.js / manifest / privacy.html / support.html / icons / vendor)自动拷贝;index.html 与 storage.js 含原生适配层,**只检测漂移不自动覆盖**,有改动就中止并给出差异范围,人工合并后重跑 |
+| 校验 | `scripts/check-web-sync.cjs` | 记录并比对两侧内容指纹(git blob sha);main 改了没同步 / native 私自改了 / 锁文件没更新,三种情况一律失败退出 |
+| 基线 | `scripts/web-sync.lock.json` | 记录上次同步时 main 的 commit 与每个共享文件的指纹,入库 |
+| 构建产物 | 同上(内置检查) | `www/cap-plugins.js` 必须等于 `src/cap-plugins.js` 的 esbuild 产物,防止改了 src 忘打包 |
+| CI | `.github/workflows/ci.yml` | main 分支跑单元回归 + 浏览器端到端冒烟;native 分支额外跑原生回归 + 漂移校验 + 隐私清单合规检查 |
+
+日常用法:
+
+```sh
+npm run check              # 校验有无漂移(CI 同款),绿=可提交
+npm run sync:web           # 从 main 同步;合并文件有漂移时会中止并给差异
+# 人工合并完 index.html / storage.js 后:
+npm run check:update       # 重新登记基线
+npm run check              # 再确认一遍
+```
+
+**登记基线 = 承认"native 已经吸收了 main 的最新改动"**,所以它必须是人写代码之后的动作,不能拿来掩盖漏同步。
+
+## 七、实测清单(Xcode 已装,2026-11-22 执行情况)
+
+1. ~~**装机**~~ ✅ Xcode 27.2 已装(`xcode-select` 已指向 Xcode.app,iOS 27.2 runtime 就绪)。
+2. ~~**首次构建**~~ ✅ BUILD SUCCEEDED(见六·五;未走 CocoaPods 回退路线)。
+3. **模拟器跑通**:首页载入 17 笔 ✅(截图);新建预约/冲突提醒/标记环节/收款渠道/通知开关——**待人工点验**(DeviceHub)。
+4. **SQLite 验证**:沙盒库直查 ✅(六·五);「新增一笔订单 → 导出 .db → sqlite3 核对」待人工。
+5. **通知验证**:授权弹窗已验证弹出;允许后的 snooze 到达/每日汇总/pending 清空——待人工。
+6. **导出验证**:CSV/JSON/.db/分享图四导出调分享面板——待人工。
 7. **真机(可选)**:个人开发者证书或免费 Apple ID 签名,重点看 sqlite 库读写与通知到达率。
-8. **回归 Web 双端**:native 端产生数据后导出 JSON,再在 Web 端导入比对(或反向),确认字段语义一致。
+8. **回归 Web 双端**:native 端产生数据后导出 JSON,再在 Web 端导入比对(或反向),确认字段语义一致——待人工。
 
 ## 八、已知问题 / 风险
 
-- **Xcode 未装**:唯一阻塞项;其余环境问题均已绕开(SPM 免 CocoaPods、npmmirror 免 nodejs.org 超时)。
+- ~~**Xcode 未装**~~ 已解除(2026-11-22 装机 Xcode 27.2):模拟器构建/安装/启动/SQLite 读写回环实测通过,见六·五。
 - **全量重写持久化**:nativePersist 采用"DELETE + 全量重插"事务,百单量级无感;千单以上可改增量 UPSERT(v0.3)。
 - **sw.js/vendor 随包**:原生包体内含 PWA 资产(sw.js、manifest、icons)约 1.7MB;不碍事,后续可用 `capacitor.config.json` 的排除或拆分目录精简。
 - **每日通知文案**:固定 09:00 时刻,如需"仅在工作日提醒"或随人习惯漂移,后续用 `schedule.on.weekday` 扩展。
@@ -172,6 +212,44 @@ JS 模型(camelCase)↔ 行(snake_case)映射:`rowToOrder / rowToPayment / nativ
 - `npx cap copy ios` ✅;`xcodebuild` 仍被 Xcode 缺失阻塞(同前)。
 - 烟雾测试(浏览器回退路径):17 笔演示单、月历/编辑/收款/隐私全功能 ✅,isNative=false 时通知开关隐藏 ✅。
 - 已知注意:acquireWriter(Web Locks)原生端跳过;validateState 依赖 index.html 的 validDateTime(加载顺序已保证)。
+
+## 工作流 v0.5(2026-11-22,仅 native 版,html/main 版以后再做)
+
+> 达人真实工作流补充。决策(用户拍板):不改现有时间线顺序,只**加状态**;改动只落 native www/,main 的 html 版不动 → 漂移锁已按「native 侧有意变更」重登记。
+
+### 新字段(orders)
+
+| 字段 | DB 列 | 语义 | 旧数据默认 |
+|---|---|---|---|
+| location | location TEXT | 地点(门店地址/楼层) | '' |
+| deliverMain | deliver_main INTEGER DEFAULT 1 | 出片要求:需要正片(=长片 longAt) | true |
+| deliverSub | deliver_sub INTEGER DEFAULT 0 | 出片要求:需要副片(=短片 shortAt) | true(保持 v0.4"都要"语义;新单表单默认副片不勾) |
+| reviewResult | review_result TEXT DEFAULT '' | 送审结果:''待审/pass 合格/fail 不合格 | '' |
+| publishedAt | published_at TEXT | 发布时间(里程碑,可标记/清除) | null |
+
+- 标签改版:商家名称→品名/商家、渠道→服务商(蜂向/小爱/金城/食物本就是服务商)、出镜搭档→组队。
+- **正片=长片(longAt)、副片=短片(shortAt)**——此映射是我的判断(正片为主交付物),已按实况渲染验证。
+- 出齐(deliveredAll)按配置判断:勾了正片须 longAt、勾了副片须 shortAt;workOf 已交付=出齐(顺序不变)。
+- validateState 白名单已收编全部新字段;publishedAt 进时间戳校验;reviewResult 非法值拒绝。
+
+### 24 小时未出片提醒
+
+- 触发:拍摄完成(shotAt)+24h 时仍未出齐(按该单配置)→ 一次性本地通知「『店名』拍摄已超 24 小时,还有片子没出齐」。
+- id 约定追加:**出片提醒 = 300000+orderId**;cancelOrder/cancelAll 已覆盖。
+- 重排时机:mark(含拍摄/发片/发布里程碑)、saveEdit、saveOrder、删单、switchMode、启动;已超期的不排程(列表红标「超24h」兜底)。
+- Web 回退路径无通知,首页「待发片」列表有红色「超24h」角标。
+
+### UI/导出
+
+- 新建表单:地点输入 + 出片要求正/副片两个多选(默认正片✓副片✗,都勾=都要,全不勾拒绝保存);编辑弹层同步可改(含送审结果下拉)。
+- 详情页:里程碑五节点(不要求的片不显示)、送审结果合格/不合格快操(再点撤销)、发片中且未发布时「标记已发布」按钮。
+- 首页待发片芯片:待提审/待正片/待副片/待发布 + 超24h;CSV 与导出 .db、App 内数据结构文档页同步补列。
+
+### 迁移与验证
+
+- 旧库升级走 ALTER TABLE ADD COLUMN 逐条吞重复(新库建表已含,同样走一遍):**已在模拟器真实旧库上验证**——重装保数据的库从 20 列升到 25 列,17 单完好。
+- 回归测试 +6(旧库迁移/默认配置/仅正片出齐/24h 排程与撤销/删单撤提醒/送审发布往返与非法值拒),`npm test` 63/63。
+- 模拟器实测:详情页新芯片/五里程碑/送审按钮/新信息栏渲染正确(截图),发布里程碑标记/清除已人工点验。
 
 ## 深度 review 记录(2026-11-22)
 
@@ -200,7 +278,7 @@ JS 模型(camelCase)↔ 行(snake_case)映射:`rowToOrder / rowToPayment / nativ
 - **原生库与导出 .db 表结构不同构**:原生库 `orders`/`payments` 带 `mode` 列(双数据集),而导出 .db 用的是 Web 版表结构(无 mode)。README 与本笔记第四节的「同构/可互换打开」表述已按实情更正 —— **跨端搬运请用 JSON 备份**。
 - **`orders`/`payments` 两张表只写不读**:真实数据源是 `settings` 里的 JSON 文档,`rowToOrder()` 是死代码。两张表每次保存都要 DELETE+全量重插,属冗余写放大。`payments.order_id` 不含 mode,跨数据集有歧义——当前无触发点。
 - ~~**原生端没有 Web 那样的双副本兜底**~~ —— 已修复:localStorage 镜像改为**每次保存都写**(不再只在 SQLite 成功时写),`nativeReadSnapshot` 同时读 SQLite 与镜像并按修订号取较新的一份;SQLite 整个不可读时退回镜像并暂停写入(uncertain),避免用旧镜像盖掉新数据。
-- **Xcode 仍未安装**:`xcodebuild` 依旧阻塞,以上原生路径修复均未经过真机编译验证,需装机后按第七节清单实测。
+- ~~**Xcode 仍未安装**~~ 已解除(2026-11-22):以上原生路径修复已在模拟器上编译通过并实测(见六·五)。
 
 ### 新增测试
 

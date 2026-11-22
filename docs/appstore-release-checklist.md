@@ -40,9 +40,11 @@ App 内不需要任何购买逻辑。这意味着:**服务器、云开发、备�
 
 同步方向是 **main → native**(main 是唯一真源)。需要:
 
-- [ ] 加 `npm run sync:web`:从上游 main 拷贝 `index.html / storage.js / sw.js /
-      manifest.webmanifest / icons/ / vendor/` 到 `www/`
-- [ ] 加 CI 校验:`git diff --exit-code -- www/` 不一致则失败
+- [x] 加 `npm run sync:web`(2026-11-22,`scripts/sync-web-assets.cjs`):纯资产(sw.js/manifest/privacy.html/support.html/icons/vendor)从 main 自动拷贝;
+      index.html/storage.js 因织入原生适配层**不做盲拷**——main 侧有新改动时列出 diff 摘要并中止,人工合并后再跑一次。
+      基线锁 `scripts/web-sync.lock.json` 已建立(main @ `1d1c28f`)。
+- [x] 加 CI 校验(2026-11-22,`.github/workflows/ci.yml`):native 分支跑 `npm run check` 同款漂移校验 + 原生回归 + 隐私清单合规;
+      main 分支跑单元回归 + 浏览器端到端冒烟
 - [ ] `sw.js` 的 `VERSION` 在发布前必须 bump(否则老用户拿不到新版本)
 
 不做这件事,native 的 `www/` 会慢慢和 Web 版分叉,最终 App Store 版本出现"只有原生版有的 bug"。
@@ -51,11 +53,11 @@ App 内不需要任何购买逻辑。这意味着:**服务器、云开发、备�
 
 | 项 | 要求 | 备注 |
 |---|---|---|
-| **隐私清单** `PrivacyInfo.xcprivacy` | **强制**,2024-05-01 起每次提交都查 | 见下方 Required Reason |
-| **Required Reason API 声明** | 必须声明用到哪些受限 API 及原因码 | 本项目大概率命中 `UserDefaults` / 文件时间戳 / 磁盘空间 |
-| **隐私政策 URL** | 必填,必须可访问 | 可挂在 `tanji-app-guvc.zai.site` 下 |
-| **支持页 URL** | 必填 | 同上 |
-| **App Privacy 营养标签** | 必填,且**必须与 `PrivacyInfo.xcprivacy` 一致** | 不一致会被自动化扫描直接拒 |
+| **隐私清单** `PrivacyInfo.xcprivacy` | **强制**,2024-05-01 起每次提交都查 | ✅ 已建(2026-11-22),见下方 Required Reason |
+| **Required Reason API 声明** | 必须声明用到哪些受限 API 及原因码 | ✅ 已逐个核查第三方 SDK,实测只需 1 项:`FileTimestamp` / `C617.1`(详见下方) |
+| **隐私政策 URL** | 必填,必须可访问 | ✅ 页面已建(`privacy.html`),⏳ **待部署站点**使线上可访问 |
+| **支持页 URL** | 必填 | ✅ 同上(`support.html`),⏳ 待部署 |
+| **App Privacy 营养标签** | 必填,且**必须与 `PrivacyInfo.xcprivacy` 一致** | 不一致会被自动化扫描直接拒。纯本地 → 「不收集数据」 |
 | **账号删除** | 仅当 App 支持账号创建时需要 | 纯本地版**无账号 → 不需要** ✅ |
 | **Paid Apps Agreement** | 付费 App 必须签 | App Store Connect → Agreements |
 | **银行与税务信息** | 付费 App 必须填完整 | 不填会阻塞销售 |
@@ -66,9 +68,14 @@ App 内不需要任何购买逻辑。这意味着:**服务器、云开发、备�
 
 自查工具:构建后 `Product → Privacy Report`,会列出每个 SDK 是否带隐私清单。
 
-> ⚠️ 本项目的 4 个 Capacitor 插件里,`@capacitor-community/sqlite` 依赖 **SQLCipher.swift**,
-> `@capacitor/filesystem` 会用到 UserDefaults 与文件时间戳 —— 这些都会触发
-> Required Reason API 声明要求。
+> ⚠️ Required Reason API **已实测核查**(2026-11-22,逐个扫第三方二进制与源码):
+> `@capacitor/filesystem` 的依赖 `ion-ios-filesystem` 用 `attributesOfItem` / `creationDate` /
+> `modificationDate` 读文件属性 → 命中 **FileTimestamp**,所读文件全在 App 自身沙盒内 →
+> 原因码 **C617.1**。
+> **UserDefaults / DiskSpace / SystemBootTime / ActiveKeyboards 均未命中**:
+> `Capacitor.xcframework` 自带的 `PrivacyInfo.xcprivacy` 里 `NSPrivacyAccessedAPITypes` 是空数组,
+> 4 个插件的 Swift 源码里也搜不到这些调用。所以清单里**只声明 FileTimestamp 一项**,
+> 多声明反而是噪音。
 
 ### 3. 发布流程
 
@@ -113,16 +120,41 @@ App 内不需要任何购买逻辑。这意味着:**服务器、云开发、备�
 
 ## 五、执行顺序建议
 
-1. **原生版编译闭环**(当前进行中)→ 真机跑通 → 模拟器验收第七节清单
-2. **同步脚本 + CI 校验**(防 `www/` 腐化)—— 必须在第一次真源变更前做
-3. **隐私清单 + 隐私政策页 + 支持页** —— 上架硬门槛
-4. **买断付费上架**,PWA 保持免费
-5. AI 功能 → v2(需要时再加服务端 + AI 授权弹窗)
+1. ~~**原生版编译闭环**~~ ✅ 2026-11-22 完成:Xcode 27.2 编译 BUILD SUCCEEDED,`App.app` 已装进 iPhone 18 Pro 模拟器跑起来,
+   SQLite 落盘 / 双副本镜像 / 通知授权弹窗 / 重启持久化逐项验证通过
+2. ~~**同步脚本 + CI 校验**~~ ✅ 2026-11-22 完成:`npm run sync:web` / `npm run check` + `.github/workflows/ci.yml`
+3. ~~**隐私清单 + 隐私政策页 + 支持页**~~ ✅ 2026-11-22 全部就位
+   （⏳ 剩余:替换联系邮箱占位符 + 部署站点让线上 URL 可访问）
+4. **开发者账号**($99/年)→ 选主体 → 签 Paid Apps Agreement → 填银行与税务
+5. **真机验收**:选 Team 签名 → 跑一遍下单/收款/导出/通知 → 截 App Store 截图
+6. **买断付费上架**,PWA 保持免费
+7. AI 功能 → v2(需要时再加服务端 + AI 授权弹窗)
+
+## 五·一、开发者账号到底多少钱(2026-11-22 核实)
+
+**不是 199 美元。** Apple 官方只有三个开发者计划:
+
+| 计划 | 价格 | 能做什么 |
+|---|---|---|
+| **Apple Developer Program** | **$99/年**(中国大陆 ¥688) | 个人(Individual)与公司(Organization)**同价**;可上架 App Store、用 TestFlight 外部测试、推送 |
+| Enterprise Program | $299/年 | 仅限 100+ 员工企业**内部分发**,**不能上 App Store** |
+| 免费 Apple ID | $0 | 只能本机真机调试(证书 7 天过期、10 个 AppID、3 台设备),**不能上架、不能 TestFlight 外部测试** |
+
+$199 **不是 Apple 的任何官方档位**,大概率是第三方"代申请已认证账号"服务的报价
+(这类服务 Personal 约 $350 / Company 约 $850),或把 $299 记成了 $199。
+自己注册只要 $99/年,不需要中间商。
+
+付费买断的 App 上架前,这三件事必须做完:
+- [ ] 签 **Paid Apps Agreement**(App Store Connect → Agreements → 同意)
+- [ ] 填完整的**银行与税务信息**(不填会阻塞销售,个体户需要提供营业执照等主体材料)
+- [ ] 主体类型:个人(Individual)可上架,但**显示的是个人法定姓名**,且中国区个人主体需身份证认证;
+      个体工商户可考虑 Organization 主体(需营业执照 + 对公验证)
 
 ## 六、参考来源
 
-- Apple Developer Program 注册:<https://developer.apple.com/cn/programs/enroll/>
+- Apple Developer Program 注册与价格:<https://developer.apple.com/cn/programs/enroll/>
 - App Review Guidelines:<https://developer.apple.com/app-store/review/guidelines/>
 - 隐私清单文件:<https://developer.apple.com/documentation/bundleresources/privacy_manifest_files>
+- Required Reason API 与原因码:<https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/describing_use_of_required_reason_api>
 - 账号删除要求(5.1.1(v)):<https://developer.apple.com/support/offering-account-deletion-in-your-app/>
 - Capacitor IAP 插件(仅 B 方案需要):<https://github.com/capawesome-team/capacitor-plugins>
