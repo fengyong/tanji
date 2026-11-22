@@ -730,7 +730,7 @@ function buildSqliteBytes(state=db){
       appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
       deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
       channel TEXT, partner TEXT,
-      location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
+      location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 1,
       review_result TEXT DEFAULT '', published_at TEXT,
       account_id INTEGER,
       note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT);
@@ -1087,7 +1087,7 @@ CREATE TABLE orders (
   location       TEXT,           <span class="c">-- 地点:门店地址/楼层(手填,导航按它查)</span>
   gps_place      TEXT,           <span class="c">-- 到店定位 拍摄时自动记录的 GPS 坐标串 与手填 location 并存</span>
   deliver_main   INTEGER DEFAULT 1, <span class="c">-- 出片要求:1=需要正片</span>
-  deliver_sub    INTEGER DEFAULT 0, <span class="c">-- 出片要求:1=需要副片</span>
+  deliver_sub    INTEGER DEFAULT 1, <span class="c">-- 出片要求:1=需要副片(缺省 1=旧单正副片都要)</span>
   review_result  TEXT DEFAULT '',   <span class="c">-- 送审结果:''待审 / pass 合格 / fail 不合格</span>
   published_at   TEXT,              <span class="c">-- 发布时间(里程碑可改)</span>
   account_id     INTEGER,           <span class="c">-- 所属账号(accounts.id,空=未指定)</span>
@@ -1360,7 +1360,7 @@ function openRemind(oid){
   const log=remindLogOf(o),last=log[log.length-1];
   ui.remindOid=oid;
   const note=$('#remind-note');if(note)note.value='';
-  $('#remind-sub').textContent=`「${o.store}」${log.length?`已催 ${log.length} 次,最近 ${fmtDT(last.at)}`:'还没催过'} · 记录时间自动取现在`;
+  $('#remind-sub').textContent=`「${o.store}」${log.length?`已催 ${log.length>=50?'50+':log.length} 次,最近 ${fmtDT(last.at)}`:'还没催过'} · 记录时间自动取现在`;
   $('#remind-quick').innerHTML=REMIND_QUICK.map(t=>`<button class="fchip" data-act="remind-quick" data-v="${esc(t)}">${esc(t)}</button>`).join('');
   showSheet('sheet-remind');
 }
@@ -1370,11 +1370,14 @@ function saveRemind(){
   const input=$('#remind-note');
   const note=(input&&input.value?input.value:'').trim().slice(0,200);
   const at=nowStr();
+  // 追加前先取条数:封顶 slice(-50) 之后 length 不再增长,事后读会把「第 51 次」报成「第 50 次」
+  const seq=remindLogOf(o).length;
+  const capped=seq>=50;
   o.remindLog=[...remindLogOf(o),{at,note}].slice(-50);
   const back=ui.detail===id?id:null;
   save();renderAll();closeSheets();
   if(back!==null&&byId(back))openDetail(back);
-  toast(`已记录第 ${o.remindLog.length} 次催收${note?` · ${note}`:''}`);
+  toast(capped?`已记录 · 最早一条已被挤出,只保留最近 50 次${note?` · ${note}`:''}`:`已记录第 ${seq+1} 次催收${note?` · ${note}`:''}`);
 }
 function openExpect(oid){
   const o=byId(oid);
@@ -1481,7 +1484,7 @@ function openDetail(id){
     const log=remindLogOf(o),last=log[log.length-1],recent=log.slice(-4).reverse();
     snoozeHtml=`<div class="sec-title" style="margin-top:16px">催收跟进<span class="more" data-act="remind-open" data-oid="${esc(o.id)}">再催一次 ›</span></div>
       <div class="card" style="background:#F8F8FA;box-shadow:none;padding:12px 13px">
-        <div class="rsub" style="margin:0${recent.length?' 0 8px':''};line-height:1.5">${log.length?`已催 ${log.length} 次 · 最近 ${esc(fmtDT(last.at))}`:'还没催过;第一次跟进也记一笔,对方怎么答下次不用重新问'}</div>
+        <div class="rsub" style="margin:0${recent.length?' 0 8px':''};line-height:1.5">${log.length?`已催 ${log.length>=50?'50+':log.length} 次 · 最近 ${esc(fmtDT(last.at))}`:'还没催过;第一次跟进也记一笔,对方怎么答下次不用重新问'}</div>
         ${recent.map(entry=>`<div class="rline"><span class="rt">${esc(fmtD(entry.at))} ${esc(fmtHM(entry.at))}</span><span class="rn">${entry.note?esc(entry.note):'已催'}</span></div>`).join('')}
         ${log.length>recent.length?`<div class="rsub" style="margin-top:6px">另有 ${log.length-recent.length} 次更早的跟进</div>`:''}
       </div>

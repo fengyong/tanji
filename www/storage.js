@@ -293,6 +293,11 @@ async function replaceData(state){
     next.previous=before;
     if(!await persistSnapshot(next))return false;
     Store.backup=before;db=validated;closeSheets();ui.q='';ui.chip='all';ui.bucket='all';renderAll();
+    // 数据被整体替换(导入/恢复/清空)后,已排的通知还指着旧数据:已删订单的备忘、
+    // 出片提醒会在半夜凭空响起来。先撤干净,再按新数据重排每日汇总与出片提醒;
+    // 催收备忘是"设当时的时点快照",撤掉不凭空重排(与 switchMode 同口径)。
+    await Notify.cancelAll();
+    Notify.syncDaily();Notify.syncDeliver();
     return true;
   }finally{Store.busy=false}
 }
@@ -364,7 +369,7 @@ async function nativeOpen(){
   appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
   deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
   channel TEXT, partner TEXT,
-  location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
+  location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 1,
   review_result TEXT DEFAULT '', published_at TEXT,
   account_id INTEGER,
   note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT,
@@ -385,7 +390,8 @@ async function nativeOpen(){
     'ALTER TABLE orders ADD COLUMN location TEXT',
     'ALTER TABLE orders ADD COLUMN gps_place TEXT',
     'ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1',
-    'ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 0',
+    // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
+    'ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1',
     `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
     'ALTER TABLE orders ADD COLUMN published_at TEXT',
     'ALTER TABLE orders ADD COLUMN account_id INTEGER',
@@ -479,7 +485,8 @@ async function nativeReadSnapshot(mode,suffix='json'){
 /* ================= 本地通知(仅 iOS 原生生效) =================
  * 每日 09:00 催收汇总(只报条数与最长天数,不含金额);
  * snooze 备忘在原生环境升级为一次性系统通知。
- * 通知 id:每日汇总=1;单订单催收=100000+orderId*100+天数;出片提醒=300000+orderId。 ================= */
+ * 通知 id:每日汇总=1;单订单催收=100000+orderId;出片提醒=300000+orderId。
+ * 两段按 orderId 各占一段、互不重叠(要求 orderId<100000,个人记账远达不到)。 ================= */
 
 /* ---- 出片要求(工作流 v0.5):规则实现在 logic.js,这里保留同名薄包装 ----
  * 业务规则统一收敛到 www/logic.js(纯函数),storage.js 只负责持久化与通知。 */
@@ -542,12 +549,15 @@ const Notify={
       if(!await this.ensurePermission())return;
       const L=CAP.LocalNotifications;
       const pend=await L.getPending();
-      const mine=(pend.notifications||[]).filter(n=>{const v=+n.id-100000;return v>=0&&Math.floor(v/100)===o.id&&v%100!==0});
+      // 备忘一单同时只有一条(下面排新前先撤旧),id 用 100000+订单号独占一段即可。
+      // 不再用 100000+id*100+d:那会在订单号≥2000 时落进 300000+id 的出片提醒段,
+      // 高单号的备忘会把低单号的出片提醒顶掉(id 相同后者覆盖前者)。
+      const mine=(pend.notifications||[]).filter(n=>+n.id===100000+o.id);
       if(mine.length)await L.cancel({notifications:mine});
       const at=new Date(o.remindAt);
       if(isNaN(at))return;
       await L.schedule({notifications:[{
-        id:100000+o.id*100+d,title:'探记 · 催收跟进',
+        id:100000+o.id,title:'探记 · 催收跟进',
         body:`「${o.store}」尾款该跟进了（${d} 天前设置的提醒）`,
         schedule:{at,allowWhileIdle:true},
       }]});
@@ -565,7 +575,7 @@ const Notify={
     if(!this.native())return;
     try{
       const L=CAP.LocalNotifications,pend=await L.getPending();
-      const mine=(pend.notifications||[]).filter(n=>{const v=+n.id-100000;return (v>=0&&v<200000&&Math.floor(v/100)===+id&&v%100!==0)||+n.id===300000+(+id)});
+      const mine=(pend.notifications||[]).filter(n=>+n.id===100000+(+id)||+n.id===300000+(+id));
       if(mine.length)await L.cancel({notifications:mine});
     }catch(e){}
   },

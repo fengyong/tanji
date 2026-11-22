@@ -294,6 +294,52 @@ test('通知开关：只管每日催收——关闭不撤用户自设的备忘�
 
 /* ---------- 通知与数据变更同步 ---------- */
 
+test('通知 id 分段:高订单号的催收备忘不再撞掉低订单号的出片提醒',async()=>{
+  const a=app();
+  setState(a,[order({id:7,store:'小店',shotAt:'2026-11-21T10:00'}),order({id:2000,store:'高单号',shotAt:'2026-11-21T10:30'})]);
+  await a.run('save()');
+  await a.run('Notify.syncDeliver()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===300007).length,1,'订单 7 的出片提醒在排');
+  assert.equal(a.device.pending.filter(n=>+n.id===302000).length,1,'订单 2000 的出片提醒在排');
+  // 旧方案备忘 id=100000+id*100+d:给订单 2000 设 7 天备忘会算出 300007,
+  // 正好撞掉订单 7 的出片提醒(同 id 后排覆盖前排),取消过滤也会误伤
+  await a.run("db.orders[1].remindAt='2026-11-24T09:00';Notify.scheduleSnooze(db.orders[1],7);");
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===102000).length,1,'备忘用 100000+订单号,有自己的 id 段');
+  assert.equal(a.device.pending.filter(n=>+n.id===300007).length,1,'订单 7 的出片提醒不能被高单号备忘撞掉');
+  await a.run('Notify.cancelOrder(2000)');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===102000||+n.id===302000).length,0,'清单应同时撤掉该单的备忘与出片提醒');
+  assert.equal(a.device.pending.filter(n=>+n.id===300007).length,1,'别单的出片提醒不受影响');
+});
+
+test('数据替换(导入/恢复/清空)后通知按新数据重排,旧数据的备忘不残留',async()=>{
+  const a=app();
+  setState(a,[OVERDUE,order({id:2,store:'新店',shotAt:'2026-11-21T10:00'})]);
+  await a.run('save()');
+  // 先排每日汇总再设备忘:备忘一旦设上,该单会被 snoozed 从汇总口径里排除
+  await a.run('Notify.syncDaily()');
+  a.run("db.orders[0].remindAt='2026-11-24T09:00';Notify.scheduleSnooze(db.orders[0],3);");
+  await a.run('Notify.syncDeliver()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'每日汇总在排');
+  assert.equal(a.device.pending.filter(n=>+n.id>=100000&&+n.id<300000).length,1,'旧数据的催收备忘在排');
+  assert.equal(a.device.pending.filter(n=>+n.id>=300000).length,1,'旧数据的出片提醒在排');
+
+  // 清空与导入/恢复共用 replaceData:旧数据已不存在,任何已排通知都不该残留
+  assert.equal(await a.run('replaceData({orders:[],payments:[],threshold:15})'),true);
+  await tick();
+  assert.equal(a.device.pending.length,0,'数据整体替换后,指向旧数据的通知应全部撤掉');
+
+  // 换一份带逾期单的数据:每日汇总要按新数据排出来,且不凭空造备忘
+  assert.equal(await a.run(`replaceData(${JSON.stringify({orders:[order({id:9,store:'导入店',shotAt:'2026-01-05T11:00'})],payments:[],threshold:15})})`),true);
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'导入的逾期单应重新排每日汇总');
+  assert.equal(a.device.pending.filter(n=>+n.id>=100000&&+n.id<300000).length,0,'备忘是设当时的快照,导入不凭空重排');
+});
+
+
 test('收尾款后每日催收通知应重新排程',async()=>{
   const a=app();
   setState(a,[OVERDUE]);
@@ -665,3 +711,44 @@ test('催收跟进/预计到账:旧库补列,数组按 JSON 落一列,重启读�
   assert.equal(b.run('db.orders[0].expectPayAt'),'2026-11-30T10:00');
   assert.deepEqual(b.json('parseRemindLog("{bad")'),[],'坏 JSON 只丢这一列,不能让整单读崩');
 });
+
+test('旧库补列:deliver_sub 缺省为 1,不能把旧单的副片要求静默关掉',async()=>{
+  const device=newDevice();
+  // v0.4 旧表:没有工作流列,库里有已存在的旧单
+  device.db.exec(`CREATE TABLE orders(
+    mode TEXT NOT NULL, id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
+    price REAL NOT NULL, deposit REAL DEFAULT 0,
+    appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
+    deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+    channel TEXT, partner TEXT, note TEXT, created_at TEXT, updated_at TEXT,
+    PRIMARY KEY(mode,id))`);
+  device.db.exec(`CREATE TABLE payments(mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`);
+  device.db.exec(`CREATE TABLE settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`);
+  device.db.exec(`INSERT INTO orders(mode,id,store,price,appt_at) VALUES('work',1,'v0.4 旧单',1000,'2026-11-01T10:00')`);
+  const a=app(device);
+  await a.run('nativeOpen()');
+  const row=a.run(`Store.conn.db.prepare('SELECT deliver_main,deliver_sub FROM orders WHERE id=1').all()[0]`);
+  assert.equal(row.deliver_main,1,'旧单补列缺省应为 1(需要正片)');
+  assert.equal(row.deliver_sub,1,'旧单补列缺省应为 1:JSON 层的 v0.4 语义是正副片都要,DEFAULT 0 会静默关掉老单的副片要求');
+});
+
+test('催收跟进:满 50 条后计数如实显示,不再把第 51 次报成第 50 次',async()=>{
+  const a=app();
+  const pad2=n=>String(n).padStart(2,'0');
+  const log=Array.from({length:50},(_,i)=>({at:`2026-10-${pad2(1+Math.floor(i/2))}T${i%2?'15:00':'09:00'}`,note:`第 ${i+1} 次`}));
+  setState(a,[order({remindLog:log})]);
+  a.run('openRemind(1)');
+  assert.ok(a.element('#remind-sub').textContent.includes('已催 50+ 次'),'封顶后的计数要显示 50+ 而不是停在 50');
+  a.element('#remind-note').value='再问一次';
+  a.run('saveRemind()');
+  assert.equal(a.run('db.orders[0].remindLog.length'),50,'存储仍只保留最近 50 条');
+  assert.ok(a.element('#toast').textContent.includes('最早一条已被挤出'),'封顶后 toast 要说清挤出了最早一条,而不是谎报第 50 次');
+
+  setState(a,[order({remindLog:log.slice(0,3)})]);
+  a.run('openRemind(1)');
+  assert.ok(a.element('#remind-sub').textContent.includes('已催 3 次'),'未封顶时计数照常');
+  a.element('#remind-note').value='';
+  a.run('saveRemind()');
+  assert.ok(a.element('#toast').textContent.includes('已记录第 4 次催收'),'未封顶时 toast 报真实序号');
+});
+
