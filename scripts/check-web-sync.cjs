@@ -50,8 +50,9 @@ const LOCK_PATH = path.join(ROOT, 'scripts', 'web-sync.lock.json');
 
 /** main 与 native 之间的共享文件映射 */
 const SHARED = [
-  { main: 'index.html', native: 'www/index.html', note: '主应用 UI + 业务状态' },
-  { main: 'storage.js', native: 'www/storage.js', note: '双副本存储与迁移' },
+  { main: 'index.html', native: 'www/index.html', note: '主应用 UI(markup)与模块入口' },
+  // P0 拆层:native 的 storage 源码已移入 src/app/,与 main 的平铺 storage.js 对应
+  { main: 'storage.js', native: 'src/app/storage.js', note: '双副本存储与迁移' },
   { main: 'sw.js', native: 'www/sw.js', note: 'Service Worker 离线缓存' },
   { main: 'manifest.webmanifest', native: 'www/manifest.webmanifest', note: 'PWA 清单' },
   { main: 'privacy.html', native: 'www/privacy.html', note: '隐私政策（App Store 必需）' },

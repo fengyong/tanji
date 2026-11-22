@@ -34,10 +34,18 @@ const ROOT = path.join(__dirname, '..');
 // native 分支的 Web 资源在 www/ 下,main 分支在仓库根目录 —— 同一份测试两边都能跑
 const WEB_DIR = fs.existsSync(path.join(ROOT, 'www', 'index.html')) ? path.join(ROOT, 'www') : ROOT;
 const INDEX = path.join(WEB_DIR, 'index.html');
-const STORAGE = path.join(WEB_DIR, 'storage.js');
+
+// P0 拆层后(native):建表/INSERT 分散在 src/app/sqlite-bytes.js(导出 .db)
+// 与 src/app/storage.js(原生插件路径);main 分支仍读平铺的 storage.js
+const APP_DIR = path.join(ROOT, 'src', 'app');
+const SPLIT = fs.existsSync(path.join(APP_DIR, 'sqlite-bytes.js'));
+const STORAGE = SPLIT ? path.join(APP_DIR, 'storage.js') : path.join(WEB_DIR, 'storage.js');
 
 const indexSrc = fs.readFileSync(INDEX, 'utf8');
 const storageSrc = fs.readFileSync(STORAGE, 'utf8');
+const sqlSrc = SPLIT
+  ? fs.readFileSync(path.join(APP_DIR, 'sqlite-bytes.js'), 'utf8')
+  : indexSrc;
 
 /** 按括号深度切分 SQL 片段 */
 function splitTopLevel(body) {
@@ -107,7 +115,8 @@ function insertStatements(src) {
   return list;
 }
 
-const tables = createTableDefinitions(indexSrc);
+// 说明页表定义在 index.html(markup),实际建表在 sqlSrc —— 两份必须一致
+const tables = createTableDefinitions(indexSrc + '\n' + sqlSrc);
 
 test('三张表都能被解析出来', () => {
   for (const name of ['orders', 'payments', 'settings']) {
@@ -135,7 +144,7 @@ test('同一个表的每一份定义列数与列名都必须一致(建表语句�
 });
 
 test('每个 INSERT 的值个数必须与目标表的列数一致', () => {
-  const statements = insertStatements(indexSrc);
+  const statements = insertStatements(sqlSrc);
   assert.ok(statements.length >= 3, `只解析到 ${statements.length} 条 INSERT,预期至少 3 条`);
 
   for (const st of statements) {

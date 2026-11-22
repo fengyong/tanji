@@ -17,9 +17,9 @@ const vm=require('node:vm');
 const {DatabaseSync}=require('node:sqlite');
 
 const root=path.join(__dirname,'..','www');
-const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const script=html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>'));
-const storage=fs.readFileSync(path.join(root,'storage.js'),'utf8');
+// P0 拆层后:页面脚本与 storage 已 ESM 化,改由 tests/harness-entry.mjs
+// 打包成 IIFE 线束(npm run build:test-harness),在 vm 里拼回全局面
+const bundle=fs.readFileSync(path.join(__dirname,'.harness.bundle.js'),'utf8');
 const logic=fs.readFileSync(path.join(root,'logic.js'),'utf8');
 const imaging=fs.readFileSync(path.join(root,'imaging.js'),'utf8');
 const geo=fs.readFileSync(path.join(root,'geo.js'),'utf8');
@@ -149,8 +149,8 @@ function app(device=newDevice()){
   context.window.TanjiCap=mock.cap;
 
   const run=code=>vm.runInContext(code,context);
-  // 加载顺序与 index.html 一致:imaging(图像) → logic(规则) → geo(定位) → storage(持久化/通知) → 页面脚本
-  run(imaging+'\n'+logic+'\n'+geo+'\n'+storage+'\n'+script.slice(0,script.indexOf('/* ================= 启动')));
+  // 加载顺序与 index.html 一致:imaging(图像) → logic(规则) → geo(定位) → 线束(持久化/通知/页面脚本,不含启动序列)
+  run(imaging+'\n'+logic+'\n'+geo+'\n'+bundle);
   // IndexedDB 在原生端不该被读写；这里给一个「读得到但为空」的实现，模拟 WKWebView 正常行为
   run('idb.get=async()=>({ok:true,value:null});idb.setMany=async()=>true;');
   run('Store.ready=true;Store.mode="work";');
@@ -168,7 +168,8 @@ const order=overrides=>({
 });
 
 const OVERDUE=order({shotAt:'2026-01-01T11:00'});
-const setState=(a,orders=[order()],payments=[])=>a.run(`db=${JSON.stringify({orders,payments,threshold:15})}`);
+// ESM 后 db 是模块 live binding,不允许外部整体重赋值;__replaceDb 做清空+变异(见 harness-entry)
+const setState=(a,orders=[order()],payments=[])=>a.run(`__replaceDb(${JSON.stringify({orders,payments,threshold:15})})`);
 const tick=()=>new Promise(r=>setImmediate(r));
 
 /* ---------- 原生持久化 ---------- */
@@ -723,7 +724,7 @@ test('工作流:旧库自动迁移,缺列 ALTER 补齐后新字段可读写',asy
 
 test('工作流:旧数据缺正/副片配置时默认都要(保持 v0.4 语义)',async()=>{
   const a=app();
-  await a.run('db={orders:[{id:1,store:"旧单",cat:"餐饮",contact:"",channel:"直客",partner:"",price:1000,deposit:0,settleVia:"private",appt:"2026-11-01T10:00",shotAt:"2026-11-01T11:00",submittedAt:"2026-11-01T20:00",shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,note:""}],payments:[],threshold:15}');
+  await a.run('__replaceDb({orders:[{id:1,store:"旧单",cat:"餐饮",contact:"",channel:"直客",partner:"",price:1000,deposit:0,settleVia:"private",appt:"2026-11-01T10:00",shotAt:"2026-11-01T11:00",submittedAt:"2026-11-01T20:00",shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,note:""}],payments:[],threshold:15})');
   assert.equal(a.run('validateState(db).orders[0].deliverMain'),true);
   assert.equal(a.run('validateState(db).orders[0].deliverSub'),true);
   assert.equal(a.run('validateState(db).orders[0].reviewResult'),'');

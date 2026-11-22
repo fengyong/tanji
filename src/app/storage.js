@@ -1,8 +1,8 @@
-const CAP=(typeof window!=='undefined'&&window.TanjiCap)||null;
-const isNative=!!(CAP&&CAP.Capacitor&&CAP.Capacitor.isNativePlatform&&CAP.Capacitor.isNativePlatform());
-let db={orders:[],payments:[],threshold:15};
-const Store={sqlite3:null,mode:'demo',revision:0,queue:Promise.resolve(),ready:false,busy:false,blocked:false,lockedOut:false,backup:null,status:'正在读取本机数据…',pending:null};
-async function acquireWriter(){
+/* P0 §3 机械改动 1:CAP/isNative 上移 env.js,本模块改从那里 import。 */
+import {CAP,isNative} from './env.js';
+export let db={orders:[],payments:[],threshold:15};
+export const Store={sqlite3:null,mode:'demo',revision:0,queue:Promise.resolve(),ready:false,busy:false,blocked:false,lockedOut:false,backup:null,status:'正在读取本机数据…',pending:null};
+export async function acquireWriter(){
   if(isNative)return;
   if(!navigator.locks){Store.lockedOut=true;return}
   await new Promise(resolve=>{
@@ -12,9 +12,9 @@ async function acquireWriter(){
     }).catch(()=>{Store.lockedOut=true;resolve()});
   });
 }
-const storageKey=(mode,suffix='json')=>`tanji_v3_${mode}_${suffix}`;
-const cloneState=value=>JSON.parse(JSON.stringify(value));
-const idb={
+export const storageKey=(mode,suffix='json')=>`tanji_v3_${mode}_${suffix}`;
+export const cloneState=value=>JSON.parse(JSON.stringify(value));
+export const idb={
   _db:null,_opening:null,
   open(){
     if(this._db)return Promise.resolve(this._db);
@@ -61,7 +61,7 @@ function localRead(key){
 function localWrite(key,value){
   try{localStorage.setItem(key,JSON.stringify(value));return true}catch(error){return false}
 }
-function validateState(input){
+export function validateState(input){
   if(!input||typeof input!=='object'||!Array.isArray(input.orders)||!Array.isArray(input.payments))throw new Error('备份必须包含订单与收款流水数组');
   // 版本白名单只增不减:0.2~0.4 是老 Web 版备份(无工作流/账号字段,缺省值兜底),
   // 0.5 起带正/副片与送审发布字段,0.6 起带 accounts/providers。旧备份必须继续可导入。
@@ -157,7 +157,7 @@ function validateState(input){
   const notifyEnabled=input.notifyEnabled===undefined?true:input.notifyEnabled!==false;
   return {orders,payments,threshold,notifyEnabled,accounts,providers};
 }
-function setStorageStatus(message){
+export function setStorageStatus(message){
   if(Store.lockedOut)message='当前为只读：请关闭其他探记标签页后刷新重试；浏览器须支持安全写入锁。';
   Store.status=message;
   const banner=document.querySelector('#storage-status');
@@ -203,15 +203,15 @@ function persistSnapshot(payload){
   Store.queue=Store.queue.then(write,write);
   return Store.queue;
 }
-function save(){
+export function save(){
   if(Store.blocked)return Promise.resolve(false);
   setStorageStatus('正在保存…');
   const payload=snapshot();
   if(Store.backup)payload.previous=Store.backup;
   return persistSnapshot(payload);
 }
-function persistFull(){return save()}
-async function readSnapshot(mode,suffix='json'){
+export function persistFull(){return save()}
+export async function readSnapshot(mode,suffix='json'){
   if(isNative)return nativeReadSnapshot(mode,suffix);
   const key=storageKey(mode,suffix),local=localRead(key),indexed=await idb.get(key);
   const candidates=[];let invalid=false;
@@ -238,7 +238,7 @@ async function rememberMode(mode){
   const indexedOK=await idb.setMany([['tanji_v3_mode',value]]);
   return localOK||indexedOK;
 }
-async function loadState(){
+export async function loadState(){
   Store.ready=false;Store.blocked=Store.lockedOut;Store.backup=null;
   const [work,demo,indexedMode]=await Promise.all([readSnapshot('work'),readSnapshot('demo'),idb.get('tanji_v3_mode')]);
   const localMode=localRead('tanji_v3_mode');
@@ -272,7 +272,7 @@ function blockLoad(){
   setStorageStatus('本机数据读取失败，已暂停写入以保护原数据。请重试，或先导出替换前备份留存。');
   return false;
 }
-async function switchMode(mode){
+export async function switchMode(mode){
   if(Store.busy||Store.blocked||mode===Store.mode)return;
   Store.busy=true;
   try{
@@ -286,7 +286,7 @@ async function switchMode(mode){
     toast(mode==='work'?'已切换到工作数据':'已切换到独立演示数据，工作数据未改动');
   }finally{Store.busy=false}
 }
-async function replaceData(state){
+export async function replaceData(state){
   if(Store.busy||Store.blocked)return false;
   const validated=validateState(state);
   // 导入的备份若没带通知开关（比如别的机器导出的 Web 版备份），沿用本机当前设置，
@@ -314,16 +314,16 @@ async function replaceData(state){
     return true;
   }finally{Store.busy=false}
 }
-function backupDocument(state=db){return {app:'探记 TanJi',version:'0.6',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,accounts:cloneState(state.accounts||[]),providers:cloneState(state.providers||[]),orders:cloneState(state.orders),payments:cloneState(state.payments)}}
+export function backupDocument(state=db){return {app:'探记 TanJi',version:'0.6',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,accounts:cloneState(state.accounts||[]),providers:cloneState(state.providers||[]),orders:cloneState(state.orders),payments:cloneState(state.payments)}}
 /* 账号资料一键拷贝文本:昵称/抖音/手机三行,空字段自动跳过(报名表、给服务商用) */
-function accountCopyText(account){
+export function accountCopyText(account){
   const lines=[];
   if(account.name)lines.push(`昵称:${account.name}`);
   if(account.douyin)lines.push(`抖音:${account.douyin}`);
   if(account.phone)lines.push(`手机:${account.phone}`);
   return lines.join('\n');
 }
-async function previewImport(file){
+export async function previewImport(file){
   if(!file)return;
   try{
     if(file.size>10*1024*1024)throw new Error('备份文件不能超过 10 MB');
@@ -337,16 +337,16 @@ async function previewImport(file){
     }
     Store.pending=state;
     const total=state.payments.reduce((sum,p)=>sum+p.amount,0);
-    document.querySelector('#import-summary').textContent=`${file.name}：${state.orders.length} 笔订单、${state.payments.length} 笔流水、实收 ${fmtMoney(total)}、催收阈值 ${state.threshold} 天。将替换当前${Store.mode==='work'?'工作':'演示'}数据，替换前自动保存一份本机备份。`;
+    document.querySelector('#import-summary').textContent=`${file.name}：${state.orders.length} 笔订单、${state.payments.length} 笔流水、实收 ${fmtMoney(total,ui.privacy)}、催收阈值 ${state.threshold} 天。将替换当前${Store.mode==='work'?'工作':'演示'}数据，替换前自动保存一份本机备份。`;
     showSheet('sheet-import');
   }catch(error){Store.pending=null;toast(`不能导入：${error.message}`)}
 }
-async function confirmImport(){
+export async function confirmImport(){
   if(!Store.pending||Store.busy)return;
   const state=Store.pending;
   if(await replaceData(state)){Store.pending=null;toast('备份已恢复，替换前数据可在统计页恢复')}
 }
-async function restoreCheckpoint(){
+export async function restoreCheckpoint(){
   if(Store.busy||Store.blocked)return;
   Store.busy=true;
   let saved;
@@ -356,7 +356,7 @@ async function restoreCheckpoint(){
   if(!confirm(`恢复替换前的 ${saved.value.orders.length} 笔订单和 ${saved.value.payments.length} 笔流水？当前数据将作为新的替换前备份保留。`))return;
   if(await replaceData(saved.value))toast('已恢复替换前数据');
 }
-async function exportCheckpoint(){
+export async function exportCheckpoint(){
   const mode=Store.mode;
   const saved=await readSnapshot(mode,'backup');
   if(!saved.value){toast('没有可用的替换前备份');return}
@@ -367,7 +367,7 @@ async function exportCheckpoint(){
 /* --- 原生:Capacitor SQLite(双数据集:mode 列;settings 以 mode:suffix 为键) --- */
 const NATIVE_DB='tanji';
 const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','gps_place','deliver_main','deliver_sub','review_result','published_at','account_id','note','remind_log','expect_pay_at','created_at','updated_at'];
-async function nativeOpen(){
+export async function nativeOpen(){
   if(Store.conn)return Store.conn;
   const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
   const conn=await sqlite.createConnection(NATIVE_DB,false,'no-encryption',1,false);
@@ -414,7 +414,7 @@ async function nativeOpen(){
   Store.conn=conn;
   return conn;
 }
-function parseRemindLog(raw){
+export function parseRemindLog(raw){
   if(raw==null||raw==='')return [];
   try{const value=typeof raw==='string'?JSON.parse(raw):raw;return Array.isArray(value)?value:[]}
   catch(e){console.warn('[TanJi] 催收跟进列内容无法解析,已忽略',e);return []}
@@ -509,11 +509,11 @@ const notifyBase=()=>NOTIFY_OFFSET[Store.mode]||0;
 
 /* ---- 出片要求(工作流 v0.5):规则实现在 logic.js,这里保留同名薄包装 ----
  * 业务规则统一收敛到 www/logic.js(纯函数),storage.js 只负责持久化与通知。 */
-const needMain=o=>TanJiLogic.needMain(o);
-const needSub=o=>TanJiLogic.needSub(o);
-const deliveredAll=o=>TanJiLogic.deliveredAll(o);
+export const needMain=o=>TanJiLogic.needMain(o);
+export const needSub=o=>TanJiLogic.needSub(o);
+export const deliveredAll=o=>TanJiLogic.deliveredAll(o);
 
-const Notify={
+export const Notify={
   native(){return isNative&&CAP&&CAP.LocalNotifications},
   async ensurePermission(){
     const L=CAP.LocalNotifications;

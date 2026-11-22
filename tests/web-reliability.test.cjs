@@ -4,9 +4,10 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const root=path.join(__dirname,'..','www');
-const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const script=html.slice(html.indexOf('<script>')+8,html.lastIndexOf('</script>'));
-const storage=fs.readFileSync(path.join(root,'storage.js'),'utf8');
+// P0 拆层后:页面脚本与 storage 已 ESM 化,改由 tests/harness-entry.mjs
+// 打包成 IIFE 线束(npm run build:test-harness),在 vm 里拼回全局面
+const bundle=fs.readFileSync(path.join(__dirname,'.harness.bundle.js'),'utf8');
+const html=fs.readFileSync(path.join(root,'index.html'),'utf8'); // 仅供「公开 HTML 不嵌隐私数据」静态检查
 const logic=fs.readFileSync(path.join(root,'logic.js'),'utf8');
 const imaging=fs.readFileSync(path.join(root,'imaging.js'),'utf8');
 function app({mockDisk=true}={}){
@@ -19,8 +20,8 @@ function app({mockDisk=true}={}){
   };
   const context=vm.createContext({console,Date:Clock,Blob,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},File:class{},document:{querySelector:element,querySelectorAll:()=>[],createElement:tag=>element('created:'+tag),addEventListener:(name,fn)=>{events[name]=fn},visibilityState:'visible'},window:{},navigator:{},location:{hostname:'localhost',protocol:'http:',reload(){}},localStorage:{getItem:key=>local.get(key)??null,setItem:(key,value)=>local.set(key,value)},setTimeout:()=>1,clearTimeout(){},setInterval(){},clearInterval(){},addEventListener(){},confirm:()=>true,indexedDB:{open(){throw new Error('test must supply IDB')}},elements,texts});
   const run=code=>vm.runInContext(code,context);
-  // 加载顺序与 index.html 一致:imaging(图像) → logic(规则) → storage(持久化/通知) → 页面脚本
-  run(imaging+'\n'+logic+'\n'+storage+'\n'+script.slice(0,script.indexOf('/* ================= 启动')));
+  // 加载顺序与 index.html 一致:imaging(图像) → logic(规则) → 线束(持久化/通知/页面脚本,不含启动序列)
+  run(imaging+'\n'+logic+'\n'+bundle);
   context.readDisk=async key=>({ok:true,value:disk.get(key)??null});
   context.writeDisk=async entries=>{for(const [key,value] of entries)disk.set(key,JSON.parse(JSON.stringify(value)));return true};
   if(mockDisk)run('idb.get=readDisk;idb.setMany=writeDisk;');
@@ -28,7 +29,8 @@ function app({mockDisk=true}={}){
   return {run,context,local,disk,elements,element,events,texts,tick:milliseconds=>{time+=milliseconds},json:code=>JSON.parse(run('JSON.stringify('+code+')'))};
 }
 const order=overrides=>({id:1,store:'测试店',cat:'餐饮',contact:'',channel:'直客',partner:'',price:1000,deposit:200,settleVia:'private',appt:'2026-11-01T10:00',shotAt:'2026-11-01T11:00',submittedAt:null,shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,location:'',deliverMain:true,deliverSub:true,reviewResult:'',publishedAt:null,accountId:null,note:'',...overrides});
-function setState(a,orders=[order()],payments=[]){a.run(`db=${JSON.stringify({orders,payments,threshold:15,notifyEnabled:true,accounts:[],providers:[]})}`)}
+// ESM 后 db 是模块 live binding,不允许外部整体重赋值;__replaceDb 做清空+变异(见 harness-entry)
+function setState(a,orders=[order()],payments=[]){a.run(`__replaceDb(${JSON.stringify({orders,payments,threshold:15,notifyEnabled:true,accounts:[],providers:[]})})`)}
 function seedForm(a,prefix,values={}){
   const base={store:'新店',cat:'餐饮',price:'1000',deposit:'200',date:'2026-11-22',time:'10:00',contact:'',note:'',channel:'直客',partner:'',settle:'private','need-main':true,'need-sub':false,...values};
   for(const [key,value] of Object.entries(base)){
@@ -37,7 +39,7 @@ function seedForm(a,prefix,values={}){
   }
 }
 test('empty persisted state is restored instead of demo',async()=>{
-  const a=app();setState(a,[]);await a.run('save()');a.run('db=demoSeed()');assert.equal(await a.run('loadState()'),true);assert.equal(a.run('db.orders.length'),0);
+  const a=app();setState(a,[]);await a.run('save()');a.run('__replaceDb(demoSeed())');assert.equal(await a.run('loadState()'),true);assert.equal(a.run('db.orders.length'),0);
 });
 test('newer synchronous snapshot wins before IndexedDB commit',async()=>{
   const a=app();setState(a);await a.run('save()');const old=a.disk.get('tanji_v3_work_json');a.run('db.orders[0].store="刚刚修改";save()');a.disk.set('tanji_v3_work_json',old);a.context.readDisk=async key=>({ok:true,value:key==='tanji_v3_work_json'?old:null});a.run('idb.get=readDisk');await a.run('loadState()');assert.equal(a.run('db.orders[0].store'),'刚刚修改');
@@ -166,7 +168,7 @@ test('zero-value receipts cannot settle an unpaid imported order',async()=>{
 });
 test('legacy decimal receipts normalize consistently to cents',()=>{
   const a=app();setState(a,[order({price:19.99,deposit:1.01,depositPaidAt:'2026-11-01T10:00',finalPaidAt:'2026-11-01T10:00'})],[{oid:1,kind:'定金',amount:1.01,at:'2026-11-01T10:00',method:'微信'},{oid:1,kind:'尾款',amount:19.99-1.01,at:'2026-11-01T10:00',method:'微信'}]);
-  a.run('db=validateState(db)');assert.equal(a.run('db.payments[1].amount'),18.98);assert.equal(a.run('db.payments.reduce((sum,p)=>sum+moneyCents(p.amount),0)'),1999);assert.equal(a.run('statsFor("M").paidSum'),19.99);
+  a.run('__replaceDb(validateState(db))');assert.equal(a.run('db.payments[1].amount'),18.98);assert.equal(a.run('db.payments.reduce((sum,p)=>sum+moneyCents(p.amount),0)'),1999);assert.equal(a.run('statsFor("M").paidSum'),19.99);
 });
 test('unpaid deposits do not hide overdue final payments',()=>{
   const a=app();setState(a);assert.equal(a.run('isOver(db.orders[0])'),true);assert.equal(a.run('overdueDays(db.orders[0])'),20);a.run('ui.bucket="over";renderPay()');assert.match(a.element('#v-pay').innerHTML,/data-kind="final"/);assert.match(a.element('#v-pay').innerHTML,/另待定金/);

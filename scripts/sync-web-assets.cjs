@@ -31,7 +31,6 @@ const LOCK_PATH = path.join(ROOT, 'scripts', 'web-sync.lock.json');
 
 /** 可自动拷贝的纯资产：main 路径 → www 路径 */
 const PURE_ASSETS = [
-  { main: 'sw.js', native: 'www/sw.js' },
   { main: 'manifest.webmanifest', native: 'www/manifest.webmanifest' },
   { main: 'privacy.html', native: 'www/privacy.html' },
   { main: 'support.html', native: 'www/support.html' },
@@ -42,7 +41,10 @@ const PURE_ASSETS = [
 /** 含原生适配的合并文件：只检测漂移，禁止自动拷贝 */
 const MERGED_FILES = [
   { main: 'index.html', native: 'www/index.html' },
-  { main: 'storage.js', native: 'www/storage.js' },
+  // P0 拆层:native 的 storage 源码移入 src/app/;sw.js 缓存清单含 app.js(native 独有),
+  // 不再与 main 同字节,降级为合并文件
+  { main: 'storage.js', native: 'src/app/storage.js' },
+  { main: 'sw.js', native: 'www/sw.js' },
 ];
 
 function git(args, opts = {}) {
