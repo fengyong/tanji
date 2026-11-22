@@ -166,8 +166,9 @@ test('orders 表的列数与 v0.5/v0.6 新增字段符合预期', () => {
   }
   const hasAccounts = names.includes('account_id');
   const hasGps = names.includes('gps_place');
-  // v0.5 工作流(25) → v0.6 账号(26) → v0.6 到店定位(27);按已上线的列逐级放宽
-  const expected = hasAccounts ? (hasGps ? 27 : 26) : 25;
+  // v0.5 工作流(25) → v0.6 账号(26) → 到店定位(27) → 催收跟进/预计到账(29);按已上线的列逐级放宽
+  const hasRemindLog = names.includes('remind_log');
+  const expected = hasAccounts ? (hasRemindLog ? 29 : hasGps ? 27 : 26) : 25;
   assert.equal(names.length, expected, `orders 表当前是 ${names.length} 列,预期 ${expected}`);
   for (const added of ['location', 'deliver_main', 'deliver_sub', 'review_result', 'published_at']) {
     assert.ok(names.includes(added), `orders 表缺少 v0.5 新增列 ${added}`);
@@ -175,6 +176,12 @@ test('orders 表的列数与 v0.5/v0.6 新增字段符合预期', () => {
   if (hasGps) {
     // 定位列必须紧跟 location:两份建表语句与 ORD_COLS 的列序都靠这个约定对齐
     assert.equal(names.indexOf('gps_place'), names.indexOf('location') + 1, 'gps_place 应紧跟 location');
+  }
+  if (hasRemindLog) {
+    // 催收跟进与预计到账都挂在订单尾部、位于 created_at 之前(三份定义必须同序)
+    assert.ok(names.includes('expect_pay_at'), '有 remind_log 就必须同时有 expect_pay_at');
+    assert.ok(names.indexOf('remind_log') > names.indexOf('note'), 'remind_log 应在 note 之后');
+    assert.ok(names.indexOf('expect_pay_at') < names.indexOf('created_at'), 'expect_pay_at 应在 created_at 之前');
   }
   if (hasAccounts) {
     assert.ok(tables.has('accounts'), 'v0.6 账号体系必须有 accounts 表(导出 .db 也要带)');

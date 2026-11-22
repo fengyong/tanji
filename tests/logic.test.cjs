@@ -85,6 +85,43 @@ test('统计:窗口口径(M=本月1日至今,N=近N天)与金额',()=>{
   assert.equal(L.statsFor({orders,payments,period:'7',now}).deals.length,1,'近7天只含 11-20');
 });
 
+test('催收跟进:次数与最近一次可读,脏数据不影响其它规则',()=>{
+  const empty=order({});
+  assert.equal(L.remindCount(empty),0,'没记过就是 0 次');
+  assert.equal(L.lastRemind(empty),null);
+  const log=[{at:'2026-11-10T10:00',note:'说这周给'},{at:'2026-11-18T18:30',note:'财务走流程'}];
+  const tracked=order({remindLog:log});
+  assert.equal(L.remindCount(tracked),2);
+  assert.deepEqual(L.lastRemind(tracked),log[1],'最近一次取数组末尾');
+  assert.equal(L.remindCount(order({remindLog:'不是数组'})),0,'非数组按没记过处理');
+});
+
+test('平台单预计到账:过了约定日仍未收款才算超期',()=>{
+  const today=new Date('2026-11-22T09:00');
+  const douyin=order({settleVia:'douyin',depositPaidAt:'2026-11-01T10:00',expectPayAt:'2026-11-15T10:00'});
+  assert.equal(L.expectOverdue(douyin,[],today),7,'11-15 → 11-22 共 7 天');
+  assert.equal(L.expectOverdue({...douyin,expectPayAt:'2026-11-30T10:00'},[],today),0,'还没到日子不算超期');
+  assert.equal(L.expectOverdue({...douyin,finalPaidAt:'2026-11-20T10:00'},[],today),0,'已收款就不再提醒');
+  assert.equal(L.expectOverdue({...douyin,expectPayAt:null},[],today),0,'没填到账日不提示');
+});
+
+test('未来 N 天:含当天,按日汇总单量与成交额',()=>{
+  const orders=[
+    order({id:1,price:1000,appt:'2026-11-22T10:00'}),
+    order({id:2,price:800,appt:'2026-11-22T15:00'}),
+    order({id:3,price:600,appt:'2026-11-25T09:00'}),
+    order({id:4,price:900,appt:'2026-12-01T09:00'}),   // 第 10 天,窗口外
+  ];
+  const week=L.upcomingByDay(orders,'2026-11-22',7);
+  assert.equal(week.length,7,'含起点当天共 7 格');
+  assert.equal(week[0].day,'2026-11-22');
+  assert.equal(week[0].count,2);
+  assert.equal(week[0].sum,1800,'当天两单合计');
+  assert.equal(week[3].count,1,'11-25 在窗口内');
+  assert.equal(week[6].count,0,'12-01 不在 7 天窗口内');
+  assert.equal(L.upcomingByDay(orders,'不是日期',7).length,0,'起点非法返回空');
+});
+
 test('金额:分制解析拒绝非法输入',()=>{
   assert.equal(L.moneyCents('12.34'),1234);
   assert.equal(L.moneyCents('12.3'),1230);

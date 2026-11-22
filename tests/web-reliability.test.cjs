@@ -178,3 +178,82 @@ test('read-only pages can inspect details but cannot edit or collect',()=>{
 test('public HTML no longer embeds private schedule',()=>{
   assert.doesNotMatch(html,/function dawangSeed|阿遇烧烤|郭璐璐\(龙华\)/);
 });
+test('催收跟进痕迹:合法条目保留,坏条目丢弃,缺省不造字段',()=>{
+  const a=app();
+  const tracked=order({remindLog:[{at:'2026-11-10T10:00',note:'说这周给'},{at:'坏时间',note:'x'},{at:'2026-11-18T18:30',note:123}]});
+  const clean=a.json(`validateState(${JSON.stringify({orders:[tracked],payments:[]})})`);
+  assert.equal(clean.orders[0].remindLog.length,2,'时间非法的条目应被丢弃');
+  assert.equal(clean.orders[0].remindLog[1].note,'','非文本答复归一为空串,不抛错');
+  const absent=a.json(`validateState(${JSON.stringify({orders:[order()],payments:[]})})`);
+  assert.equal('remindLog' in absent.orders[0],false,'没记过跟进就不该凭空造字段');
+  assert.equal('expectPayAt' in absent.orders[0],false,'没填到账日也不造字段');
+});
+test('预计到账日:非法日期拒绝导入,合法值原样往返',()=>{
+  const a=app();
+  const bad=order({expectPayAt:'2026-11-31T10:00'}),good=order({expectPayAt:'2026-11-30T10:00'});
+  assert.throws(()=>a.run(`validateState(${JSON.stringify({orders:[bad],payments:[]})})`),'11 月没有 31 号');
+  assert.equal(a.run(`validateState(${JSON.stringify({orders:[good],payments:[]})}).orders[0].expectPayAt`),'2026-11-30T10:00');
+});
+test('收款撤销:撤销刚记的流水并把已收标记回滚',()=>{
+  const a=app();setState(a);a.run('pay(1,"deposit")');
+  assert.equal(a.run('db.payments.length'),1);
+  const at=a.run('db.payments[0].at');
+  assert.equal(a.run(`undoPay(1,"deposit","${at}")`),true);
+  assert.equal(a.run('db.payments.length'),0);assert.equal(a.run('db.orders[0].depositPaidAt'),null);
+  assert.equal(a.run(`undoPay(1,"deposit","${at}")`),false,'重复撤销不应再动数据');
+});
+test('撤销入口:toast 上的动作真的会被执行',()=>{
+  const a=app();setState(a);a.run('pay(1,"deposit")');
+  assert.equal(a.run('db.payments.length'),1);
+  assert.equal(a.run('typeof toastAction'),'object','收款后应挂上撤销动作');
+  a.events.click({target:{closest:()=>({dataset:{act:'toast-undo'}})}});
+  assert.equal(a.run('db.payments.length'),0,'点撤销必须真的把流水撤掉,不能只是关掉提示');
+  assert.equal(a.run('toastAction'),null,'动作用完要清掉,避免重复撤销');
+});
+test('收款撤销:流水已被改动时不再回滚',()=>{
+  const a=app();setState(a);a.run('pay(1,"deposit")');
+  const at=a.run('db.payments[0].at');
+  a.run('db.payments[0].at="2030-01-01T00:00"');
+  assert.equal(a.run(`undoPay(1,"deposit","${at}")`),false,'对不上就保守不删');
+  assert.equal(a.run('db.payments.length'),1);
+});
+test('冲突提示带上已有单的时间与地点',()=>{
+  const a=app();setState(a,[order({id:1,appt:'2026-11-22T12:00',location:'万象城 3 层'})]);
+  const msg=a.run('conflictFor("2026-11-22","11:00",0)');
+  assert.match(msg,/测试店/);assert.match(msg,/12:00/);assert.match(msg,/万象城 3 层/,'不带地点就判断不了要不要跨区');
+});
+test('催收跟进:记一次后追加而不是覆盖',()=>{
+  const a=app();setState(a,[order({depositPaidAt:'2026-11-01T10:00'})]);
+  a.run('openRemind(1)');
+  a.element('#remind-note').value='  财务走流程  ';
+  a.run('saveRemind()');
+  assert.equal(a.run('db.orders[0].remindLog.length'),1);
+  assert.equal(a.run('db.orders[0].remindLog[0].note'),'财务走流程','答复应去掉首尾空格');
+  a.run('openRemind(1)');
+  a.element('#remind-note').value='';
+  a.run('saveRemind()');
+  assert.equal(a.run('db.orders[0].remindLog.length'),2,'第二次跟进要追加,不能覆盖上一次');
+  assert.equal(a.run('db.orders[0].remindLog[1].note'),'','空答复留空串,不写 undefined');
+});
+test('平台单:预计到账弹层保存后落成完整时间串',()=>{
+  const a=app();setState(a,[order({settleVia:'douyin',depositPaidAt:'2026-11-01T10:00'})]);
+  a.run('openExpect(1)');
+  a.element('#expect-date').value='2026-12-01';
+  a.run('saveExpect()');
+  assert.equal(a.run('db.orders[0].expectPayAt'),'2026-12-01T10:00','只选日期,时间固定 10:00 便于排序');
+  a.run('clearExpect(1)');
+  assert.equal(a.run('db.orders[0].expectPayAt'),null);
+});
+test('平台单在收款页显示预计到账与超期',()=>{
+  const a=app();setState(a,[order({settleVia:'douyin',depositPaidAt:'2026-11-01T10:00',expectPayAt:'2026-11-10T10:00'})]);
+  a.run('renderPay()');
+  const html=a.element('#v-pay').innerHTML;
+  assert.match(html,/11-10/);assert.match(html,/已超期/);
+});
+test('行程页给出未来 7 天横滑条',()=>{
+  const a=app();setState(a,[order({id:1,appt:'2026-11-22T10:00',price:1000})]);
+  a.run('ui.selDay="2026-11-21";ui.vMon={y:2026,m:11};renderTrip()');
+  const html=a.element('#v-trip').innerHTML;
+  assert.equal((html.match(/class="n7d/g)||[]).length,7,'含当天共 7 格');
+  assert.match(html,/未来 7 天 · 1 单/);
+});

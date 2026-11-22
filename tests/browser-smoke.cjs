@@ -92,11 +92,30 @@ const server=http.createServer((request,response)=>{
     assert.equal(await evaluate('db.orders.length'),1);
     assert.equal(await evaluate('document.querySelector("#v-trip .rname").textContent'),'安全 <b>咖啡</b>');
     assert.equal(await evaluate('document.querySelector("#v-trip .rname b")'),null);
+    // 未来 7 天:含当天共 7 格横滑,点了能落到那天
+    const week=await evaluate(`(()=>{const bar=document.querySelector('#v-trip .n7');if(!bar)return null;return {chips:bar.querySelectorAll('.n7d').length,title:/未来 7 天/.test(document.querySelector('#v-trip').textContent)}})()`);
+    assert.deepEqual(week,{chips:7,title:true},'行程页应有未来 7 天横滑条');
     await evaluate('Store.queue');await call('Page.reload');await ready();
     assert.equal(await evaluate('db.orders[0].store'),'安全 <b>咖啡</b>');
     await click('.tab[data-tab="orders"]');await click('#v-orders [data-act="open"]');
     await click('#detail-body [data-kind="deposit"]');await click('[data-act="confirm-pay"]');
     assert.equal(await evaluate('db.payments.length'),1);assert.equal(await evaluate('statsFor("M").paidSum'),200);
+    // 「钱必须可逆」:收款 toast 必须带撤销,且真要能把流水与标记一起回滚
+    assert.equal(await evaluate(`!!document.querySelector('#toast [data-act="toast-undo"]')`),true,'收款后应有撤销入口');
+    await click('#toast [data-act="toast-undo"]');
+    assert.equal(await evaluate('db.payments.length'),0,'撤销后流水应移除');
+    assert.equal(await evaluate('db.orders[0].depositPaidAt'),null,'撤销后已收标记应回滚');
+    await click('#detail-body [data-kind="deposit"]');await click('[data-act="confirm-pay"]');
+    assert.equal(await evaluate('db.payments.length'),1,'重新记一次,后续断言依赖这笔流水');
+    // 收完定金转为"待尾款",催收跟进才出现:记一笔,详情页要立刻出现时间线
+    await click('#detail-body [data-act="remind-open"]');
+    assert.equal(await evaluate("document.querySelector('#sheet-remind').classList.contains('show')"),true,'再催一次应打开记录弹层');
+    await click('[data-act="remind-quick"]');
+    await fill('#remind-note','说这周给,15 号打款');
+    await click('[data-act="remind-save"]');
+    assert.equal(await evaluate('db.orders[0].remindLog.length'),1);
+    assert.match(await evaluate('document.querySelector("#detail-body").textContent'),/已催 1 次/);
+    assert.match(await evaluate('document.querySelector("#detail-body").textContent'),/说这周给/);
     await click('#detail-body [data-act="edit-order"]');
     await evaluate('Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})))');
     const editBar=await evaluate(`(()=>{const btn=document.querySelector('#sheet-edit [data-act="save-edit"]');if(!btn)return {found:false};const r=btn.getBoundingClientRect();return {found:true,top:r.top,bottom:r.bottom,viewport:innerHeight,inScrollArea:!!btn.closest('.sheet-body')}})()`);
@@ -139,7 +158,7 @@ const server=http.createServer((request,response)=>{
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','touch feel locked','sheet drag to dismiss','payment + statistics','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
+    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','touch feel locked','sheet drag to dismiss','future 7 days bar','collection follow-up log','payment + statistics','payment undo','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
     await send('Browser.close');
   }finally{
     if(socket)socket.close();

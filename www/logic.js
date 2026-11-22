@@ -120,6 +120,26 @@
     return !!(o.remindAt&&o.remindAt>nowString);
   }
 
+  /* ---------------- 催收跟进痕迹(remindLog) ----------------
+   * 催收的真实动作是"问一次 → 对方说 X 号给 → 再问一次",
+   * 所以订单除了 remindAt(下一次提醒)还要能记下"催过几次、对方怎么答"。
+   * 条目不合法时只丢弃条目本身,不影响订单读取(与到店定位同样的容错口径)。 */
+  function remindLogOf(o){
+    return o&&Array.isArray(o.remindLog)?o.remindLog:[];
+  }
+  function remindCount(o){return remindLogOf(o).length}
+  /** 最近一次催收:{at,note};没催过返回 null */
+  function lastRemind(o){
+    const list=remindLogOf(o);
+    return list.length?list[list.length-1]:null;
+  }
+
+  /** 平台单(抖音商单)过了预计到账日仍没收款 → 返回超期天数,否则 0 */
+  function expectOverdue(o,payments=[],today=new Date()){
+    if(unFin(o,payments)<=0||!validDateTime(o.expectPayAt))return 0;
+    return daysBetween(o.expectPayAt,today);
+  }
+
   /* ---------------- 统计(窗口:period='M' 本月1日至今;其余按「近 N 天」) ---------------- */
   function statsFor({orders,payments,period,list,now}){
     const listOrders=list||orders;
@@ -142,6 +162,17 @@
     return {same,overlap:same.filter(o=>Math.abs(toMin(o.appt)-t)<=120)};
   }
 
+  /** 未来 N 天(含起点当天)每天的单量与成交额,给行程页做"未来 7 天"横滑条 */
+  function upcomingByDay(orders,fromISO,days=7){
+    const base=new Date(fromISO+'T00:00');
+    if(Number.isNaN(base.getTime()))return [];
+    return Array.from({length:Math.max(0,days)},(_,i)=>{
+      const iso=toISO(new Date(base.getFullYear(),base.getMonth(),base.getDate()+i));
+      const list=orders.filter(o=>validDateTime(o.appt)&&o.appt.slice(0,10)===iso);
+      return {day:iso,count:list.length,sum:list.reduce((s,o)=>s+(Number(o.price)||0),0)};
+    });
+  }
+
   root.TanJiLogic={
     // 时间
     pad,toISO,nowStr,validDateTime,toMin,daysBetween,
@@ -150,8 +181,10 @@
     // 工作线
     needMain,needSub,deliveredAll,workOf,deliverLate,
     // 资金线
-    hasReceipt,hasAnyReceipt,unDep,unFin,owedOf,payOf,overdueDays,isOver,snoozed,
+    hasReceipt,hasAnyReceipt,unDep,unFin,owedOf,payOf,overdueDays,isOver,snoozed,expectOverdue,
+    // 催收跟进痕迹
+    remindLogOf,remindCount,lastRemind,
     // 统计 / 排期
-    statsFor,apptOverlap,
+    statsFor,apptOverlap,upcomingByDay,
   };
 })(typeof globalThis!=='undefined'?globalThis:this);

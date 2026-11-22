@@ -600,3 +600,33 @@ test('账号:标识色板渲染出 8 个带颜色的可点色块(曾因缺样式
   assert.match(html,/class="sw sel"[^>]*data-i="2"/,'当前色应有选中态');
   assert.match(a.run(`$('#a-pal-name').innerHTML`),/抹茶/,'应显示当前色名');
 });
+
+test('催收跟进/预计到账:旧库补列,数组按 JSON 落一列,重启读回',async()=>{
+  const device=newDevice();
+  // v0.5 时代的旧库:没有 location/gps_place/remind_log/expect_pay_at
+  device.db.exec(`CREATE TABLE orders(
+    mode TEXT NOT NULL, id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
+    price REAL NOT NULL, deposit REAL DEFAULT 0,
+    appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
+    deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+    channel TEXT, partner TEXT, note TEXT, created_at TEXT, updated_at TEXT,
+    PRIMARY KEY(mode,id))`);
+  device.db.exec(`CREATE TABLE payments(mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`);
+  device.db.exec(`CREATE TABLE settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`);
+  const a=app(device);
+  const log=[{at:'2026-11-10T10:00',note:'说这周给'},{at:'2026-11-18T18:30',note:'财务走流程'}];
+  setState(a,[order({settleVia:'douyin',remindLog:log,expectPayAt:'2026-11-30T10:00'})]);
+  assert.equal(await a.run('save()'),true);
+  const cols=a.run(`Store.conn.db.prepare("PRAGMA table_info(orders)").all().map(r=>r.name)`);
+  assert.ok(cols.includes('remind_log'),'旧库应先 ALTER 补出 remind_log 列');
+  assert.ok(cols.includes('expect_pay_at'),'旧库应先 ALTER 补出 expect_pay_at 列');
+  const row=a.run(`Store.conn.db.prepare('SELECT remind_log,expect_pay_at FROM orders').all()[0]`);
+  assert.deepEqual(JSON.parse(row.remind_log),log,'催收痕迹按 JSON 存一列');
+  assert.equal(row.expect_pay_at,'2026-11-30T10:00');
+
+  const b=app(device);                                   // 重启
+  await b.run('loadState()');
+  assert.deepEqual(b.json('db.orders[0].remindLog'),log,'重启后催收痕迹应读回');
+  assert.equal(b.run('db.orders[0].expectPayAt'),'2026-11-30T10:00');
+  assert.deepEqual(b.json('parseRemindLog("{bad")'),[],'坏 JSON 只丢这一列,不能让整单读崩');
+});

@@ -117,6 +117,17 @@ function validateState(input){
       accountId:order.accountId!=null&&accountIds.has(order.accountId)?order.accountId:null};
     for(const field of ['cat','contact','channel','partner','note'])clean[field]=text(order[field],`${label}的${field}`,field==='cat'?'其他':field==='channel'?'直客':'');
     for(const field of dates){if(order[field]!=null&&!validDateTime(order[field]))throw new Error(`${label}的${field}时间无效`);clean[field]=order[field]??null}
+    // 平台单预计到账日:与其它日期同样校验,但缺省时不造键(旧备份原样往返)
+    if(order.expectPayAt!=null&&order.expectPayAt!==''){
+      if(!validDateTime(order.expectPayAt))throw new Error(`${label}的预计到账时间无效`);
+      clean.expectPayAt=order.expectPayAt;
+    }
+    // 催收跟进痕迹 [{at,note}]:附加信息,坏条目丢弃不抛错(与到店定位一致),
+    // 否则一条记录时间写坏就让整份备份读不出来。只留最近 50 条,避免无界增长。
+    if(Array.isArray(order.remindLog))clean.remindLog=cloneState(order.remindLog)
+      .filter(entry=>entry&&validDateTime(entry.at))
+      .map(entry=>({at:entry.at,note:typeof entry.note==='string'?entry.note.slice(0,200):''}))
+      .slice(-50);
     // 随手拍:只存烘焙过淡化的小图(≤12KB 字符);原图不入库,避免备份和全量重写被撑爆
     if(order.photoThumb!=null){
       const ok=typeof TanJiImage!=='undefined'&&TanJiImage.isValidStored(order.photoThumb,TanJiImage.LIMIT.door);
@@ -337,7 +348,7 @@ async function exportCheckpoint(){
 
 /* --- 原生:Capacitor SQLite(双数据集:mode 列;settings 以 mode:suffix 为键) --- */
 const NATIVE_DB='tanji';
-const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','gps_place','deliver_main','deliver_sub','review_result','published_at','account_id','note','created_at','updated_at'];
+const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','gps_place','deliver_main','deliver_sub','review_result','published_at','account_id','note','remind_log','expect_pay_at','created_at','updated_at'];
 async function nativeOpen(){
   if(Store.conn)return Store.conn;
   const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
@@ -356,7 +367,7 @@ async function nativeOpen(){
   location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
   review_result TEXT DEFAULT '', published_at TEXT,
   account_id INTEGER,
-  note TEXT, created_at TEXT, updated_at TEXT,
+  note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT,
   PRIMARY KEY(mode,id))`,values:[]},
     {statement:`CREATE TABLE IF NOT EXISTS payments(
   mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -378,11 +389,19 @@ async function nativeOpen(){
     `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
     'ALTER TABLE orders ADD COLUMN published_at TEXT',
     'ALTER TABLE orders ADD COLUMN account_id INTEGER',
+    'ALTER TABLE orders ADD COLUMN remind_log TEXT',
+    'ALTER TABLE orders ADD COLUMN expect_pay_at TEXT',
   ]){try{await conn.execute(stmt,false)}catch(e){/* 列已存在,忽略 */}}
   Store.conn=conn;
   return conn;
 }
+function parseRemindLog(raw){
+  if(raw==null||raw==='')return [];
+  try{const value=typeof raw==='string'?JSON.parse(raw):raw;return Array.isArray(value)?value:[]}
+  catch(e){console.warn('[TanJi] 催收跟进列内容无法解析,已忽略',e);return []}
+}
 function rowToOrder(mode,r){
+  const remindLog=parseRemindLog(r.remind_log);
   return {id:r.id,store:r.store,cat:r.category??'',contact:r.contact??'',price:r.price??0,deposit:r.deposit??0,
     appt:r.appt_at??'',shotAt:r.shot_at??null,submittedAt:r.submitted_at??null,shortAt:r.short_sent_at??null,
     longAt:r.long_sent_at??null,depositPaidAt:r.deposit_paid_at??null,finalPaidAt:r.final_paid_at??null,
@@ -390,6 +409,8 @@ function rowToOrder(mode,r){
     location:r.location??'',gpsPlace:r.gps_place??null,deliverMain:r.deliver_main!==0,deliverSub:r.deliver_sub!==0,
     reviewResult:r.review_result||'',publishedAt:r.published_at??null,
     accountId:r.account_id??null,
+    ...(remindLog.length?{remindLog}:{}),
+    expectPayAt:r.expect_pay_at??null,
     note:r.note??''};
 }
 async function nativePersistSnapshot(payload){
@@ -399,7 +420,7 @@ async function nativePersistSnapshot(payload){
       {statement:'DELETE FROM orders WHERE mode=?',values:[payload.mode]},
       {statement:'DELETE FROM payments WHERE mode=?',values:[payload.mode]},
     ];
-    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.location||null,o.gpsPlace||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,o.accountId||null,o.note||null,ts,ts]}));
+    payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.location||null,o.gpsPlace||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,o.accountId||null,o.note||null,(o.remindLog&&o.remindLog.length?JSON.stringify(o.remindLog):null),o.expectPayAt||null,ts,ts]}));
     set.push({statement:'DELETE FROM accounts WHERE mode=?',values:[payload.mode]});
     (payload.accounts||[]).forEach(a=>set.push({statement:'INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?)',values:[payload.mode,a.id,a.name,a.phone||null,a.douyin||null,a.color??0,a.avatar||null,a.createdAt||ts]}));
     payload.payments.forEach(p=>set.push({statement:'INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)',values:[payload.mode,p.oid,p.kind,p.amount,p.at,p.method||null,p.note||null]}));

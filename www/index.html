@@ -305,6 +305,24 @@
   .ig .k{font-size:11px;color:var(--sub)}
   .ig .v{font-size:13.5px;font-weight:700;margin-top:2px}
 
+  /* 催收跟进时间线:一行"什么时候问的 + 对方怎么答",不做成表格 */
+  .rline{display:flex;gap:8px;font-size:12px;line-height:1.55;padding:4px 0;border-top:.5px solid var(--line)}
+  .rline:first-of-type{border-top:none;padding-top:0}
+  .rline .rt{color:var(--sub);flex-shrink:0}
+  .rline .rn{color:var(--ink);min-width:0;overflow-wrap:anywhere}
+
+  /* 未来 7 天横滑条(行程页):扫一眼就知道这周有几单、忙在哪天 */
+  .n7{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 6px;scrollbar-width:none}
+  .n7::-webkit-scrollbar{display:none}
+  .n7d{flex-shrink:0;min-width:66px;border:none;border-radius:14px;padding:9px 10px;background:#fff;
+    box-shadow:0 1px 2px rgba(20,20,40,.06);font-family:inherit;color:var(--ink);text-align:center}
+  .n7d .w{font-size:10.5px;color:var(--sub);font-weight:600}
+  .n7d .d{font-size:13px;font-weight:800;margin-top:2px}
+  .n7d .c{font-size:11px;color:var(--sub);margin-top:3px}
+  .n7d.on{background:var(--ink)}
+  .n7d.on .w,.n7d.on .c{color:rgba(255,255,255,.72)}
+  .n7d.on .d{color:#fff}
+
   .banner-red{background:var(--red-soft);color:var(--red);border-radius:12px;padding:10px 13px;font-size:12.5px;font-weight:600;line-height:1.5;margin-top:12px;display:flex;gap:8px;align-items:flex-start}
   .banner-red .ic{width:16px;height:16px;margin-top:1px}
 
@@ -326,6 +344,11 @@
     opacity:0;pointer-events:none;transition:all .28s;max-width:82%;text-align:center;
   }
   .toast.show{opacity:1;transform:translate(-50%,0)}
+  /* 只有带动作的 toast 才接收点击:普通提示不该挡住下面的按钮 */
+  .toast.act{pointer-events:auto}
+  /* Toast 里的撤销:贴文字右侧的轻按钮,不能做成大按钮抢戏 */
+  .toast-act{border:none;background:transparent;color:#7FD3A0;font:inherit;font-weight:800;padding:0 0 0 10px;font-size:13px}
+  .toast-act:active{opacity:.7}
 
   .empty{padding:34px 0;text-align:center;color:var(--sub);font-size:13px;line-height:1.8}
   .empty .e-ic{font-size:30px;margin-bottom:6px}
@@ -471,6 +494,35 @@
       <div class="sheet-body" id="pay-body"></div>
     </div>
 
+    <div class="sheet" id="sheet-remind">
+      <div class="grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title">记一次催收跟进</span>
+        <button class="sheet-close" data-act="close-sheet" aria-label="取消"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet-body">
+        <div class="rsub" id="remind-sub" style="margin:2px 2px 10px;white-space:normal;line-height:1.6"></div>
+        <div class="chips" id="remind-quick"></div>
+        <div class="frow"><label>对方答复</label><input id="remind-note" placeholder="可空,如:财务走流程,15 号打款"></div>
+        <div style="padding:14px 0 4px"><button class="btn primary" data-act="remind-save">记下这次跟进</button></div>
+        <div class="rsub" style="margin-top:10px;white-space:normal;line-height:1.6">只记"什么时候问的、对方怎么答",不含金额。想让它几天后再提醒你,记完用详情页的 1/3/7 天按钮。</div>
+      </div>
+    </div>
+
+    <div class="sheet" id="sheet-expect">
+      <div class="grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title">平台预计到账日</span>
+        <button class="sheet-close" data-act="close-sheet" aria-label="取消"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet-body">
+        <div class="rsub" id="expect-sub" style="margin:2px 2px 10px;white-space:normal;line-height:1.6"></div>
+        <div class="frow"><label>到账日期</label><input id="expect-date" type="date"></div>
+        <div style="padding:14px 0 4px"><button class="btn primary" data-act="expect-save">保存预计到账日</button></div>
+        <div class="rsub" style="margin-top:10px;white-space:normal;line-height:1.6">抖音商单按平台结算节奏(常见 T+7),把约定日期填进来;过期还没到账时,详情页与收款页会标红提醒你去看结算状态。</div>
+      </div>
+    </div>
+
     <div class="sheet" id="sheet-share">
       <div class="grabber"></div>
       <div class="sheet-head">
@@ -585,7 +637,7 @@ function daysBetween(fromStr){return TanJiLogic.daysBetween(fromStr,new Date())}
 function greeting(){const h=new Date().getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
 
 /* ================= UI 状态(先于数据定义,fmtMoney 依赖) ================= */
-const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1},accFilter:null,editAccountId:null,draftAvatar:null,draftColor:0,draftProv:'',draftAccId:null,assignAcc:null};
+const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1},accFilter:null,editAccountId:null,draftAvatar:null,draftColor:0,draftProv:'',draftAccId:null,assignAcc:null,remindOid:null,expectOid:null};
 
 /* iOS 原生版(买断付费,App Store)的落地页地址。
    空字符串 = 还没上架,「关于」里显示为「即将上架」而不是死链;
@@ -635,13 +687,16 @@ function demoSeed(){
      depositPaidAt:dOff(-10,'11:00'), finalPaidAt:null, remindAt:null, note:''},
     {id:11, store:'TONI 造型沙龙·湖畔店', cat:'美发', contact:'Tony 137****8123', price:1200, deposit:300, settleVia:'private',
      appt:dOff(-18,'14:00'), shotAt:dOff(-18,'14:40'), submittedAt:dOff(-17,'10:30'), shortAt:dOff(-15,'16:00'), longAt:dOff(-14,'11:20'),
-     depositPaidAt:dOff(-19,'09:00'), finalPaidAt:null, remindAt:null, note:'微信催过一次,回复"月底统一结"'},
+     depositPaidAt:dOff(-19,'09:00'), finalPaidAt:null, remindAt:null, note:'微信催过一次,回复"月底统一结"',
+     remindLog:[{at:dOff(-9,'18:30'),note:'微信问了一次,回复"月底统一结"'}]},
     {id:12, store:'栖里民宿·太湖店', cat:'民宿', contact:'洁姐 139****5160', price:1800, deposit:500, settleVia:'douyin',
      appt:dOff(-34,'11:00'), shotAt:dOff(-34,'11:40'), submittedAt:dOff(-33,'15:00'), shortAt:dOff(-31,'10:00'), longAt:dOff(-30,'17:30'),
-     depositPaidAt:dOff(-35,'10:00'), finalPaidAt:null, remindAt:null, note:'抖音商单;平台审核通过后结算,预计 T+7 到账'},
+     depositPaidAt:dOff(-35,'10:00'), finalPaidAt:null, remindAt:null, note:'抖音商单;平台审核通过后结算,预计 T+7 到账',
+     expectPayAt:dOff(-20,'10:00')},
     {id:13, store:'城市露营地·郊野公园', cat:'露营', contact:'大鹏 188****6678', price:1500, deposit:0, settleVia:'private',
      appt:dOff(-41,'16:00'), shotAt:dOff(-41,'16:30'), submittedAt:dOff(-40,'12:00'), shortAt:dOff(-38,'15:00'), longAt:dOff(-36,'10:40'),
-     depositPaidAt:null, finalPaidAt:null, remindAt:null, note:'全款尾款待结;多次微信未回,约了周五电话'},
+     depositPaidAt:null, finalPaidAt:null, remindAt:null, note:'全款尾款待结;多次微信未回,约了周五电话',
+     remindLog:[{at:dOff(-12,'10:10'),note:'微信未回'},{at:dOff(-5,'20:40'),note:'电话约了周五再谈'}]},
     {id:14, store:'老门东火锅·旗舰店', cat:'餐饮', contact:'刘总 133****2280', price:1600, deposit:500, settleVia:'private', finalMethod:'银行卡',
      appt:dOff(-6,'17:30'), shotAt:dOff(-6,'18:10'), submittedAt:dOff(-5,'11:00'), shortAt:dOff(-4,'14:00'), longAt:dOff(-3,'16:20'),
      depositPaidAt:dOff(-7,'10:30'), finalPaidAt:dOff(-2,'15:20'), remindAt:null, note:'尾款对公转账'},
@@ -678,7 +733,7 @@ function buildSqliteBytes(state=db){
       location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 0,
       review_result TEXT DEFAULT '', published_at TEXT,
       account_id INTEGER,
-      note TEXT, created_at TEXT, updated_at TEXT);
+      note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT);
     CREATE TABLE IF NOT EXISTS payments(
       id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
       paid_at TEXT, method TEXT, note TEXT);
@@ -686,12 +741,12 @@ function buildSqliteBytes(state=db){
       id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT, douyin TEXT,
       color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
-    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     state.orders.forEach(o=>{
       so.bind([o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
                o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.channel||null,o.partner||null,
                o.location||null,o.gpsPlace||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,
-               o.accountId||null,o.note||null,null,null]);
+               o.accountId||null,o.note||null,(o.remindLog&&o.remindLog.length?JSON.stringify(o.remindLog):null),o.expectPayAt||null,null,null]);
       so.step();so.reset();
     });
     so.finalize();
@@ -742,6 +797,10 @@ function payOf(o){return TanJiLogic.payOf(o,db.payments)}
 function overdueDays(o){return TanJiLogic.overdueDays(o,db.payments,now)}
 function snoozed(o){return TanJiLogic.snoozed(o,nowStr())}
 function isOver(o){return TanJiLogic.isOver(o,db.payments,db.threshold,now)}
+function remindLogOf(o){return TanJiLogic.remindLogOf(o)}
+function lastRemind(o){return TanJiLogic.lastRemind(o)}
+function expectOverdue(o){return TanJiLogic.expectOverdue(o,db.payments,now)}
+function upcoming7(){return TanJiLogic.upcomingByDay(db.orders,TODAY,7)}
 
 const WORK_CLS={'待拍摄':'c-blue','后期中':'c-purple','发片中':'c-orange','已交付':'c-green'};
 const PAY_CLS={'待定金':'c-gray','待尾款':'c-orange','平台结算':'c-blue','已逾期':'c-red','已结清':'c-green'};
@@ -981,10 +1040,11 @@ function download(name,content,type){
 }
 function q(v){const text=String(v??'');return `"${(typeof v==='string'&&/^[\s]*[=+@-]/.test(text)?"'"+text:text).replace(/"/g,'""')}"`}
 function exportCsv(){
-  const head=['ID','品名/商家','类型','结算方式','服务商','组队','账号','地点','到店定位','联系方式','总价','定金','预约时间','实际拍摄','提审时间','副片发出','正片发出','出片要求','送审结果','发布时间','工作状态','收款状态','待收金额','欠款天数','催收备忘','备注'];
+  const head=['ID','品名/商家','类型','结算方式','服务商','组队','账号','地点','到店定位','联系方式','总价','定金','预约时间','实际拍摄','提审时间','副片发出','正片发出','出片要求','送审结果','发布时间','工作状态','收款状态','待收金额','欠款天数','催收备忘','催收次数','最近催收','预计到账','备注'];
   const lines=db.orders.map(o=>[o.id,o.store,o.cat,o.settleVia==='douyin'?'抖音商单':'私收',o.channel||'',o.partner||'',(accById(o.accountId)||{}).name||'',o.location||'',gpsText(o),o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
     [needMain(o)?'正片':'',needSub(o)?'副片':''].filter(Boolean).join('+')||'未配置',
-    o.reviewResult?REVIEW_LABEL[o.reviewResult]:'',o.publishedAt||'',workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',o.note].map(q).join(','));
+    o.reviewResult?REVIEW_LABEL[o.reviewResult]:'',o.publishedAt||'',workOf(o),payOf(o),owedOf(o),isOver(o)?overdueDays(o):0,o.remindAt?fmtD(o.remindAt):'',
+    remindLogOf(o).length,lastRemind(o)?fmtD(lastRemind(o).at):'',o.expectPayAt?fmtD(o.expectPayAt):'',o.note].map(q).join(','));
   const phead=['序号','订单ID','商家','类型','金额','到账时间','收款方式'];
   const plines=db.payments.map((p,i)=>[i+1,p.oid,storeOf(p.oid),p.kind,p.amount,p.at,p.method].map(q).join(','));
   download(`探记-导出-${TODAY}.csv`,[head.map(q).join(','),...lines,'','',phead.map(q).join(','),...plines].join('\n'),'text/csv;charset=utf-8');
@@ -1032,6 +1092,8 @@ CREATE TABLE orders (
   published_at   TEXT,              <span class="c">-- 发布时间(里程碑可改)</span>
   account_id     INTEGER,           <span class="c">-- 所属账号(accounts.id,空=未指定)</span>
   note           TEXT,
+  remind_log     TEXT,           <span class="c">-- 催收跟进痕迹:JSON 数组 每条含 at 时间与 note 答复</span>
+  expect_pay_at  TEXT,           <span class="c">-- 平台单(抖音商单)预计到账时间;过了这天仍未到账会提示</span>
   created_at     TEXT, updated_at TEXT
 );
 CREATE TABLE accounts (
@@ -1065,11 +1127,18 @@ $('#schema-pre').innerHTML=SCHEMA;
 
 /* ================= 新建预约(含时段冲突提醒,不禁止) ================= */
 function toMin(appt){return +appt.slice(11,13)*60 + +appt.slice(14,16)}
+/* 冲突提示要能支撑"要不要接/要不要跨区"的判断:只报门店名不够,
+ * 必须带上已是几点、在哪(手填地点优先,没填就退到到店定位的坐标)。 */
+function conflictLine(o){
+  const place=(o.location||'').trim()||gpsText(o);
+  return `${esc(fmtHM(o.appt))} 「${esc(o.store)}」${place?` · ${esc(place)}`:''}`;
+}
 function conflictFor(date,time,excludeId){
   const {same,overlap}=TanJiLogic.apptOverlap(db.orders,date,time,excludeId);
   if(!same.length)return '';
-  if(overlap.length)return `<b>该时段已有排期:</b>${overlap.map(o=>`「${esc(o.store)}」${esc(fmtHM(o.appt))}`).join('、')}。不影响保存——可找人代拍或错峰。`;
-  return `当天已有 ${same.length} 个排期:${same.map(o=>`${esc(o.store)} ${esc(fmtHM(o.appt))}`).join('、')}`;
+  const rows=list=>list.map(o=>`<div>· ${conflictLine(o)}</div>`).join('');
+  if(overlap.length)return `<b>该时段已有排期(前后 2 小时内):</b>${rows(overlap)}不影响保存——可找人代拍或错峰。`;
+  return `<b>当天已有 ${same.length} 个排期:</b>${rows(same)}`;
 }
 function updateConflict(){
   const el=$('#f-conflict');
@@ -1238,7 +1307,22 @@ function pay(id,kind,method='微信'){
   o[spec.field]=t;
   db.payments.push({oid:id,kind:spec.label,amount,at:t,method});
   save();renderAll();rerenderDetail();Notify.syncDaily();
-  toast(`已收${spec.label} ${fmtMoney(amount)} · ${method}`);
+  toast(`已收${spec.label} ${fmtMoney(amount)} · ${method}`,{label:'撤销',run:()=>undoPay(id,kind,t)});
+  return true;
+}
+/**
+ * 撤销刚记的一笔收款:用 (oid, kind, at) 三段定位那条流水,
+ * 并确认订单上的标记字段仍是当初写入的时间 —— 期间若已被人改动就不再回滚,只提示。
+ */
+function undoPay(id,kind,at){
+  const spec=paymentSpec(kind),o=byId(id);
+  if(!spec||!o)return false;
+  const index=db.payments.findIndex(p=>p.oid===id&&p.kind===spec.label&&p.at===at);
+  if(index<0||o[spec.field]!==at){toast('这笔收款已被改动,无法撤销');return false}
+  db.payments.splice(index,1);
+  o[spec.field]=null;
+  save();renderAll();rerenderDetail();Notify.syncDaily();
+  toast('已撤销该笔收款');
   return true;
 }
 function openPay(oid,kind,keepMethod){
@@ -1263,6 +1347,58 @@ function openPay(oid,kind,keepMethod){
     </div>
     <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">确认收款 ${esc(fmtMoney(amt))}</button></div>`;
   showSheet('sheet-pay');
+}
+
+/* ================= 催收跟进痕迹 / 平台预计到账 =================
+ * 催收的真实动作是"问一次 → 对方说 X 号给 → 再问一次":remindAt 只能记"下次提醒",
+ * 记不住"催过几次、对方怎么答"。remindLog 就是这条时间线,不带金额、不进流水。
+ * 平台单(抖音商单)同理:钱不由达人催,但"说好哪天到账"必须落成日期。 */
+const REMIND_QUICK=['说这周给','说月底统一结','财务走流程','没回复/不接','已转对公','说拍完再结'];
+function openRemind(oid){
+  const o=byId(oid);
+  if(!o){toast('订单不存在');return}
+  const log=remindLogOf(o),last=log[log.length-1];
+  ui.remindOid=oid;
+  const note=$('#remind-note');if(note)note.value='';
+  $('#remind-sub').textContent=`「${o.store}」${log.length?`已催 ${log.length} 次,最近 ${fmtDT(last.at)}`:'还没催过'} · 记录时间自动取现在`;
+  $('#remind-quick').innerHTML=REMIND_QUICK.map(t=>`<button class="fchip" data-act="remind-quick" data-v="${esc(t)}">${esc(t)}</button>`).join('');
+  showSheet('sheet-remind');
+}
+function saveRemind(){
+  const id=ui.remindOid,o=byId(id);
+  if(!o){closeSheets();return}
+  const input=$('#remind-note');
+  const note=(input&&input.value?input.value:'').trim().slice(0,200);
+  const at=nowStr();
+  o.remindLog=[...remindLogOf(o),{at,note}].slice(-50);
+  const back=ui.detail===id?id:null;
+  save();renderAll();closeSheets();
+  if(back!==null&&byId(back))openDetail(back);
+  toast(`已记录第 ${o.remindLog.length} 次催收${note?` · ${note}`:''}`);
+}
+function openExpect(oid){
+  const o=byId(oid);
+  if(!o){toast('订单不存在');return}
+  ui.expectOid=oid;
+  $('#expect-sub').textContent=`「${o.store}」抖音商单,尾款 ${fmtMoney(unFin(o))} 由平台结算`;
+  $('#expect-date').value=o.expectPayAt?o.expectPayAt.slice(0,10):'';
+  showSheet('sheet-expect');
+}
+function saveExpect(){
+  const id=ui.expectOid,o=byId(id);
+  if(!o){closeSheets();return}
+  const day=$('#expect-date').value;
+  const at=day?`${day}T10:00`:'';
+  if(!at||!validDateTime(at)){toast('先选一个有效的到账日期');return}
+  const back=ui.detail===id?id:null;
+  o.expectPayAt=at;save();renderAll();closeSheets();
+  if(back!==null&&byId(back))openDetail(back);
+  toast(`已记下预计 ${fmtD(at)} 到账`);
+}
+function clearExpect(oid){
+  const o=byId(oid);
+  if(!o||!o.expectPayAt)return;
+  o.expectPayAt=null;save();renderAll();rerenderDetail();toast('已清除预计到账日');
 }
 
 /* ================= 详情弹层 ================= */
@@ -1339,15 +1475,41 @@ function openDetail(id){
   if(unFin(o)>0)payBtns.push(`<button class="btn ${isOver(o)?'primary':'pay'}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">收尾款<span class="pmoney">${esc(fmtMoney(unFin(o)))}</span></button>`);
   if(!payBtns.length)payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">款项已全部结清</div>`);
 
+  // 催收跟进:remindAt 只回答"下次什么时候提醒",痕迹才回答"催过几次、对方怎么答"
   let snoozeHtml='';
   if(payOf(o)==='待尾款'){
-    snoozeHtml=`<div class="sec-title" style="margin-top:16px">催收备忘(打开 App 时查看)</div>
+    const log=remindLogOf(o),last=log[log.length-1],recent=log.slice(-4).reverse();
+    snoozeHtml=`<div class="sec-title" style="margin-top:16px">催收跟进<span class="more" data-act="remind-open" data-oid="${esc(o.id)}">再催一次 ›</span></div>
+      <div class="card" style="background:#F8F8FA;box-shadow:none;padding:12px 13px">
+        <div class="rsub" style="margin:0${recent.length?' 0 8px':''};line-height:1.5">${log.length?`已催 ${log.length} 次 · 最近 ${esc(fmtDT(last.at))}`:'还没催过;第一次跟进也记一笔,对方怎么答下次不用重新问'}</div>
+        ${recent.map(entry=>`<div class="rline"><span class="rt">${esc(fmtD(entry.at))} ${esc(fmtHM(entry.at))}</span><span class="rn">${entry.note?esc(entry.note):'已催'}</span></div>`).join('')}
+        ${log.length>recent.length?`<div class="rsub" style="margin-top:6px">另有 ${log.length-recent.length} 次更早的跟进</div>`:''}
+      </div>
+      <div class="sec-title" style="margin-top:14px">催收备忘(打开 App 时查看)</div>
       <div class="btn2">
         <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="1">1天后提醒</button>
         <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="3">3天后提醒</button>
         <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="7">7天后提醒</button>
       </div>
       ${o.remindAt?`<div class="rsub" style="text-align:center;margin-top:8px">已设提醒:${esc(fmtD(o.remindAt))} 再催收 <button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="clear-remind" data-oid="${esc(o.id)}">清除</button></div>`:''}`;
+  }
+
+  // 平台单(抖音商单)的钱不由达人催,但"说好 T+7 到账"必须能落成日期,
+  // 否则现金流预测缺一块、过期没到账也无人提醒。
+  let expectHtml='';
+  const lateDays=expectOverdue(o);
+  if(o.settleVia==='douyin'){
+    const late=lateDays;
+    expectHtml=`<div class="sec-title" style="margin-top:16px">平台到账</div>
+      <div class="card" style="background:#F8F8FA;box-shadow:none;padding:12px 13px">
+        <div class="rsub" style="margin:0;line-height:1.6">${o.expectPayAt
+          ?`预计 ${esc(fmtD(o.expectPayAt))} 到账${late>0?` · <b style="color:var(--red)">已超期 ${late} 天</b>,去平台后台看结算状态`:''}`
+          :'还没填预计到账日。填上之后:首页/收款页会提示"预计哪天到账",过期未到账标红提醒。'}</div>
+      </div>
+      <div class="btn2" style="margin-top:8px">
+        <button class="btn ghost" data-act="expect-open" data-oid="${esc(o.id)}">${o.expectPayAt?'修改预计到账日':'设置预计到账日'}</button>
+        ${o.expectPayAt?`<button class="btn ghost" data-act="expect-clear" data-oid="${esc(o.id)}">清除</button>`:''}
+      </div>`;
   }
 
   $('#detail-body').innerHTML=`
@@ -1361,7 +1523,7 @@ function openDetail(id){
         <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
     </div>
-    <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${o.reviewResult?`<span class="chip ${o.reviewResult==='pass'?'c-green':'c-red'}">${REVIEW_LABEL[o.reviewResult]}</span>`:''}${deliverLate(o)?`<span class="chip c-red">超24h未出片</span>`:''}${isOver(o)?`<span class="chip c-red">欠款 ${esc(od)} 天</span>`:''}${snoozed(o)?`<span class="chip c-gray">已设提醒</span>`:''}</div>
+    <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${o.reviewResult?`<span class="chip ${o.reviewResult==='pass'?'c-green':'c-red'}">${REVIEW_LABEL[o.reviewResult]}</span>`:''}${deliverLate(o)?`<span class="chip c-red">超24h未出片</span>`:''}${isOver(o)?`<span class="chip c-red">欠款 ${esc(od)} 天</span>`:''}${o.settleVia==='douyin'&&o.expectPayAt&&unFin(o)>0?`<span class="chip ${lateDays>0?'c-red':'c-blue'}">预计 ${esc(fmtD(o.expectPayAt))} 到账${lateDays>0?` · 超期 ${esc(lateDays)} 天`:''}</span>`:''}${snoozed(o)?`<span class="chip c-gray">已设提醒</span>`:''}</div>
     ${isOver(o)?`<div class="banner-red"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
       <span>尾款自拍摄日(${esc(fmtD(o.shotAt))})起已欠 <b>${esc(od)} 天</b>,达到 ${esc(db.threshold)} 天催收阈值,建议电话跟进。${snoozed(o)?`已备忘:${esc(fmtD(o.remindAt))} 再提醒。`:''}</span></div>`:''}
     <div class="mile" style="--p:${progress.toFixed(1)}%">${mile}</div>
@@ -1378,6 +1540,7 @@ function openDetail(id){
     <div class="sec-title" style="margin-top:16px">收款</div>
     ${payBtns.join('')}
     ${snoozeHtml}
+    ${expectHtml}
     <div class="info-grid">
       <div class="ig"><div class="k">预约时间</div><div class="v">${esc(fmtD(o.appt))} ${esc(fmtHM(o.appt))}</div></div>
       <div class="ig"><div class="k">实际拍摄</div><div class="v">${esc(fmtDT(o.shotAt))}</div></div>
@@ -1463,7 +1626,7 @@ function closeSheets(){
     s.classList.remove('show');
     s.style.transition='';s.style.transform='';
   });
-  ui.detail=null;ui.payCtx=null;ui.editId=null;Store.pending=null;
+  ui.detail=null;ui.payCtx=null;ui.editId=null;ui.remindOid=null;ui.expectOid=null;Store.pending=null;
 }
 /**
  * 弹层下拉关闭。
@@ -1473,7 +1636,7 @@ function closeSheets(){
  */
 function initSheetGestures(){
   // 表单类弹层只在头部/把手起手才允许下拉关闭:正打字时误拖一下就把输入丢掉,代价太大
-  const FORM_SHEETS='#sheet-new,#sheet-edit,#sheet-account,#sheet-import';
+  const FORM_SHEETS='#sheet-new,#sheet-edit,#sheet-account,#sheet-import,#sheet-remind,#sheet-expect';
   document.querySelectorAll('.sheet').forEach(sheet=>{
     const body=sheet.querySelector('.sheet-body');
     const bodyDragAllowed=!sheet.matches(FORM_SHEETS);
@@ -1511,8 +1674,21 @@ function initSheetGestures(){
     sheet.addEventListener('touchcancel',finish,{passive:true});
   });
 }
-let toastTimer;
-function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
+/* Toast:默认 1.9 秒自动消失;带 action 时(如「撤销」)延到 5 秒并露出按钮。
+ * 「钱必须可逆」不能只写在原则里:点错一下就要能原地撤回,而不是再进编辑弹层绕一圈。 */
+let toastTimer,toastAction=null;
+function toast(m,action){
+  const el=$('#toast');if(!el)return;
+  clearTimeout(toastTimer);
+  toastAction=action||null;
+  if(action)el.innerHTML=`<span>${esc(m)}</span><button class="toast-act" data-act="toast-undo">${esc(action.label||'撤销')}</button>`;
+  else el.textContent=m;
+  el.classList.add('show');
+  el.classList.toggle('act',!!action);
+  // 隐藏后不立刻清掉 toastAction:按钮已经不可见了,留着它能避免"手慢一点就点不动"
+  // (下一次 toast 会覆盖它,所以不会出现错乱的撤销)
+  toastTimer=setTimeout(()=>el.classList.remove('show','act'),action?5000:1900);
+}
 
 /* ================= 统计 ================= */
 function statsFor(period,list){
@@ -1669,6 +1845,14 @@ function renderTrip(){
     <div class="card rows">${ds.map(orderRowTrip).join('')}</div>`;
   }
   if(!up)up=`<div class="empty">${m}月暂无档期 · 点右上角「预约」新增</div>`;
+  // 未来 7 天横滑条:排下周拍摄不必逐日点日历,先看"这周几单、忙在哪天"
+  const week=upcoming7(),weekCount=week.reduce((s,d)=>s+d.count,0),weekSum=week.reduce((s,d)=>s+d.sum,0);
+  const weekHtml=`<div class="sec-title" style="margin-top:14px;margin-bottom:6px"><span>未来 7 天${weekCount?` · ${weekCount} 单`:' · 暂无档期'}</span>${weekSum?`<span style="font-weight:600">${esc(fmtMoney(weekSum))}</span>`:''}</div>
+    <div class="n7">${week.map((d,i)=>{
+      const wd=i===0?'今天':i===1?'明天':`周${dowOf(d.day)}`;
+      return `<button class="n7d ${d.day===ui.selDay?'on':''}" data-act="day" data-day="${d.day}">
+        <div class="w">${wd}</div><div class="d">${d.day.slice(5,7)}-${d.day.slice(8,10)}</div><div class="c">${d.count?`${d.count} 单`:'空'}</div></button>`;
+    }).join('')}</div>`;
   $('#v-trip').innerHTML=`
     <div class="htop-row">
       <div><div class="eyebrow">整月档期 · ‹ › 可翻月</div><h1 class="big">行程</h1>
@@ -1690,6 +1874,7 @@ function renderTrip(){
       <div class="mgrid-dow">${'一二三四五六日'.split('').map(x=>`<span>周${x}</span>`).join('')}</div>
       <div class="mgrid-c">${cells}</div>
     </div>
+    ${weekHtml}
     <div class="sec-title">${ui.selDay===TODAY?'今日行程':`${+ui.selDay.slice(5,7)}月${+ui.selDay.slice(8,10)}日 周${dowOf(ui.selDay)}`}${list.length&&dayBadge(list.length,list.reduce((s,o)=>s+o.price,0))?` · ${dayBadge(list.length,list.reduce((s,o)=>s+o.price,0)).e} ${dayBadge(list.length,list.reduce((s,o)=>s+o.price,0)).t}`:''}</div>
     <div class="card rows">${listHtml}</div>
     <div class="sec-title">${m}月全部档期 · 往下滚看整月</div>
@@ -1761,11 +1946,14 @@ function renderPay(){
 
   const listHtml=rows.length?rows.map(o=>{
     const d=overdueDays(o),isDep=unDep(o)>0&&!isOver(o),isDy=o.settleVia==='douyin',sn=snoozed(o);
+    // 平台单:到账日超了就要顶上来提示,否则"平台会结"变成无限期等待
+    const late=isDy?expectOverdue(o):0;
+    const dyNote=isDy&&o.expectPayAt?` · 预计 ${fmtD(o.expectPayAt)} 到账${late>0?`(已超 ${late} 天)`:''}`:'';
     const due=isDep?{kind:'deposit',amt:unDep(o),sub:`预约 ${fmtD(o.appt)} ${fmtHM(o.appt)} · 定金`,btn:'标记已收'}
-      :isDy?{kind:'final',amt:unFin(o),sub:`${o.shotAt?'拍摄 '+fmtD(o.shotAt):'待拍摄'} · 抖音商单结算`,btn:'标记到账'}
+      :isDy?{kind:'final',amt:unFin(o),sub:`${o.shotAt?'拍摄 '+fmtD(o.shotAt):'待拍摄'} · 抖音商单结算${dyNote}`,btn:'标记到账'}
       :{kind:'final',amt:unFin(o),sub:`${o.shotAt?'拍摄 '+fmtD(o.shotAt):'预约 '+fmtD(o.appt)} · ${workOf(o)}`,btn:'标记已收'};
     const chip=isDep?'<span class="chip c-gray">待定金</span>'
-      :isDy?'<span class="chip c-blue">平台结算</span>'
+      :isDy?`<span class="chip ${late>0?'c-red':'c-blue'}">平台结算${o.expectPayAt?` · ${fmtD(o.expectPayAt)}${late>0?' 已超期':''}`:''}</span>`
       :isOver(o)?(sn?`<span class="chip c-gray">已设提醒 · ${fmtD(o.remindAt)}再催</span>`:`<span class="chip c-red">逾期 · 欠 ${d} 天</span>`)
       :`<span class="chip ${d>7?'c-orange':'c-gray'}">${o.shotAt?'欠款 '+d+' 天':'未拍摄 · 尚未起算账期'}</span>`;
     return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
@@ -1984,7 +2172,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
   if(!Store.ready||Store.busy){toast('正在读写数据，请稍候');return}
-  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','shot-pick','nav-place'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
+  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','shot-pick','nav-place','remind-open','expect-open'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
   refreshClock();
   switch(act){
     case 'tab':showTab(t.dataset.tab);break;
@@ -1996,7 +2184,12 @@ document.addEventListener('click',e=>{
     case 'chip':ui.chip=t.dataset.chip;renderOrders();break;
     case 'bucket':ui.bucket=t.dataset.bucket;renderPay();break;
     case 'period':ui.period=t.dataset.period;renderStats();break;
-    case 'day':ui.selDay=t.dataset.day;renderTrip();break;
+    case 'day':{
+      const day=t.dataset.day||ui.selDay;
+      ui.selDay=day;
+      const dy=+day.slice(0,4),dm=+day.slice(5,7);
+      if(dy!==ui.vMon.y||dm!==ui.vMon.m)ui.vMon={y:dy,m:dm};   // 从「未来 7 天」点到下个月的日子时同步翻月
+      renderTrip();break;}
     case 'mnav':{
       let m=ui.vMon.m+ +t.dataset.d, y=ui.vMon.y;
       if(m<1){m=12;y--} if(m>12){m=1;y++}
@@ -2085,6 +2278,18 @@ document.addEventListener('click',e=>{
     case 'snooze':{const o=byId(oid);if(o){const d=+t.dataset.d;o.remindAt=dOff(d,'09:00');save();renderAll();rerenderDetail();Notify.scheduleSnooze(o,d);toast(`已备忘:${d} 天后(${fmtD(o.remindAt)})提醒催收 ✓`)}break}
     case 'notify-toggle':Notify.toggle();break;
     case 'clear-remind':{const o=byId(oid);if(o){o.remindAt=null;save();renderAll();rerenderDetail();Notify.cancelOrder(oid);toast('已清除催收提醒')}break}
+    case 'remind-open':openRemind(oid);break;
+    case 'remind-quick':{const el=$('#remind-note');if(el){el.value=t.dataset.v||'';if(el.focus)el.focus()}break}
+    case 'remind-save':saveRemind();break;
+    case 'expect-open':openExpect(oid);break;
+    case 'expect-save':saveExpect();break;
+    case 'expect-clear':clearExpect(oid);break;
+    case 'toast-undo':{
+      const action=toastAction;toastAction=null;
+      $('#toast').classList.remove('show','act');
+      clearTimeout(toastTimer);
+      if(action&&typeof action.run==='function')action.run();
+      break}
     case 'mile':{const o=byId(oid),key=t.dataset.key;
       if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key))break;
       if(o[key]){if(confirm('清除「'+MILE_LABEL[key]+'」记录?')){o[key]=null;save();renderAll();rerenderDetail();Notify.syncDeliver();toast('已清除,可重新标记')}}
