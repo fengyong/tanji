@@ -257,6 +257,41 @@ test('通知开关：开启态重启后不丢',async()=>{
   assert.equal(b.run('db.notifyEnabled'),true);
 });
 
+test('通知开关：只管每日催收——关闭不撤用户自设的备忘与出片提醒',async()=>{
+  const a=app();
+  // 三笔单各司其职:逾期且未设提醒(撑起每日汇总)、逾期+用户自设备忘、刚拍摄(出片提醒)。
+  // 逾期要求拍摄≥15 天前,出片提醒要求拍摄<24h,同一笔单不可能同时满足;
+  // 设了备忘的单会被每日汇总排除,所以汇总与备忘也不能共用一笔单
+  setState(a,[OVERDUE,order({id:2,store:'新店',shotAt:'2026-11-21T10:00'}),order({id:3,store:'另一家',shotAt:'2026-01-05T11:00'})]);
+  await a.run('save()');
+  await a.run('Notify.syncDaily()');
+  await a.run("db.orders[0].remindAt='2026-11-24T09:00';Notify.scheduleSnooze(db.orders[0],3);");
+  await a.run('Notify.syncDeliver()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'应排每日催收汇总');
+  assert.equal(a.device.pending.filter(n=>+n.id>=100000&&+n.id<300000).length,1,'应排催收备忘');
+  assert.equal(a.device.pending.filter(n=>+n.id>=300000).length,1,'应排出片提醒');
+
+  await a.run('Notify.toggle()');                 // 关闭「逾期催收每日提醒」
+  await tick();
+  assert.equal(a.run('db.notifyEnabled'),false);
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,0,'每日汇总应被撤掉');
+  assert.equal(a.device.pending.filter(n=>+n.id>=100000&&+n.id<300000).length,1,'开关只管每日汇总,用户自设的备忘提醒不能被连带取消');
+  assert.equal(a.device.pending.filter(n=>+n.id>=300000).length,1,'开关只管每日汇总,出片提醒不能被连带取消');
+
+  // 关闭期间:每日汇总不重排,出片提醒照常(它不受这个开关管)
+  a.run('Notify.syncDaily()');
+  a.run('Notify.syncDeliver()');
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,0,'关闭期间每日汇总不应重排');
+  assert.equal(a.device.pending.filter(n=>+n.id>=300000).length,1,'出片提醒不受每日催收开关影响');
+
+  await a.run('Notify.toggle()');                 // 重新开启
+  await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===1).length,1,'开启后每日汇总恢复');
+  assert.equal(a.device.pending.filter(n=>+n.id>=100000&&+n.id<300000).length,1,'备忘提醒全程未被动过');
+});
+
 /* ---------- 通知与数据变更同步 ---------- */
 
 test('收尾款后每日催收通知应重新排程',async()=>{

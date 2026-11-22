@@ -573,7 +573,16 @@ const Notify={
     db.notifyEnabled=(db.notifyEnabled===false);
     save();renderAll();
     if(db.notifyEnabled!==false)await this.syncDaily();
-    else await this.cancelAll();
+    else{
+      // 开关语义是「逾期催收每日提醒」(统计页文案),只撤每日汇总(id=1)。
+      // 用户自设的 1/3/7 天备忘与 24h 出片提醒不受它管——连带取消会让
+      // 用户明确设置的提醒静默消失,且重新开启时也不会被恢复。
+      try{
+        const L=CAP.LocalNotifications,pend=await L.getPending();
+        const daily=(pend.notifications||[]).filter(n=>+n.id===1);
+        if(daily.length)await L.cancel({notifications:daily});
+      }catch(e){}
+    }
     toast(db.notifyEnabled!==false?'已开启每日催收提醒（每天 09:00）':'已关闭每日催收提醒');
   }
 };
