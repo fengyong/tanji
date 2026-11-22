@@ -66,6 +66,8 @@ manifest.webmanifest  PWA 清单
 vendor/sqlite3.mjs    SQLite 官方 WASM 构建(@sqlite.org/sqlite-wasm)
 vendor/sqlite3.wasm   同上
 icons/                App 图标(512/192/apple-touch 180)
+AGENTS.md             项目必读文档(动手前先读)
+docs/git-push-guide.md 提交与推送规范(两条硬规则 + 故障排查)
 docs/prototype-v0.1.html  v0.1 原型存档
 ```
 
@@ -93,3 +95,31 @@ node tests/browser-smoke.cjs
 - `native-app` — 本地 App 版（Capacitor 壳 + 原生 SQLite/本地通知），独立 worktree（`tanji-native/`）开发；已同步 v0.4，并叠加 native 专属的 v0.5 工作流与 v0.6 多账号；Xcode 27.2 模拟器构建与 SQLite/通知实测已通过（当前开发分支 `fix/native-persistence-review` → PR 目标 `native-app`）
 - `feat/reliability-recovery` — 可靠性修复开发分支，保留独立 worktree
 - `feat/cloud-local-first` — 云端/本地优先策略实验分支（未合入）
+
+## 提交与推送（必读）
+
+**两条硬规则**，任何一次提交和推送都必须满足，完整版见 [`AGENTS.md`](AGENTS.md)：
+
+1. **提交标题必须以 agent 名称 / 模型名称开头**
+
+   ```bash
+   git commit -m "mimocode/M31.1-flash feat(web): 一句话说清做了什么"
+   ```
+
+   格式：`<agent名称>/<模型名称> <类型>(<作用域>): <一句话摘要>`。前缀取值 `mimocode/M31.1-flash`
+   （MiniMax Code / MiniMax-M3.1-Flash，本项目当前在用）；换 agent 或换模型就写当次实际用的那个。
+   前缀必须在标题行**开头**，不能写成 `feat(web): mimocode/M31.1-flash ...`。
+
+2. **推送一律用 `fengyong` 账号**
+
+   ```bash
+   git push git@github-fengyong:fengyong/tanji.git HEAD:refs/heads/<分支>
+   ```
+
+   `origin` 在本机是 `drax-ola` 身份、对 `fengyong/tanji` 无写权限；HTTPS 到 github.com 不通；
+   本机 `~/.gitconfig` 的 `insteadOf` 全局改写让「改 remote / 换 HTTPS / 加 `-u」全部无效。
+   `~/.ssh/config` 里已配好 `Host github-fengyong` 别名，用 `ssh -T git@github-fengyong` 校验
+   应回 `Hi fengyong!`。
+
+首次配置、提交前自检、PR 目标分支、CI 触发条件与四类 push 报错的排查见
+[docs/git-push-guide.md](docs/git-push-guide.md)。
