@@ -108,6 +108,10 @@ const server=http.createServer((request,response)=>{
     const legalLinks=await evaluate(`(()=>{const rows=[...document.querySelectorAll('#v-stats a[href]')].map(a=>({href:a.getAttribute('href'),name:a.querySelector('.menu-name')?.textContent||''}));return rows})()`);
     assert.ok(legalLinks.some(l=>l.href==='privacy.html'),'缺少隐私政策入口');
     assert.ok(legalLinks.some(l=>l.href==='support.html'),'缺少支持页入口');
+    // 付费漏斗:免费 PWA 里必须有 iOS 原生版入口(未上架时显示「即将上架」,上架后是可点的 App Store 链接)
+    const iosRow=await evaluate(`(()=>{const r=[...document.querySelectorAll('#v-stats .menu-row')].find(x=>(x.querySelector('.menu-name')?.textContent||'').includes('iOS 原生版'));if(!r)return null;return {isLink:r.tagName==='A',href:r.getAttribute('href')||'',badge:r.querySelector('.tag-badge')?.textContent||''}})()`);
+    assert.ok(iosRow,'统计页缺少 iOS 原生版入口(免费体验 → 付费版的转化入口)');
+    assert.ok(iosRow.isLink?/^https:\/\/apps\.apple\.com\//.test(iosRow.href):iosRow.badge==='即将上架','iOS 原生版入口状态异常: '+JSON.stringify(iosRow));
     for(const p of ['privacy.html','support.html']){
       const status=await evaluate(`fetch('${p}').then(r=>r.status)`);
       assert.equal(status,200,`${p} 不可访问`);
