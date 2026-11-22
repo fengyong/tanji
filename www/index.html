@@ -476,6 +476,13 @@ function greeting(){const h=new Date().getHours();return h<11?'早上好':h<14?'
 /* ================= UI 状态(先于数据定义,fmtMoney 依赖) ================= */
 const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1}};
 
+/* 隐私政策 / 支持页的线上地址。
+   原生端 WebView 用的是 capacitor:// 协议，相对链接无法交给系统浏览器打开，
+   而应用内跳转会把用户带离主界面且没有返回键 —— 故原生端统一走线上绝对地址，
+   由 Capacitor 的 createWebViewWith 转交系统浏览器(target=_blank)。
+   Web 端走同源相对路径，可被 Service Worker 离线缓存。 */
+const LEGAL_BASE='https://tanji-app-guvc.zai.site/';
+
 /* ================= 独立演示数据 ================= */
 function demoSeed(){
   const O=[
@@ -1495,6 +1502,18 @@ function renderStats(){
       </div>
       <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0;white-space:normal">探记 TanJi v0.4 · 数据仅存本机，请定期导出备份</div>
     </div>
+    <div class="sec-title">关于</div>
+    <div class="card rows">
+      <a class="menu-row" href="${LEGAL_BASE}privacy.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 8.2-7.5 9.5C7.6 20.2 4.5 16.4 4.5 12V6L12 3z"/></svg></span>
+        <div class="menu-t"><div class="menu-name">隐私政策</div><div class="menu-sub">纯本地运行 · 不收集、不上传任何数据</div></div>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </a>
+      <a class="menu-row" href="${LEGAL_BASE}support.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+        <span class="menu-ic" style="background:var(--green-soft);color:#239648"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span>
+        <div class="menu-t"><div class="menu-name">支持与常见问题</div><div class="menu-sub">备份、迁移、通知与导出问题</div></div>
+        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
+      </a>
     </div>`;
 }
 

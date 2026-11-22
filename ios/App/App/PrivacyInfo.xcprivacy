@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  探记 (TanJi) 隐私清单 / Privacy Manifest
+	  App Store Connect 上架必需（2024-05-01 起缺失会被拒）。
+
+	  本应用为纯本地工具：无账号、无网络请求、无第三方统计/广告 SDK，
+	  因此 NSPrivacyCollectedDataTypes 为空数组 —— 不收集任何用户数据。
+
+	  NSPrivacyAccessedAPITypes：
+	    - FileTimestamp / C617.1
+	      来自 @capacitor/filesystem 的依赖 ion-ios-filesystem，
+	      其 IONFILEManager 使用 attributesOfItem / creationDate / modificationDate
+	      读取文件属性。所访问的文件全部位于 App 自身的沙盒容器内，
+	      符合 C617.1「访问 App 容器内文件的时间戳」。
+
+	    未声明 UserDefaults / DiskSpace / SystemBootTime / ActiveKeyboards：
+	    已逐个核查本工程引入的全部第三方二进制与源码
+	    （Capacitor 8.6.2、@capacitor-community/sqlite 8.1.1、
+	      @capacitor/filesystem 8.1.5、@capacitor/local-notifications 8.3.1、
+	      @capacitor/share 8.0.3、SQLCipher.swift 4.20.0、ZIPFoundation），
+	    均未访问这些 Required Reason API。
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

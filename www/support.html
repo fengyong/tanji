@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>支持 · 探记 TanJi</title>
+<meta name="description" content="探记 TanJi 支持页面：常见问题、联系方式与系统要求。"/>
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
+<meta name="theme-color" content="#F2F2F7"/>
+<style>
+  :root{
+    --bg:#F2F2F7; --card:#FFFFFF; --ink:#1C1C1E; --sub:#8E8E93; --line:#E7E7EC;
+    --brand:#FF6A2B; --brand-soft:#FFF1E9;
+    --blue:#007AFF; --blue-soft:#EAF2FF;
+    --green:#34C759; --green-soft:#EAF9EE;
+    --orange:#FF9500; --orange-soft:#FFF5E6;
+    --red:#FF3B30;   --red-soft:#FFEBEA;
+    --r:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    background:linear-gradient(155deg,#ECEAF3 0%,#E4E8EF 100%);
+    min-height:100vh;color:var(--ink);
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:22px 16px 64px}
+  .hero{
+    background:var(--card);border-radius:var(--r);padding:26px 22px;margin-bottom:14px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  .badge{
+    display:inline-block;background:var(--brand-soft);color:var(--brand);
+    font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:99px;margin-bottom:12px;
+  }
+  h1{font-size:24px;margin:0 0 6px;letter-spacing:-.3px}
+  .sub{font-size:13.5px;color:var(--sub);line-height:1.7;margin:0}
+  h2{font-size:17px;margin:0 0 12px;letter-spacing:-.2px}
+  h3{font-size:15px;margin:0 0 5px}
+  .card{
+    background:var(--card);border-radius:var(--r);padding:20px;margin-bottom:12px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  p{font-size:14.5px;line-height:1.85;margin:0 0 10px;color:#2c2c2e}
+  p:last-child{margin-bottom:0}
+  ul{margin:0 0 10px;padding-left:20px}
+  li{font-size:14.5px;line-height:1.85;color:#2c2c2e;margin-bottom:3px}
+  li:last-child{margin-bottom:0}
+  code{
+    background:#f0f0f5;border-radius:5px;padding:1.5px 6px;font-size:13px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  .faq{border-bottom:1px solid var(--line);padding:14px 0}
+  .faq:last-child{border-bottom:none;padding-bottom:0}
+  .faq:first-child{padding-top:0}
+  .q{font-size:14.5px;font-weight:600;line-height:1.7;margin:0 0 6px;display:flex;gap:8px}
+  .q::before{content:"Q";color:var(--brand);font-weight:700;flex:none}
+  .a{font-size:14px;line-height:1.8;color:#3a3a3c;margin:0;padding-left:20px}
+  .tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+  .tbl th,.tbl td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.7}
+  .tbl th{color:var(--sub);font-weight:600;font-size:12.5px}
+  .tbl tr:last-child td{border-bottom:none}
+  .note{background:var(--blue-soft);border-radius:10px;padding:13px 16px;margin-bottom:12px}
+  .note p{font-size:14px;margin:0}
+  .warn{background:var(--orange-soft);border-radius:10px;padding:13px 16px;margin-bottom:12px}
+  .warn p{font-size:14px;margin:0}
+  .foot{text-align:center;font-size:12.5px;color:var(--sub);line-height:1.9;padding:8px 10px 0}
+  .foot a{color:var(--blue);text-decoration:none}
+  a{color:var(--blue)}
+  .btn{
+    display:inline-block;background:var(--blue);color:#fff;text-decoration:none;
+    font-size:14.5px;font-weight:600;padding:11px 20px;border-radius:11px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <span class="badge">支持中心</span>
+    <h1>探记 TanJi · 支持</h1>
+    <p class="sub">用不上的功能说明、用得上的解决办法。下面是最常被问到的问题。</p>
+  </div>
+
+  <div class="card">
+    <h2>联系方式</h2>
+    <p>遇到问题、想要功能、或者发现记账不对，直接发邮件给我们：</p>
+    <table class="tbl">
+      <tr><th style="width:88px">联系邮箱</th><td>【请替换为你的联系邮箱】</td></tr>
+      <tr><th>响应时间</th><td>通常 3 个工作日内回复</td></tr>
+      <tr><th>附上信息</th><td>请附上 App 版本、设备系统版本和问题现象截图，定位更快</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>常见问题</h2>
+
+    <div class="faq">
+      <p class="q">我的数据存在哪？会被上传吗？</p>
+      <p class="a">全部存在你自己的设备上（应用沙盒内的数据库 + 本地镜像双副本）。应用没有服务器，不会上传；卸载应用数据就没了。<a href="privacy.html">隐私政策</a>有完整说明。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">怎么备份？多久备一次？</p>
+      <p class="a">「统计 → 数据管理」里导出 JSON 或 .db，存到文件 App / iCloud。<strong>建议每周一次</strong>。添加到主屏幕不能替代备份，系统随时可能清理浏览器数据。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">换手机了，数据怎么带走？</p>
+      <p class="a">旧设备导出 JSON → 新设备安装后进入「统计 → 切换到工作数据」→「导入 JSON 备份」，核对预览后确认替换。导入会校验订单 ID、金额、时间与流水，不一致会直接拒绝，不会静默改账。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">打开后是演示数据，怎么换成我自己的？</p>
+      <p class="a">「统计 → 切换到工作数据」。工作数据与演示数据是<strong>两套独立保存</strong>的，切换、导入、清空都只影响当前这一套，不会互相覆盖。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">怎么确认没记错账？</p>
+      <p class="a">已经收过款的订单会锁定总价和定金，必须先撤销相应流水才能改价；定金不会超过总价；零元单直接结清；重复收款不会重复入账。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">「隐藏金额」是加密吗？</p>
+      <p class="a">不是。隐藏金额只是界面上不显示，<strong>导出文件是完整明文</strong>。共享给他人前请自行判断。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">每日催收提醒怎么设置？为什么没弹？</p>
+      <p class="a">「统计 → 逾期催收每日提醒」打开后，每天 09:00 本地通知，只报逾期条数和最长天数、<strong>不含金额</strong>。收完款或删除订单后，旧的排程提醒会被同步取消。没弹的话检查一下系统「设置 → 通知 → 探记」是否允许通知。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">提示「保存失败」怎么办？</p>
+      <p class="a"><strong>先别关页面</strong>。立即导出 JSON 备份，再重试保存。如果持续失败，设备存储可能不足——清理空间后重开应用。读取异常时应用会暂停写入以防覆盖新数据，此时仍可尝试导出替换前备份。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">离线能用吗？</p>
+      <p class="a">能。应用支持离线运行，断网后照常记录和统计；联网后也不会自动同步（因为本来就没有服务器）。</p>
+    </div>
+
+    <div class="faq">
+      <p class="q">导出的 .db 能用别的软件打开吗？</p>
+      <p class="a">可以，用任意 SQLite 工具打开。表结构与 Web 版一致，但原生 App 内部库多一列 <code>mode</code>（区分工作/演示数据），跨端搬运请用 JSON 备份。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>系统要求</h2>
+    <table class="tbl">
+      <tr><th style="width:96px">iPhone 版</th><td>iOS 15.0 及以上</td></tr>
+      <tr><th>Web 版</th><td>支持 Web Locks 的现代浏览器（Safari 16.4+ / Chrome 96+ 等），需 HTTPS 或 localhost</td></tr>
+      <tr><th>离线</th><td>支持；首次加载后本地缓存</td></tr>
+      <tr><th>网络</th><td>不需要。应用不发起任何网络请求</td></tr>
+    </table>
+    <div class="note" style="margin-top:14px">
+      <p>同一地址只允许一个标签页写入，其他标签页会变为只读。手机上请用「添加到主屏幕」打开，不要在多个标签页同时操作。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>功能建议</h2>
+    <p>想要的功能、觉得别扭的地方，都欢迎直接写信告诉我们。我们是按真实探店场景打磨这个工具的，你的反馈会直接决定下一个版本做什么。</p>
+    <a class="btn" href="mailto:【请替换为你的联系邮箱】">发邮件给我们</a>
+  </div>
+
+  <div class="warn">
+    <p>发布前请把本页和<a href="privacy.html">隐私政策</a>中的 <strong>【请替换为你的联系邮箱】</strong> 替换为真实邮箱。App Store 上架要求隐私政策与支持页面均有可用的联系方式。</p>
+  </div>
+
+  <div class="foot">
+    <p><a href="index.html">← 返回探记</a> · <a href="privacy.html">隐私政策</a></p>
+    <p>探记 TanJi · 探店达人的行程与收款本机记账工具</p>
+  </div>
+
+</div>
+</body>
+</html>
