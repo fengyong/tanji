@@ -96,7 +96,10 @@ export function validateState(input){
       color:Number.isSafeInteger(account.color)?Math.max(0,Math.min(7,account.color)):index%8,
       createdAt:text(account.createdAt,`${label}的创建时间`)||null};
     if(account.avatar!=null){
-      if(typeof account.avatar!=='string'||(!account.avatar.startsWith('data:image/')&&account.avatar!==''))throw new Error(`${label}的头像数据无效`);
+      // 与随手拍同一套严格口径(MIME/字符集/体积):头像会被原样拼进 <img src="…">,
+      // 只查前缀的话,带引号和事件属性的字符串能从一份备份一路走到 innerHTML。
+      // 空串是老备份的合法值,继续放行。
+      if(typeof account.avatar!=='string'||(account.avatar!==''&&!(typeof TanJiImage!=='undefined'&&TanJiImage.isValidStored(account.avatar))))throw new Error(`${label}的头像数据无效`);
       if(account.avatar.length>200000)throw new Error(`${label}的头像图片过大`);
       clean.avatar=account.avatar;
     }

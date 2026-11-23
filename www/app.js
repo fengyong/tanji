@@ -535,7 +535,7 @@ function validateState(input) {
       createdAt: text(account.createdAt, `${label}\u7684\u521B\u5EFA\u65F6\u95F4`) || null
     };
     if (account.avatar != null) {
-      if (typeof account.avatar !== "string" || !account.avatar.startsWith("data:image/") && account.avatar !== "") throw new Error(`${label}\u7684\u5934\u50CF\u6570\u636E\u65E0\u6548`);
+      if (typeof account.avatar !== "string" || account.avatar !== "" && !(typeof TanJiImage !== "undefined" && TanJiImage.isValidStored(account.avatar))) throw new Error(`${label}\u7684\u5934\u50CF\u6570\u636E\u65E0\u6548`);
       if (account.avatar.length > 2e5) throw new Error(`${label}\u7684\u5934\u50CF\u56FE\u7247\u8FC7\u5927`);
       clean.avatar = account.avatar;
     }
@@ -1523,7 +1523,9 @@ function saveAccount() {
   const base = { name, phone: $("#a-phone").value.trim(), douyin: $("#a-douyin").value.trim(), color: ui.draftColor % 8 };
   if (ui.draftAvatar) base.avatar = ui.draftAvatar;
   if (ui.editAccountId != null) {
-    Object.assign(accById(ui.editAccountId), base);
+    const target = accById(ui.editAccountId);
+    Object.assign(target, base);
+    if (!ui.draftAvatar) delete target.avatar;
     toast("\u5DF2\u4FDD\u5B58\u8D26\u53F7");
   } else {
     const maxId = ACCS().reduce((m, x) => Math.max(m, x.id), 0);
@@ -2465,7 +2467,7 @@ function rr(g, x, y, w, h, r) {
 }
 function buildTodayImage(day = TODAY) {
   const date = /* @__PURE__ */ new Date(day + "T00:00");
-  const list = db.orders.filter((o) => o.appt.slice(0, 10) === day).sort((a, b) => a.appt.localeCompare(b.appt));
+  const list = db.orders.filter(accMatch).filter((o) => o.appt.slice(0, 10) === day).sort((a, b) => a.appt.localeCompare(b.appt));
   const S = 2, W = 1080, rowH = 112, headH = 240, footH = 110, gap = 18, pad2 = 56;
   const rows = Math.max(list.length, 1);
   const H = headH + rows * (rowH + gap) + footH;

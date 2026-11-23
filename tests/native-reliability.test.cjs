@@ -1114,3 +1114,34 @@ test('备忘时间一过(提醒已响完),详情页不再显示「已设提醒�
   a.run("db.orders[0].remindAt='2026-11-25T09:00';openDetail(1)");
   assert.equal(a.run(`$('#detail-body').innerHTML`).includes('已设提醒:11-25'),true,'未到期的备忘照常显示');
 });
+
+/* ---------- 第八轮深度 review:账号头像与校验 ---------- */
+
+test('编辑账号时点「移除头像」再保存,头像必须真的被删掉',()=>{
+  const a=app();
+  const av='data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+  a.run(`__replaceDb(${JSON.stringify({orders:[order({accountId:1})],payments:[],threshold:15,accounts:[{id:1,name:'吃货号',color:2,avatar:av}]})})`);
+  a.run('openAccount(1)');
+  a.element('#a-name').value='吃货号';
+  a.events.click({target:{closest:()=>({dataset:{act:'remove-avatar'}})}});
+  a.events.click({target:{closest:()=>({dataset:{act:'save-account'}})}});
+  assert.equal(a.run(`'avatar' in db.accounts[0]`),false,
+    '预览里头像没了、提示「已保存账号」,库里的头像却原样还在(移除头像不生效)');
+  // 对照:没点移除头像直接保存,头像原样保留
+  a.run(`db.accounts[0].avatar=${JSON.stringify(av)};openAccount(1);`);
+  a.element('#a-name').value='吃货号';
+  a.events.click({target:{closest:()=>({dataset:{act:'save-account'}})}});
+  assert.equal(a.run('db.accounts[0].avatar'),av,'没点移除头像时,头像应原样保留');
+});
+
+test('账号头像必须是严格的图片 dataURL:能拼出 HTML 属性的字符串必须被拒(头像会原样进 innerHTML)',()=>{
+  const a=app();
+  const evil='data:image/"><img src=x onerror=alert(1)>';
+  // 此前只查 data:image/ 前缀:这类字符串过得了校验,再被 accAvatarHTML/accTagHTML 原样拼进 <img src="…">
+  const withAvatar=avatar=>`validateState(${JSON.stringify({orders:[],payments:[],accounts:[{id:1,name:'x',avatar}]})})`;
+  assert.throws(()=>a.run(withAvatar(evil)),/头像数据无效/);
+  // 本机成品(128×128 JPEG)与老备份里的空串照常通过
+  const ok='data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+  assert.equal(a.json(withAvatar(ok)+'.accounts[0].avatar'),ok);
+  assert.equal(a.json(withAvatar('')+'.accounts[0].avatar'),'');
+});

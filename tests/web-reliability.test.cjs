@@ -111,6 +111,14 @@ test('HTML text and attributes are escaped, including search input',()=>{
 test('share uses explicitly selected date instead of today',async()=>{
   const a=app();setState(a,[order({appt:'2026-11-22T10:00',store:'明天店'})]);await a.run('buildTodayImage("2026-11-22")');assert.ok(a.texts.some(text=>String(text).includes('明天店')));assert.ok(a.texts.some(text=>String(text).includes('11月22日')));
 });
+test('share image follows the account filter, like the trip page it is shared from',async()=>{
+  const a=app();setState(a,[order({id:1,appt:'2026-11-22T10:00',store:'甲账号的店',accountId:1}),order({id:2,appt:'2026-11-22T14:00',store:'乙账号的店',accountId:2})]);
+  a.run("db.accounts=[{id:1,name:'甲',color:0},{id:2,name:'乙',color:1}];ui.accFilter=1;");
+  await a.run('buildTodayImage("2026-11-22")');
+  assert.ok(a.texts.some(text=>String(text).includes('甲账号的店')),'当前账号的单要在图里');
+  assert.ok(!a.texts.some(text=>String(text).includes('乙账号的店')),'筛了账号还把别的账号的单画进分享图:行程页只显示当前账号,图却替用户分享了没打算分享的行程');
+  assert.ok(!a.texts.some(text=>String(text).includes('2 个拍摄安排')),'标题计数也要跟着筛选');
+});
 test('IndexedDB writes only succeed after transaction commit',async()=>{
   const a=app({mockDisk:false});let transaction,settled=false,putCount=0;
   a.context.database={transaction:()=>transaction={objectStore:()=>({put(){putCount++;return {}}})}};

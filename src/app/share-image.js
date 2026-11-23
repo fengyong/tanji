@@ -2,14 +2,16 @@
 import {$,fmtHM,dowOf,TODAY} from './util.js';
 import {db} from './storage.js';
 import {ui,refreshClock} from './ui.js';
-import {workOf} from './derived.js';
+import {workOf,accMatch} from './derived.js';
 import {showSheet,toast} from './sheets.js';
 
 /* ================= 今日行程分享图(canvas,默认不含金额) ================= */
 function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
 export function buildTodayImage(day=TODAY){
   const date=new Date(day+'T00:00');
-  const list=db.orders.filter(o=>o.appt.slice(0,10)===day).sort((a,b)=>a.appt.localeCompare(b.appt));
+  // 与行程页同一口径:筛了账号就只画当前账号的单。分享图是拿出去给别人看的,
+  // 把别的账号的行程一起画进去,等于替用户分享了没打算分享的内容。
+  const list=db.orders.filter(accMatch).filter(o=>o.appt.slice(0,10)===day).sort((a,b)=>a.appt.localeCompare(b.appt));
   const S=2,W=1080,rowH=112,headH=240,footH=110,gap=18,pad=56;
   const rows=Math.max(list.length,1);
   const H=headH+rows*(rowH+gap)+footH;

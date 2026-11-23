@@ -109,7 +109,12 @@ export function saveAccount(){
   const base={name,phone:$('#a-phone').value.trim(),douyin:$('#a-douyin').value.trim(),color:ui.draftColor%8};
   if(ui.draftAvatar)base.avatar=ui.draftAvatar;
   if(ui.editAccountId!=null){
-    Object.assign(accById(ui.editAccountId),base);toast('已保存账号');
+    const target=accById(ui.editAccountId);
+    Object.assign(target,base);
+    // 「移除头像」:base 里没有 avatar 键,Object.assign 不会碰旧值 —— 必须显式删掉,
+    // 否则预览里头像没了、提示「已保存账号」,库里的头像却原样还在
+    if(!ui.draftAvatar)delete target.avatar;
+    toast('已保存账号');
   }else{
     const maxId=ACCS().reduce((m,x)=>Math.max(m,x.id),0);
     db.accounts=[...ACCS(),{id:maxId+1,createdAt:nowStr(),...base}];
