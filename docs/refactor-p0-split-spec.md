@@ -174,7 +174,10 @@ www/
 util ← env ← ui ← derived ← views ← {demo, sqlite-bytes, export, accounts,
         order-forms, order-actions, detail, share-image, sheets, stats}
         ← actions ← main
-storage.js 被 ui 及以上各层 import;storage.js 本身只允许 import env.js + globalThis 内核
+storage.js 被 ui 及以上各层 import;storage.js 的 import 白名单 = env.js。
+> **口径修正(第七轮 review P2-3)**:P1 后实际为 env.js + util.js(fmtMoney/validDateTime)
+> + demo.js(demoSeed),均经 architecture.test.cjs 的 LAYER 表合法化(env:0/util:1/demo:2 < storage:3)。
+> 以此为准;本节其余方向规则不变。
 ```
 
 已知循环与既定解法(执行人照做,不许另起方案):

@@ -47,9 +47,13 @@ Store db(活 getter)                              ← 仅冒烟/调试用
 `toast/closeSheets/showSheet/download` 的自由引用**整组消失**。
 storage.js 预计再瘦 ~80 行,向"纯持久化"收敛。
 
-### T2-B accMatch 归位 + 角标注入(解 3 个)
+### T2-B accMatch 归位 + 角标注入(解 3 个)✅ 已完成
 
-`accMatch` 只依赖 `ui.accFilter`,应住 ui.js:
+> **口径修正(第七轮 review P2-3)**:本节原定 accMatch 住 ui.js,
+> 实施时改为住 **derived.js**——它是订单谓词,与 db 谓词同层更内聚,
+> 且 derived→ui 无环(ui 经角标注入保持不依赖 derived)。以此为准。
+
+`accMatch` 只依赖 `ui.accFilter`,原计划住 ui.js(实施时改 derived.js):
 1. accMatch 从 accounts.js 移到 ui.js;
 2. derived.js 改为 `import {accMatch} from './ui.js'`(derived→ui 无环,
    前提是 ui 保持不 import derived —— 见 3);

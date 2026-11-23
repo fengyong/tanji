@@ -138,7 +138,18 @@ test('markup 里出现的每个 data-act 都必须在事件委托里有对应 ca
   assert.deepEqual(
     missing,
     [],
-    `这些 data-act 在事件委托里没有对应 case(点了没反应):${missing.join(',')}`,
+    `这些 data-act 没有对应的注册动作(点了没反应):${missing.join(',')}`,
+  );
+
+  // 反向:注册了但 markup 已删的动作也要抓(死注册 = 看不见的腐肉)
+  // 白名单:toggle-dep/toggle-fin 由 order-forms.js:95 动态拼接(data-act="${…}"),静态枚举不到
+  const DYNAMIC = new Set(['toggle-dep', 'toggle-fin']);
+  const actsSet = new Set(acts);
+  const dead = [...registered].filter(r => !actsSet.has(r) && !DYNAMIC.has(r));
+  assert.deepEqual(
+    dead,
+    [],
+    `这些动作注册了但 markup 里已没有入口(死注册,该删):${dead.join(',')}`,
   );
 });
 

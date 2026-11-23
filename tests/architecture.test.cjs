@@ -4,7 +4,9 @@
  * 为什么需要这一类测试
  * ------------------
  * P0/P1 拆层的全部价值在于分层不再被腐蚀。但「storage.js 不许碰 UI」
- * 「视图层不许碰存储」「logic.js 不许碰 DOM」过去只是注释里的约定 ——
+ * 「视图/业务层不许直接碰平台原语(插件桥/IndexedDB/localStorage)」
+ * 「logic.js 不许碰 DOM」过去只是注释里的约定 ——
+ * (注意:视图层 import db/Store 读数据是设计内行为,被禁的是原语关键字)
  * 约定会被下一次赶工的提交悄悄打破,而代码评审很难逐行盯住 import。
  * 这里把分层规则变成静态断言:架构腐蚀 = 测试变红。
  *
@@ -177,4 +179,17 @@ test('harness 与 main.js 的 register* 调用集合一致', () => {
   const onlyHarness = [...b].filter(x => !a.has(x));
   assert.deepEqual([...onlyMain, ...onlyHarness], [],
     `注册集合不一致:仅 main.js 有 [${onlyMain}]、仅 harness 有 [${onlyHarness}]——两边必须同步注册`);
+});
+
+/* ---------- 规则 7:PWA 缓存策略(第七轮 review P1) ---------- */
+
+test('sw.js:app.js 在 ASSETS 且必须 network-first', () => {
+  // app.js 是入库构建产物、随提交常变;cache-first + VERSION 不 bump =
+  // 老 PWA 永久吃旧包(评审实证:v0.5.0 后 12+ 提交未 bump)。
+  // 防线:network-first 让内容更新即时生效,VERSION bump 只兜 ASSETS 成员变更。
+  const sw = fs.readFileSync(path.join(ROOT, 'www', 'sw.js'), 'utf8');
+  assert.ok(sw.includes("'./app.js'"), 'ASSETS 缺少 ./app.js');
+  assert.ok(!sw.includes("'./storage.js'"), 'ASSETS 还留着已删除的 storage.js');
+  assert.match(sw, /fresh=[^;]*\/app\.js/, 'app.js 必须走 network-first(fresh),不许回 cache-first');
+  assert.doesNotMatch(sw, /storage\.js'\)/, 'fresh 规则里还有死掉的 storage.js 条目');
 });

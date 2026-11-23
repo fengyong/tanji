@@ -18,7 +18,7 @@
     },
     "sw.js": {
       "main": "02e82ca4b96e2878783fa67c7c817f868f8bae0a",
-      "native": "491fc4f782eaafdf7e7f5e72c7fcd7471edd8c34",
+      "native": "58f31e8f99b6b9b501fdef668c6c256d30dda516",
       "nativePath": "www/sw.js",
       "note": "Service Worker 离线缓存"
     },

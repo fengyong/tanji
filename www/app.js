@@ -1297,6 +1297,112 @@ var Notify = {
   }
 };
 
+// src/app/sqlite-bytes.js
+function buildSqliteBytes(state = db) {
+  if (!Store.sqlite3) return null;
+  try {
+    const s = Store.sqlite3;
+    const d = new s.oo1.DB(":memory:", "ct");
+    d.exec(`CREATE TABLE IF NOT EXISTS orders(
+      id INTEGER PRIMARY KEY, store TEXT NOT NULL, category TEXT, contact TEXT,
+      price REAL NOT NULL, deposit REAL DEFAULT 0,
+      appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
+      deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+      channel TEXT, partner TEXT,
+      location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 1,
+      review_result TEXT DEFAULT '', published_at TEXT,
+      account_id INTEGER,
+      note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT);
+    CREATE TABLE IF NOT EXISTS payments(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
+      paid_at TEXT, method TEXT, note TEXT);
+    CREATE TABLE IF NOT EXISTS accounts(
+      id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT, douyin TEXT,
+      color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT);
+    CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
+    const so = d.prepare("INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+    state.orders.forEach((o) => {
+      so.bind([
+        o.id,
+        o.store,
+        o.cat,
+        o.contact,
+        o.price,
+        o.deposit,
+        o.appt,
+        o.shotAt,
+        o.submittedAt,
+        o.shortAt,
+        o.longAt,
+        o.depositPaidAt,
+        o.finalPaidAt,
+        o.settleVia || "private",
+        o.remindAt || null,
+        o.channel || null,
+        o.partner || null,
+        o.location || null,
+        o.gpsPlace || null,
+        o.deliverMain === false ? 0 : 1,
+        o.deliverSub === false ? 0 : 1,
+        o.reviewResult || "",
+        o.publishedAt || null,
+        o.accountId || null,
+        o.note || null,
+        o.remindLog && o.remindLog.length ? JSON.stringify(o.remindLog) : null,
+        o.expectPayAt || null,
+        null,
+        null
+      ]);
+      so.step();
+      so.reset();
+    });
+    so.finalize();
+    const sa = d.prepare("INSERT INTO accounts VALUES (?,?,?,?,?,?,?)");
+    (state.accounts || []).forEach((a) => {
+      sa.bind([a.id, a.name, a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || null]);
+      sa.step();
+      sa.reset();
+    });
+    sa.finalize();
+    const sp = d.prepare("INSERT INTO payments (order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?)");
+    state.payments.forEach((p) => {
+      sp.bind([p.oid, p.kind, p.amount, p.at, p.method, p.note || null]);
+      sp.step();
+      sp.reset();
+    });
+    sp.finalize();
+    const ss = d.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)");
+    ss.bind(["collect_threshold_days", String(state.threshold)]);
+    ss.step();
+    ss.reset();
+    ss.bind(["app_version", "0.6"]);
+    ss.step();
+    ss.reset();
+    ss.bind(["exported_at", nowStr()]);
+    ss.step();
+    ss.reset();
+    ss.finalize();
+    const bytes = s.capi.sqlite3_js_db_export(d.pointer);
+    d.close();
+    return bytes && bytes.length ? bytes : null;
+  } catch (e) {
+    console.warn("sqlite build fail", e);
+    return null;
+  }
+}
+async function initSqlite() {
+  try {
+    for (let i = 0; i < 60 && !window.sqlite3InitModule; i++) await new Promise((r) => setTimeout(r, 100));
+    if (typeof window.sqlite3InitModule !== "function") return null;
+    const s = await window.sqlite3InitModule({ print: () => {
+    }, printErr: () => {
+    } });
+    return s;
+  } catch (e) {
+    return null;
+  }
+}
+
 // src/app/accounts.js
 var ACC_COLORS = [
   { name: "\u871C\u6A59", bg: "#FFF3EC", ink: "#E85D1F" },
@@ -1459,328 +1565,6 @@ function dayBadge(n, sum) {
   if (sum >= 1e3) return { e: "\u{1F4B0}", t: "\u5343\u5143\u65E5" };
   if (n >= 3) return { e: "\u2B50", t: "\u5FD9\u788C\u65E5" };
   return null;
-}
-
-// src/app/sqlite-bytes.js
-function buildSqliteBytes(state = db) {
-  if (!Store.sqlite3) return null;
-  try {
-    const s = Store.sqlite3;
-    const d = new s.oo1.DB(":memory:", "ct");
-    d.exec(`CREATE TABLE IF NOT EXISTS orders(
-      id INTEGER PRIMARY KEY, store TEXT NOT NULL, category TEXT, contact TEXT,
-      price REAL NOT NULL, deposit REAL DEFAULT 0,
-      appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
-      deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
-      channel TEXT, partner TEXT,
-      location TEXT, gps_place TEXT, deliver_main INTEGER DEFAULT 1, deliver_sub INTEGER DEFAULT 1,
-      review_result TEXT DEFAULT '', published_at TEXT,
-      account_id INTEGER,
-      note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT);
-    CREATE TABLE IF NOT EXISTS payments(
-      id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
-      paid_at TEXT, method TEXT, note TEXT);
-    CREATE TABLE IF NOT EXISTS accounts(
-      id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT, douyin TEXT,
-      color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT);
-    CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
-    const so = d.prepare("INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-    state.orders.forEach((o) => {
-      so.bind([
-        o.id,
-        o.store,
-        o.cat,
-        o.contact,
-        o.price,
-        o.deposit,
-        o.appt,
-        o.shotAt,
-        o.submittedAt,
-        o.shortAt,
-        o.longAt,
-        o.depositPaidAt,
-        o.finalPaidAt,
-        o.settleVia || "private",
-        o.remindAt || null,
-        o.channel || null,
-        o.partner || null,
-        o.location || null,
-        o.gpsPlace || null,
-        o.deliverMain === false ? 0 : 1,
-        o.deliverSub === false ? 0 : 1,
-        o.reviewResult || "",
-        o.publishedAt || null,
-        o.accountId || null,
-        o.note || null,
-        o.remindLog && o.remindLog.length ? JSON.stringify(o.remindLog) : null,
-        o.expectPayAt || null,
-        null,
-        null
-      ]);
-      so.step();
-      so.reset();
-    });
-    so.finalize();
-    const sa = d.prepare("INSERT INTO accounts VALUES (?,?,?,?,?,?,?)");
-    (state.accounts || []).forEach((a) => {
-      sa.bind([a.id, a.name, a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || null]);
-      sa.step();
-      sa.reset();
-    });
-    sa.finalize();
-    const sp = d.prepare("INSERT INTO payments (order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?)");
-    state.payments.forEach((p) => {
-      sp.bind([p.oid, p.kind, p.amount, p.at, p.method, p.note || null]);
-      sp.step();
-      sp.reset();
-    });
-    sp.finalize();
-    const ss = d.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)");
-    ss.bind(["collect_threshold_days", String(state.threshold)]);
-    ss.step();
-    ss.reset();
-    ss.bind(["app_version", "0.6"]);
-    ss.step();
-    ss.reset();
-    ss.bind(["exported_at", nowStr()]);
-    ss.step();
-    ss.reset();
-    ss.finalize();
-    const bytes = s.capi.sqlite3_js_db_export(d.pointer);
-    d.close();
-    return bytes && bytes.length ? bytes : null;
-  } catch (e) {
-    console.warn("sqlite build fail", e);
-    return null;
-  }
-}
-async function initSqlite() {
-  try {
-    for (let i = 0; i < 60 && !window.sqlite3InitModule; i++) await new Promise((r) => setTimeout(r, 100));
-    if (typeof window.sqlite3InitModule !== "function") return null;
-    const s = await window.sqlite3InitModule({ print: () => {
-    }, printErr: () => {
-    } });
-    return s;
-  } catch (e) {
-    return null;
-  }
-}
-
-// src/app/export.js
-function blobToBase64(blob) {
-  return new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onload = () => res(String(fr.result).split(",")[1] || "");
-    fr.onerror = rej;
-    fr.readAsDataURL(blob);
-  });
-}
-async function nativeShareFile(name, content) {
-  const { Filesystem, Directory, Encoding, Share } = CAP;
-  const opts = { path: name, directory: Directory.Cache };
-  if (typeof content === "string") {
-    opts.data = "\uFEFF" + content;
-    opts.encoding = Encoding.UTF8;
-  } else {
-    opts.data = await blobToBase64(new Blob([content]));
-  }
-  const res = await Filesystem.writeFile(opts);
-  await Share.share({ title: name, url: res.uri, dialogTitle: "\u5206\u4EAB\u5BFC\u51FA" });
-}
-function download(name, content, type) {
-  if (isNative && CAP && CAP.Filesystem && CAP.Share) {
-    nativeShareFile(name, content).then(() => toast("\u5DF2\u8C03\u8D77\u7CFB\u7EDF\u5206\u4EAB \u2713")).catch((e) => {
-      console.error("\u5BFC\u51FA\u5931\u8D25", e);
-      toast("\u5BFC\u51FA\u5931\u8D25:" + (e && e.message || e));
-    });
-    return;
-  }
-  const isText = typeof content === "string";
-  const blob = new Blob([isText ? "\uFEFF" + content : content], { type });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2500);
-}
-function q(v) {
-  const text = String(v ?? "");
-  return `"${(typeof v === "string" && /^[\s]*[=+@-]/.test(text) ? "'" + text : text).replace(/"/g, '""')}"`;
-}
-function exportCsv() {
-  const head = ["ID", "\u54C1\u540D/\u5546\u5BB6", "\u7C7B\u578B", "\u7ED3\u7B97\u65B9\u5F0F", "\u670D\u52A1\u5546", "\u7EC4\u961F", "\u8D26\u53F7", "\u5730\u70B9", "\u5230\u5E97\u5B9A\u4F4D", "\u8054\u7CFB\u65B9\u5F0F", "\u603B\u4EF7", "\u5B9A\u91D1", "\u9884\u7EA6\u65F6\u95F4", "\u5B9E\u9645\u62CD\u6444", "\u63D0\u5BA1\u65F6\u95F4", "\u526F\u7247\u53D1\u51FA", "\u6B63\u7247\u53D1\u51FA", "\u51FA\u7247\u8981\u6C42", "\u9001\u5BA1\u7ED3\u679C", "\u53D1\u5E03\u65F6\u95F4", "\u5DE5\u4F5C\u72B6\u6001", "\u6536\u6B3E\u72B6\u6001", "\u5F85\u6536\u91D1\u989D", "\u6B20\u6B3E\u5929\u6570", "\u50AC\u6536\u5907\u5FD8", "\u50AC\u6536\u6B21\u6570", "\u6700\u8FD1\u50AC\u6536", "\u9884\u8BA1\u5230\u8D26", "\u5907\u6CE8"];
-  const lines = db.orders.map((o) => [
-    o.id,
-    o.store,
-    o.cat,
-    o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u79C1\u6536",
-    o.channel || "",
-    o.partner || "",
-    (accById(o.accountId) || {}).name || "",
-    o.location || "",
-    gpsText(o),
-    o.contact,
-    o.price,
-    o.deposit,
-    o.appt,
-    o.shotAt,
-    o.submittedAt,
-    o.shortAt,
-    o.longAt,
-    [needMain(o) ? "\u6B63\u7247" : "", needSub(o) ? "\u526F\u7247" : ""].filter(Boolean).join("+") || "\u672A\u914D\u7F6E",
-    o.reviewResult ? REVIEW_LABEL[o.reviewResult] : "",
-    o.publishedAt || "",
-    workOf(o),
-    payOf(o),
-    owedOf(o),
-    isOver(o) ? overdueDays(o) : 0,
-    o.remindAt ? fmtD(o.remindAt) : "",
-    remindLogOf(o).length,
-    lastRemind(o) ? fmtD(lastRemind(o).at) : "",
-    o.expectPayAt ? fmtD(o.expectPayAt) : "",
-    o.note
-  ].map(q).join(","));
-  const phead = ["\u5E8F\u53F7", "\u8BA2\u5355ID", "\u5546\u5BB6", "\u7C7B\u578B", "\u91D1\u989D", "\u5230\u8D26\u65F6\u95F4", "\u6536\u6B3E\u65B9\u5F0F"];
-  const plines = db.payments.map((p, i) => [i + 1, p.oid, storeOf(p.oid), p.kind, p.amount, p.at, p.method].map(q).join(","));
-  download(`\u63A2\u8BB0-\u5BFC\u51FA-${TODAY}.csv`, [head.map(q).join(","), ...lines, "", "", phead.map(q).join(","), ...plines].join("\n"), "text/csv;charset=utf-8");
-  toast("\u5DF2\u5BFC\u51FA CSV(\u8BA2\u5355 + \u6D41\u6C34)\u2713");
-}
-function exportJson() {
-  download(`\u63A2\u8BB0-${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u5907\u4EFD-${toISO(/* @__PURE__ */ new Date())}.json`, JSON.stringify(backupDocument(), null, 2), "application/json");
-  toast("\u5DF2\u5BFC\u51FA JSON \u5907\u4EFD");
-}
-function exportDb() {
-  const bytes = buildSqliteBytes();
-  if (!bytes) {
-    toast("SQLite \u5F15\u64CE\u8FD8\u5728\u52A0\u8F7D,\u51E0\u79D2\u540E\u518D\u8BD5");
-    return;
-  }
-  download(`\u63A2\u8BB0-${TODAY}.db`, bytes, "application/octet-stream");
-  toast("\u5DF2\u5BFC\u51FA SQLite \u6570\u636E\u5E93 \u2713");
-}
-var SCHEMA = `<span class="c">-- \u63A2\u8BB0 TanJi \xB7 \u672C\u673A SQLite \u7ED3\u6784(v0.6 \xB7 \u5355\u6570\u636E\u96C6\u89C6\u56FE)</span>
-<span class="c">-- \u6CE8\u610F:App \u5185\u771F\u5B9E\u5E93\u5728\u540C\u4E00\u4E2A .db \u91CC\u7528 mode \u5217\u533A\u5206 work/demo \u4E24\u5957\u6570\u636E,
---       orders/accounts \u4E3B\u952E\u4E3A (mode,id),payments \u5E26 mode,settings \u4E3B\u952E\u4E3A (scope,key);
---       \u672C\u9875\u4E0E\u300C\u5BFC\u51FA .db\u300D\u5C55\u793A\u7684\u662F\u53BB\u6389 mode \u7684\u5355\u6570\u636E\u96C6\u89C6\u56FE\u3002
---       \u8DE8\u8BBE\u5907\u642C\u8FD0\u8BF7\u7528 JSON \u5907\u4EFD(\u7EDF\u8BA1\u9875\u53EF\u5BFC\u5165),\u4E0D\u8981\u76F4\u63A5\u5BF9\u62F7 .db\u3002</span>
-CREATE TABLE orders (
-  id             INTEGER PRIMARY KEY,
-  store          TEXT NOT NULL,  <span class="c">-- \u54C1\u540D/\u5546\u5BB6\u540D\u79F0</span>
-  category       TEXT,           <span class="c">-- \u5E97\u94FA\u7C7B\u578B</span>
-  contact        TEXT,           <span class="c">-- \u8054\u7CFB\u4EBA/\u7535\u8BDD</span>
-  price          REAL NOT NULL,  <span class="c">-- \u6210\u4EA4\u603B\u4EF7</span>
-  deposit        REAL DEFAULT 0, <span class="c">-- \u5B9A\u91D1</span>
-  appt_at        TEXT,           <span class="c">-- \u9884\u7EA6\u65F6\u95F4</span>
-  shot_at        TEXT,           <span class="c">-- \u5B9E\u9645\u62CD\u6444\u65F6\u95F4</span>
-  submitted_at   TEXT,           <span class="c">-- \u63D0\u5BA1\u65F6\u95F4</span>
-  short_sent_at  TEXT,           <span class="c">-- \u526F\u7247(\u77ED\u7247)\u53D1\u51FA</span>
-  long_sent_at   TEXT,           <span class="c">-- \u6B63\u7247(\u957F\u7247)\u53D1\u51FA</span>
-  deposit_paid_at TEXT,          <span class="c">-- \u5B9A\u91D1\u5230\u8D26\u65F6\u95F4</span>
-  final_paid_at  TEXT,           <span class="c">-- \u5C3E\u6B3E\u5230\u8D26\u65F6\u95F4</span>
-  settle_via     TEXT DEFAULT 'private',
-                 <span class="c">-- \u7ED3\u7B97\u65B9\u5F0F:private \u79C1\u6536 / douyin \u6296\u97F3\u5546\u5355(\u5E73\u53F0\u7ED3\u7B97,\u4E0D\u50AC\u6536)</span>
-  remind_at      TEXT,           <span class="c">-- \u50AC\u6536\u5907\u5FD8:\u4E0B\u6B21\u63D0\u9192\u65F6\u95F4(1/3/7 \u5929)</span>
-  channel        TEXT,           <span class="c">-- \u670D\u52A1\u5546:\u8702\u5411\u3001\u5C0F\u7231\u3001\u91D1\u57CE\u3001\u98DF\u7269\u3001\u76F4\u5BA2\u2026</span>
-  partner        TEXT,           <span class="c">-- \u7EC4\u961F/\u51FA\u955C\u642D\u6863:\u82B1\u82B1\u3001\u90B1\u90B1\u2026(\u7A7A=\u4E0D\u7EC4\u961F/\u672A\u8BB0)</span>
-  location       TEXT,           <span class="c">-- \u5730\u70B9:\u95E8\u5E97\u5730\u5740/\u697C\u5C42(\u624B\u586B,\u5BFC\u822A\u6309\u5B83\u67E5)</span>
-  gps_place      TEXT,           <span class="c">-- \u5230\u5E97\u5B9A\u4F4D \u62CD\u6444\u65F6\u81EA\u52A8\u8BB0\u5F55\u7684 GPS \u5750\u6807\u4E32 \u4E0E\u624B\u586B location \u5E76\u5B58</span>
-  deliver_main   INTEGER DEFAULT 1, <span class="c">-- \u51FA\u7247\u8981\u6C42:1=\u9700\u8981\u6B63\u7247</span>
-  deliver_sub    INTEGER DEFAULT 1, <span class="c">-- \u51FA\u7247\u8981\u6C42:1=\u9700\u8981\u526F\u7247(\u7F3A\u7701 1=\u65E7\u5355\u6B63\u526F\u7247\u90FD\u8981)</span>
-  review_result  TEXT DEFAULT '',   <span class="c">-- \u9001\u5BA1\u7ED3\u679C:''\u5F85\u5BA1 / pass \u5408\u683C / fail \u4E0D\u5408\u683C</span>
-  published_at   TEXT,              <span class="c">-- \u53D1\u5E03\u65F6\u95F4(\u91CC\u7A0B\u7891\u53EF\u6539)</span>
-  account_id     INTEGER,           <span class="c">-- \u6240\u5C5E\u8D26\u53F7(accounts.id,\u7A7A=\u672A\u6307\u5B9A)</span>
-  note           TEXT,
-  remind_log     TEXT,           <span class="c">-- \u50AC\u6536\u8DDF\u8FDB\u75D5\u8FF9:JSON \u6570\u7EC4 \u6BCF\u6761\u542B at \u65F6\u95F4\u4E0E note \u7B54\u590D</span>
-  expect_pay_at  TEXT,           <span class="c">-- \u5E73\u53F0\u5355(\u6296\u97F3\u5546\u5355)\u9884\u8BA1\u5230\u8D26\u65F6\u95F4;\u8FC7\u4E86\u8FD9\u5929\u4ECD\u672A\u5230\u8D26\u4F1A\u63D0\u793A</span>
-  created_at     TEXT, updated_at TEXT
-);
-CREATE TABLE accounts (
-  id         INTEGER PRIMARY KEY,
-  name       TEXT NOT NULL,  <span class="c">-- \u6635\u79F0(\u5FC5\u586B)</span>
-  phone      TEXT,           <span class="c">-- \u624B\u673A\u53F7(\u9009\u586B,\u4E00\u952E\u62F7\u8D1D\u7528)</span>
-  douyin     TEXT,           <span class="c">-- \u6296\u97F3\u8D26\u53F7(\u9009\u586B)</span>
-  color      INTEGER DEFAULT 0, <span class="c">-- \u6807\u8BC6\u8272\u5E8F\u53F7(\u8F7B\u67D4\u8272\u677F 0-7,\u5217\u8868\u5E95\u8272\u968F\u5B83)</span>
-  avatar     TEXT,           <span class="c">-- \u5934\u50CF dataURL(\u76F8\u518C\u9009\u56FE\u81EA\u52A8\u88C1\u5706\u538B\u7F29,\u4EC5\u5B58\u672C\u673A)</span>
-  created_at TEXT
-);
-CREATE TABLE payments (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER REFERENCES orders(id),
-  kind     TEXT,  <span class="c">-- \u5B9E\u9645\u5B58\u4E2D\u6587\u6807\u7B7E:'\u5B9A\u91D1' / '\u5C3E\u6B3E'(\u4E0E method \u4E00\u6837\u53EA\u4F5C\u8BB0\u5F55,\u4E0D\u505A\u652F\u4ED8)</span>
-  amount   REAL, paid_at TEXT,
-  method   TEXT,   <span class="c">-- \u5FAE\u4FE1 / \u652F\u4ED8\u5B9D / \u94F6\u884C\u5361 / \u6296\u97F3\u5546\u5355 / \u5176\u4ED6(\u4EC5\u8BB0\u5F55,\u4E0D\u505A\u652F\u4ED8)</span>
-  note     TEXT
-);
-CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-<span class="c">-- \u5BFC\u51FA\u89C6\u56FE\uFF1BApp \u5185\u771F\u5B9E\u8868\u662F settings(scope,key)\uFF1Ascope=mode\uFF0Ckey=json / backup</span>
-<span class="c">-- collect_threshold_days = 15 \xB7 app_version = 0.6</span>
-
-<span class="c">-- \u5E38\u7528\u67E5\u8BE2:\u957F\u671F\u672A\u6536\u5C3E\u6B3E(\u79C1\u6536\u5355)</span>
-SELECT store, price - deposit AS due,
-       julianday('now') - julianday(shot_at) AS days
-FROM orders
-WHERE final_paid_at IS NULL AND shot_at IS NOT NULL AND settle_via='private'
-ORDER BY days DESC;`;
-$("#schema-pre").innerHTML = SCHEMA;
-async function previewImport(file) {
-  if (!file) return;
-  try {
-    if (file.size > 10 * 1024 * 1024) throw new Error("\u5907\u4EFD\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 10 MB");
-    const state = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
-    for (const order of state.orders) {
-      for (const [kind, key, expected] of [["\u5B9A\u91D1", "depositPaidAt", order.deposit], ["\u5C3E\u6B3E", "finalPaidAt", order.price - order.deposit]]) {
-        const entries = state.payments.filter((p) => p.oid === order.id && p.kind === kind);
-        const total2 = entries.reduce((sum, p) => sum + Math.round(p.amount * 100), 0);
-        if (entries.length > 1 || entries.length > 0 && !order[key] || total2 !== Math.round((order[key] ? expected : 0) * 100)) throw new Error(`\u8BA2\u5355\u300C${order.store}\u300D\u7684${kind}\u6D41\u6C34\u4E0E\u5DF2\u6536\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5148\u6838\u5BF9\u5907\u4EFD`);
-      }
-    }
-    Store.pending = state;
-    const total = state.payments.reduce((sum, p) => sum + p.amount, 0);
-    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state.orders.length} \u7B14\u8BA2\u5355\u3001${state.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
-    showSheet("sheet-import");
-  } catch (error) {
-    Store.pending = null;
-    toast(`\u4E0D\u80FD\u5BFC\u5165\uFF1A${error.message}`);
-  }
-}
-async function confirmImport() {
-  if (!Store.pending || Store.busy) return;
-  const state = Store.pending;
-  if (await replaceData(state)) {
-    Store.pending = null;
-    toast("\u5907\u4EFD\u5DF2\u6062\u590D\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
-  }
-}
-async function restoreCheckpoint() {
-  if (Store.busy || Store.blocked) return;
-  Store.busy = true;
-  let saved;
-  try {
-    saved = await readSnapshot(Store.mode, "backup");
-  } finally {
-    Store.busy = false;
-  }
-  if (saved.uncertain) {
-    toast("\u90E8\u5206\u5907\u4EFD\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u6682\u505C\u6062\u590D\uFF1B\u8BF7\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u5E76\u91CD\u8BD5");
-    return;
-  }
-  if (!saved.value) {
-    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
-    return;
-  }
-  if (!confirm(`\u6062\u590D\u66FF\u6362\u524D\u7684 ${saved.value.orders.length} \u7B14\u8BA2\u5355\u548C ${saved.value.payments.length} \u7B14\u6D41\u6C34\uFF1F\u5F53\u524D\u6570\u636E\u5C06\u4F5C\u4E3A\u65B0\u7684\u66FF\u6362\u524D\u5907\u4EFD\u4FDD\u7559\u3002`)) return;
-  if (await replaceData(saved.value)) toast("\u5DF2\u6062\u590D\u66FF\u6362\u524D\u6570\u636E");
-}
-async function exportCheckpoint() {
-  const mode = Store.mode;
-  const saved = await readSnapshot(mode, "backup");
-  if (!saved.value) {
-    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
-    return;
-  }
-  download(`\u63A2\u8BB0-${mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}-\u66FF\u6362\u524D\u5907\u4EFD.json`, JSON.stringify(backupDocument(saved.value), null, 2), "application/json");
-  toast("\u5DF2\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\uFF0C\u539F\u5B58\u50A8\u672A\u6539\u52A8");
 }
 
 // src/app/detail.js
@@ -2439,6 +2223,222 @@ function initShotInput() {
       toast("\u8FD9\u5F20\u56FE\u5904\u7406\u4E0D\u4E86,\u6362\u4E00\u5F20\u8BD5\u8BD5");
     }
   });
+}
+
+// src/app/export.js
+function blobToBase64(blob) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(",")[1] || "");
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+}
+async function nativeShareFile(name, content) {
+  const { Filesystem, Directory, Encoding, Share } = CAP;
+  const opts = { path: name, directory: Directory.Cache };
+  if (typeof content === "string") {
+    opts.data = "\uFEFF" + content;
+    opts.encoding = Encoding.UTF8;
+  } else {
+    opts.data = await blobToBase64(new Blob([content]));
+  }
+  const res = await Filesystem.writeFile(opts);
+  await Share.share({ title: name, url: res.uri, dialogTitle: "\u5206\u4EAB\u5BFC\u51FA" });
+}
+function download(name, content, type) {
+  if (isNative && CAP && CAP.Filesystem && CAP.Share) {
+    nativeShareFile(name, content).then(() => toast("\u5DF2\u8C03\u8D77\u7CFB\u7EDF\u5206\u4EAB \u2713")).catch((e) => {
+      console.error("\u5BFC\u51FA\u5931\u8D25", e);
+      toast("\u5BFC\u51FA\u5931\u8D25:" + (e && e.message || e));
+    });
+    return;
+  }
+  const isText = typeof content === "string";
+  const blob = new Blob([isText ? "\uFEFF" + content : content], { type });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2500);
+}
+function q(v) {
+  const text = String(v ?? "");
+  return `"${(typeof v === "string" && /^[\s]*[=+@-]/.test(text) ? "'" + text : text).replace(/"/g, '""')}"`;
+}
+function exportCsv() {
+  const head = ["ID", "\u54C1\u540D/\u5546\u5BB6", "\u7C7B\u578B", "\u7ED3\u7B97\u65B9\u5F0F", "\u670D\u52A1\u5546", "\u7EC4\u961F", "\u8D26\u53F7", "\u5730\u70B9", "\u5230\u5E97\u5B9A\u4F4D", "\u8054\u7CFB\u65B9\u5F0F", "\u603B\u4EF7", "\u5B9A\u91D1", "\u9884\u7EA6\u65F6\u95F4", "\u5B9E\u9645\u62CD\u6444", "\u63D0\u5BA1\u65F6\u95F4", "\u526F\u7247\u53D1\u51FA", "\u6B63\u7247\u53D1\u51FA", "\u51FA\u7247\u8981\u6C42", "\u9001\u5BA1\u7ED3\u679C", "\u53D1\u5E03\u65F6\u95F4", "\u5DE5\u4F5C\u72B6\u6001", "\u6536\u6B3E\u72B6\u6001", "\u5F85\u6536\u91D1\u989D", "\u6B20\u6B3E\u5929\u6570", "\u50AC\u6536\u5907\u5FD8", "\u50AC\u6536\u6B21\u6570", "\u6700\u8FD1\u50AC\u6536", "\u9884\u8BA1\u5230\u8D26", "\u5907\u6CE8"];
+  const lines = db.orders.map((o) => [
+    o.id,
+    o.store,
+    o.cat,
+    o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u79C1\u6536",
+    o.channel || "",
+    o.partner || "",
+    (accById(o.accountId) || {}).name || "",
+    o.location || "",
+    gpsText(o),
+    o.contact,
+    o.price,
+    o.deposit,
+    o.appt,
+    o.shotAt,
+    o.submittedAt,
+    o.shortAt,
+    o.longAt,
+    [needMain(o) ? "\u6B63\u7247" : "", needSub(o) ? "\u526F\u7247" : ""].filter(Boolean).join("+") || "\u672A\u914D\u7F6E",
+    o.reviewResult ? REVIEW_LABEL[o.reviewResult] : "",
+    o.publishedAt || "",
+    workOf(o),
+    payOf(o),
+    owedOf(o),
+    isOver(o) ? overdueDays(o) : 0,
+    o.remindAt ? fmtD(o.remindAt) : "",
+    remindLogOf(o).length,
+    lastRemind(o) ? fmtD(lastRemind(o).at) : "",
+    o.expectPayAt ? fmtD(o.expectPayAt) : "",
+    o.note
+  ].map(q).join(","));
+  const phead = ["\u5E8F\u53F7", "\u8BA2\u5355ID", "\u5546\u5BB6", "\u7C7B\u578B", "\u91D1\u989D", "\u5230\u8D26\u65F6\u95F4", "\u6536\u6B3E\u65B9\u5F0F"];
+  const plines = db.payments.map((p, i) => [i + 1, p.oid, storeOf(p.oid), p.kind, p.amount, p.at, p.method].map(q).join(","));
+  download(`\u63A2\u8BB0-\u5BFC\u51FA-${TODAY}.csv`, [head.map(q).join(","), ...lines, "", "", phead.map(q).join(","), ...plines].join("\n"), "text/csv;charset=utf-8");
+  toast("\u5DF2\u5BFC\u51FA CSV(\u8BA2\u5355 + \u6D41\u6C34)\u2713");
+}
+function exportJson() {
+  download(`\u63A2\u8BB0-${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u5907\u4EFD-${toISO(/* @__PURE__ */ new Date())}.json`, JSON.stringify(backupDocument(), null, 2), "application/json");
+  toast("\u5DF2\u5BFC\u51FA JSON \u5907\u4EFD");
+}
+function exportDb() {
+  const bytes = buildSqliteBytes();
+  if (!bytes) {
+    toast("SQLite \u5F15\u64CE\u8FD8\u5728\u52A0\u8F7D,\u51E0\u79D2\u540E\u518D\u8BD5");
+    return;
+  }
+  download(`\u63A2\u8BB0-${TODAY}.db`, bytes, "application/octet-stream");
+  toast("\u5DF2\u5BFC\u51FA SQLite \u6570\u636E\u5E93 \u2713");
+}
+var SCHEMA = `<span class="c">-- \u63A2\u8BB0 TanJi \xB7 \u672C\u673A SQLite \u7ED3\u6784(v0.6 \xB7 \u5355\u6570\u636E\u96C6\u89C6\u56FE)</span>
+<span class="c">-- \u6CE8\u610F:App \u5185\u771F\u5B9E\u5E93\u5728\u540C\u4E00\u4E2A .db \u91CC\u7528 mode \u5217\u533A\u5206 work/demo \u4E24\u5957\u6570\u636E,
+--       orders/accounts \u4E3B\u952E\u4E3A (mode,id),payments \u5E26 mode,settings \u4E3B\u952E\u4E3A (scope,key);
+--       \u672C\u9875\u4E0E\u300C\u5BFC\u51FA .db\u300D\u5C55\u793A\u7684\u662F\u53BB\u6389 mode \u7684\u5355\u6570\u636E\u96C6\u89C6\u56FE\u3002
+--       \u8DE8\u8BBE\u5907\u642C\u8FD0\u8BF7\u7528 JSON \u5907\u4EFD(\u7EDF\u8BA1\u9875\u53EF\u5BFC\u5165),\u4E0D\u8981\u76F4\u63A5\u5BF9\u62F7 .db\u3002</span>
+CREATE TABLE orders (
+  id             INTEGER PRIMARY KEY,
+  store          TEXT NOT NULL,  <span class="c">-- \u54C1\u540D/\u5546\u5BB6\u540D\u79F0</span>
+  category       TEXT,           <span class="c">-- \u5E97\u94FA\u7C7B\u578B</span>
+  contact        TEXT,           <span class="c">-- \u8054\u7CFB\u4EBA/\u7535\u8BDD</span>
+  price          REAL NOT NULL,  <span class="c">-- \u6210\u4EA4\u603B\u4EF7</span>
+  deposit        REAL DEFAULT 0, <span class="c">-- \u5B9A\u91D1</span>
+  appt_at        TEXT,           <span class="c">-- \u9884\u7EA6\u65F6\u95F4</span>
+  shot_at        TEXT,           <span class="c">-- \u5B9E\u9645\u62CD\u6444\u65F6\u95F4</span>
+  submitted_at   TEXT,           <span class="c">-- \u63D0\u5BA1\u65F6\u95F4</span>
+  short_sent_at  TEXT,           <span class="c">-- \u526F\u7247(\u77ED\u7247)\u53D1\u51FA</span>
+  long_sent_at   TEXT,           <span class="c">-- \u6B63\u7247(\u957F\u7247)\u53D1\u51FA</span>
+  deposit_paid_at TEXT,          <span class="c">-- \u5B9A\u91D1\u5230\u8D26\u65F6\u95F4</span>
+  final_paid_at  TEXT,           <span class="c">-- \u5C3E\u6B3E\u5230\u8D26\u65F6\u95F4</span>
+  settle_via     TEXT DEFAULT 'private',
+                 <span class="c">-- \u7ED3\u7B97\u65B9\u5F0F:private \u79C1\u6536 / douyin \u6296\u97F3\u5546\u5355(\u5E73\u53F0\u7ED3\u7B97,\u4E0D\u50AC\u6536)</span>
+  remind_at      TEXT,           <span class="c">-- \u50AC\u6536\u5907\u5FD8:\u4E0B\u6B21\u63D0\u9192\u65F6\u95F4(1/3/7 \u5929)</span>
+  channel        TEXT,           <span class="c">-- \u670D\u52A1\u5546:\u8702\u5411\u3001\u5C0F\u7231\u3001\u91D1\u57CE\u3001\u98DF\u7269\u3001\u76F4\u5BA2\u2026</span>
+  partner        TEXT,           <span class="c">-- \u7EC4\u961F/\u51FA\u955C\u642D\u6863:\u82B1\u82B1\u3001\u90B1\u90B1\u2026(\u7A7A=\u4E0D\u7EC4\u961F/\u672A\u8BB0)</span>
+  location       TEXT,           <span class="c">-- \u5730\u70B9:\u95E8\u5E97\u5730\u5740/\u697C\u5C42(\u624B\u586B,\u5BFC\u822A\u6309\u5B83\u67E5)</span>
+  gps_place      TEXT,           <span class="c">-- \u5230\u5E97\u5B9A\u4F4D \u62CD\u6444\u65F6\u81EA\u52A8\u8BB0\u5F55\u7684 GPS \u5750\u6807\u4E32 \u4E0E\u624B\u586B location \u5E76\u5B58</span>
+  deliver_main   INTEGER DEFAULT 1, <span class="c">-- \u51FA\u7247\u8981\u6C42:1=\u9700\u8981\u6B63\u7247</span>
+  deliver_sub    INTEGER DEFAULT 1, <span class="c">-- \u51FA\u7247\u8981\u6C42:1=\u9700\u8981\u526F\u7247(\u7F3A\u7701 1=\u65E7\u5355\u6B63\u526F\u7247\u90FD\u8981)</span>
+  review_result  TEXT DEFAULT '',   <span class="c">-- \u9001\u5BA1\u7ED3\u679C:''\u5F85\u5BA1 / pass \u5408\u683C / fail \u4E0D\u5408\u683C</span>
+  published_at   TEXT,              <span class="c">-- \u53D1\u5E03\u65F6\u95F4(\u91CC\u7A0B\u7891\u53EF\u6539)</span>
+  account_id     INTEGER,           <span class="c">-- \u6240\u5C5E\u8D26\u53F7(accounts.id,\u7A7A=\u672A\u6307\u5B9A)</span>
+  note           TEXT,
+  remind_log     TEXT,           <span class="c">-- \u50AC\u6536\u8DDF\u8FDB\u75D5\u8FF9:JSON \u6570\u7EC4 \u6BCF\u6761\u542B at \u65F6\u95F4\u4E0E note \u7B54\u590D</span>
+  expect_pay_at  TEXT,           <span class="c">-- \u5E73\u53F0\u5355(\u6296\u97F3\u5546\u5355)\u9884\u8BA1\u5230\u8D26\u65F6\u95F4;\u8FC7\u4E86\u8FD9\u5929\u4ECD\u672A\u5230\u8D26\u4F1A\u63D0\u793A</span>
+  created_at     TEXT, updated_at TEXT
+);
+CREATE TABLE accounts (
+  id         INTEGER PRIMARY KEY,
+  name       TEXT NOT NULL,  <span class="c">-- \u6635\u79F0(\u5FC5\u586B)</span>
+  phone      TEXT,           <span class="c">-- \u624B\u673A\u53F7(\u9009\u586B,\u4E00\u952E\u62F7\u8D1D\u7528)</span>
+  douyin     TEXT,           <span class="c">-- \u6296\u97F3\u8D26\u53F7(\u9009\u586B)</span>
+  color      INTEGER DEFAULT 0, <span class="c">-- \u6807\u8BC6\u8272\u5E8F\u53F7(\u8F7B\u67D4\u8272\u677F 0-7,\u5217\u8868\u5E95\u8272\u968F\u5B83)</span>
+  avatar     TEXT,           <span class="c">-- \u5934\u50CF dataURL(\u76F8\u518C\u9009\u56FE\u81EA\u52A8\u88C1\u5706\u538B\u7F29,\u4EC5\u5B58\u672C\u673A)</span>
+  created_at TEXT
+);
+CREATE TABLE payments (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER REFERENCES orders(id),
+  kind     TEXT,  <span class="c">-- \u5B9E\u9645\u5B58\u4E2D\u6587\u6807\u7B7E:'\u5B9A\u91D1' / '\u5C3E\u6B3E'(\u4E0E method \u4E00\u6837\u53EA\u4F5C\u8BB0\u5F55,\u4E0D\u505A\u652F\u4ED8)</span>
+  amount   REAL, paid_at TEXT,
+  method   TEXT,   <span class="c">-- \u5FAE\u4FE1 / \u652F\u4ED8\u5B9D / \u94F6\u884C\u5361 / \u6296\u97F3\u5546\u5355 / \u5176\u4ED6(\u4EC5\u8BB0\u5F55,\u4E0D\u505A\u652F\u4ED8)</span>
+  note     TEXT
+);
+CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
+<span class="c">-- \u5BFC\u51FA\u89C6\u56FE\uFF1BApp \u5185\u771F\u5B9E\u8868\u662F settings(scope,key)\uFF1Ascope=mode\uFF0Ckey=json / backup</span>
+<span class="c">-- collect_threshold_days = 15 \xB7 app_version = 0.6</span>
+
+<span class="c">-- \u5E38\u7528\u67E5\u8BE2:\u957F\u671F\u672A\u6536\u5C3E\u6B3E(\u79C1\u6536\u5355)</span>
+SELECT store, price - deposit AS due,
+       julianday('now') - julianday(shot_at) AS days
+FROM orders
+WHERE final_paid_at IS NULL AND shot_at IS NOT NULL AND settle_via='private'
+ORDER BY days DESC;`;
+$("#schema-pre").innerHTML = SCHEMA;
+async function previewImport(file) {
+  if (!file) return;
+  try {
+    if (file.size > 10 * 1024 * 1024) throw new Error("\u5907\u4EFD\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 10 MB");
+    const state = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
+    for (const order of state.orders) {
+      for (const [kind, key, expected] of [["\u5B9A\u91D1", "depositPaidAt", order.deposit], ["\u5C3E\u6B3E", "finalPaidAt", order.price - order.deposit]]) {
+        const entries = state.payments.filter((p) => p.oid === order.id && p.kind === kind);
+        const total2 = entries.reduce((sum, p) => sum + Math.round(p.amount * 100), 0);
+        if (entries.length > 1 || entries.length > 0 && !order[key] || total2 !== Math.round((order[key] ? expected : 0) * 100)) throw new Error(`\u8BA2\u5355\u300C${order.store}\u300D\u7684${kind}\u6D41\u6C34\u4E0E\u5DF2\u6536\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5148\u6838\u5BF9\u5907\u4EFD`);
+      }
+    }
+    Store.pending = state;
+    const total = state.payments.reduce((sum, p) => sum + p.amount, 0);
+    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state.orders.length} \u7B14\u8BA2\u5355\u3001${state.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
+    showSheet("sheet-import");
+  } catch (error) {
+    Store.pending = null;
+    toast(`\u4E0D\u80FD\u5BFC\u5165\uFF1A${error.message}`);
+  }
+}
+async function confirmImport() {
+  if (!Store.pending || Store.busy) return;
+  const state = Store.pending;
+  if (await replaceData(state)) {
+    Store.pending = null;
+    toast("\u5907\u4EFD\u5DF2\u6062\u590D\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
+  }
+}
+async function restoreCheckpoint() {
+  if (Store.busy || Store.blocked) return;
+  Store.busy = true;
+  let saved;
+  try {
+    saved = await readSnapshot(Store.mode, "backup");
+  } finally {
+    Store.busy = false;
+  }
+  if (saved.uncertain) {
+    toast("\u90E8\u5206\u5907\u4EFD\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u6682\u505C\u6062\u590D\uFF1B\u8BF7\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u5E76\u91CD\u8BD5");
+    return;
+  }
+  if (!saved.value) {
+    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
+    return;
+  }
+  if (!confirm(`\u6062\u590D\u66FF\u6362\u524D\u7684 ${saved.value.orders.length} \u7B14\u8BA2\u5355\u548C ${saved.value.payments.length} \u7B14\u6D41\u6C34\uFF1F\u5F53\u524D\u6570\u636E\u5C06\u4F5C\u4E3A\u65B0\u7684\u66FF\u6362\u524D\u5907\u4EFD\u4FDD\u7559\u3002`)) return;
+  if (await replaceData(saved.value)) toast("\u5DF2\u6062\u590D\u66FF\u6362\u524D\u6570\u636E");
+}
+async function exportCheckpoint() {
+  const mode = Store.mode;
+  const saved = await readSnapshot(mode, "backup");
+  if (!saved.value) {
+    toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
+    return;
+  }
+  download(`\u63A2\u8BB0-${mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}-\u66FF\u6362\u524D\u5907\u4EFD.json`, JSON.stringify(backupDocument(saved.value), null, 2), "application/json");
+  toast("\u5DF2\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\uFF0C\u539F\u5B58\u50A8\u672A\u6539\u52A8");
 }
 
 // src/app/share-image.js

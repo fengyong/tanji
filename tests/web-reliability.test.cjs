@@ -317,6 +317,11 @@ test('storePhase:就绪为 ready,数据替换中为 writing,完成后回 ready',
   await pending;
   assert.equal(a.run('storePhase()'),'ready');
 });
+test('storePhase:未就绪为 loading',()=>{
+  const a=app();
+  a.run('Store.ready=false');
+  assert.equal(a.run('storePhase()'),'loading');
+});
 test('storePhase:数据损坏进入 read-only,写入暂停但可读',async()=>{
   const a=app();
   a.local.set('tanji_v3_work_json','{bad');

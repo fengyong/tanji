@@ -4,11 +4,9 @@ import {$,TODAY} from './util.js';
 import {ui,renderAll,showTab,refreshVisible,registerRenderers,registerDetailRerender,registerBadgeCounter,registerDailySync,markDailySynced} from './ui.js';
 import {Store,save,loadState,persistFull,acquireWriter,storageKey,setStorageStatus,nativeOpen,backupDocument,db as liveDb} from './storage.js';
 import {Notify} from './notify.js';
-import {previewImport} from './export.js';
 import {isOver,snoozed,overdueDays,accMatch} from './derived.js';
 import {buildSqliteBytes} from './sqlite-bytes.js';
 import {closeSheets,showSheet,toast} from './sheets.js';
-import {download} from './export.js';
 import {initAvatarInput} from './accounts.js';
 import {initShotInput} from './order-forms.js';
 import {initSheetGestures} from './sheets.js';
@@ -38,6 +36,7 @@ registerRenderers({home:renderHome,trip:renderTrip,orders:renderOrders,pay:rende
 registerDetailRerender(rerenderDetail);
 /* P1-T1:storage 的 UI 刷新与 SQLite 字节构建经注入回调,不再走 globalThis */
 import {registerStorageHooks,registerBytesBuilder} from './storage.js';
+import {download,previewImport} from './export.js';
 registerStorageHooks({renderAll,showTab,toast,closeSheets,notify:Notify,resetFilters(){ui.q='';ui.chip='all';ui.bucket='all'}});
 registerBadgeCounter(()=>liveDb.orders.filter(accMatch).filter(o=>isOver(o)&&!snoozed(o)).length);
 registerDailySync(()=>Notify.syncDaily());
