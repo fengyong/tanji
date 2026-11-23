@@ -97,14 +97,29 @@ const server=http.createServer((request,response)=>{
     assert.equal(touch.touchAction,'manipulation','html 的 touch-action 必须是 manipulation,否则双击会缩放');
     assert.match(touch.userSelect,/none/,'body 必须禁止文字选中(否则滑动会刷蓝一片)');
     assert.match(touch.viewport,/user-scalable=no/,'viewport 必须禁用手势缩放');
-    await fill('#f-store','安全 <b>咖啡</b>');await fill('#f-price','1000');await fill('#f-deposit','200');
+    const futureDay=await evaluate(`(()=>{const d=new Date();d.setDate(d.getDate()+3);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})()`);
+    await fill('#f-date',futureDay);assert.match(await evaluate('document.querySelector("#f-date-relative").textContent'),new RegExp('^'+futureDay+' 周. · 3 天后$'),'日期行应显示完整日期、星期和相对天数');
+    const dateLayout=await evaluate(`(()=>{const d=document.querySelector('#f-date').getBoundingClientRect(),t=document.querySelector('#f-time').getBoundingClientRect(),h=document.querySelector('#f-date-relative').getBoundingClientRect();return {dateWidth:d.width,timeWidth:t.width,hintTop:h.top,dateBottom:d.bottom}})()`);
+    assert.ok(dateLayout.dateWidth>90&&dateLayout.timeWidth>50&&dateLayout.hintTop>=dateLayout.dateBottom-1,'日期与时间应同排完整显示,辅助标签独立占第二行: '+JSON.stringify(dateLayout));
+    await capture('new-order-mobile');
+    await fill('#f-store','安全 <b>咖啡</b>');await fill('#f-price','1000');await fill('#f-deposit','200');await fill('#f-location','万象城 3 层');
     await fill('#f-date','2026-11-22');await click('[data-act="save-order"]');
     assert.equal(await evaluate('__TANJI__.db.orders.length'),1);
     assert.equal(await evaluate('document.querySelector("#v-trip .rname").textContent'),'安全 <b>咖啡</b>');
     assert.equal(await evaluate('document.querySelector("#v-trip .rname b")'),null);
+    assert.equal(await evaluate('document.querySelector("#v-trip .trip-place").textContent'),'万象城 3 层');
+    await evaluate('Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})))');await evaluate('document.querySelector("#v-trip .trip-row").scrollIntoView({block:"center"})');await capture('trip-mobile');
     // 未来 7 天:含当天共 7 格横滑,点了能落到那天
     const week=await evaluate(`(()=>{const bar=document.querySelector('#v-trip .n7');if(!bar)return null;return {chips:bar.querySelectorAll('.n7d').length,title:/未来 7 天/.test(document.querySelector('#v-trip').textContent)}})()`);
     assert.deepEqual(week,{chips:7,title:true},'行程页应有未来 7 天横滑条');
+    const nativeLayout=await evaluate(`(()=>{document.documentElement.classList.add('native');const status=getComputedStyle(document.querySelector('.statusbar')).display,island=getComputedStyle(document.querySelector('.island')).display,top=getComputedStyle(document.querySelector('#v-trip')).paddingTop;document.documentElement.classList.remove('native');return {status,island,top}})()`);
+    assert.deepEqual(nativeLayout,{status:'none',island:'none',top:'18px'},'原生类应隐藏假状态栏并改用安全区顶部留白');
+    const swipeDays=await evaluate(`(()=>{const view=document.querySelector('#v-trip');const fire=(target,type,touches,changedTouches=touches)=>target.dispatchEvent(new TouchEvent(type,{touches,changedTouches,bubbles:true,cancelable:true}));const swipe=(target,x0,y0,x1,y1)=>{const start=new Touch({identifier:1,target,clientX:x0,clientY:y0}),end=new Touch({identifier:1,target,clientX:x1,clientY:y1});fire(target,'touchstart',[start]);fire(target,'touchend',[],[end]);return __TANJI__.ui.selDay};const days=[];days.push(swipe(view,280,500,180,504));days.push(swipe(view,180,500,280,496));days.push(swipe(view,240,300,230,440));days.push(swipe(view,240,300,220,302));days.push(swipe(view.querySelector('.n7'),280,500,180,500));return days})()`);
+    assert.deepEqual(swipeDays,['2026-11-23','2026-11-22','2026-11-22','2026-11-22','2026-11-22'],'左右切日、竖滚/点击/横滑条冲突阈值异常');
+    await click('#v-trip [data-act="edit-order"]');
+    assert.equal(await evaluate('document.querySelector("#sheet-edit").classList.contains("show")'),true,'行程行编辑图标应直接打开编辑弹层');
+    assert.equal(await evaluate('document.querySelector("#sheet-detail").classList.contains("show")'),false,'直接编辑不应先打开订单详情');
+    await click('#sheet-edit [data-act="close-sheet"]');
     await evaluate('__TANJI__.Store.queue');await call('Page.reload');await ready();
     assert.equal(await evaluate('__TANJI__.db.orders[0].store'),'安全 <b>咖啡</b>');
     // 输入法合成期间不能重建搜索框:节点一换,合成被强制结束,拼音被逐段提交成字面量、候选词消失。
@@ -112,6 +127,10 @@ const server=http.createServer((request,response)=>{
     await click('.tab[data-tab="orders"]');
     const ime=await evaluate(`(()=>{const el=document.querySelector('#q-input');el.focus();const fire=(type,data)=>el.dispatchEvent(new CompositionEvent(type,{bubbles:true,data}));fire('compositionstart','');el.value='zzz';el.dispatchEvent(new InputEvent('input',{bubbles:true,data:'zzz',isComposing:true}));const keptNode=document.querySelector('#q-input')===el,keptRows=document.querySelectorAll('#v-orders .row').length;fire('compositionend','安全');el.value='安全';el.dispatchEvent(new InputEvent('input',{bubbles:true,data:'安全',isComposing:false}));return {keptNode,keptRows,rows:document.querySelectorAll('#v-orders .row').length,q:__TANJI__.ui.q}})()`);
     assert.deepEqual(ime,{keptNode:true,keptRows:1,rows:1,q:'安全'}, '搜索框在输入法合成期间被重建,或合成结束后没有按最终文本筛选: '+JSON.stringify(ime));
+    await click('#v-orders [data-act="edit-order"]');
+    assert.equal(await evaluate('document.querySelector("#sheet-edit").classList.contains("show")'),true,'订单行编辑图标应直接打开完整编辑弹层');
+    assert.equal(await evaluate('!!document.querySelector("#e-store")&&!!document.querySelector("#e-location")&&!!document.querySelector("#e-note")'),true,'直接入口应使用详情内的完整编辑表单');
+    await click('#sheet-edit [data-act="close-sheet"]');
     await click('#v-orders [data-act="open"]');
     await click('#detail-body [data-kind="deposit"]');await click('[data-act="confirm-pay"]');
     assert.equal(await evaluate('__TANJI__.db.payments.length'),1);assert.equal(await evaluate('__TANJI__.statsFor("M").paidSum'),200);
@@ -231,6 +250,24 @@ const server=http.createServer((request,response)=>{
     await evaluate('navigator.serviceWorker.ready');await evaluate('__TANJI__.Store.queue');
     await call('Network.enable');await call('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0});
     await call('Page.reload');await ready();assert.equal(await evaluate('__TANJI__.db.orders.length'),1);assert.equal(await evaluate('__TANJI__.db.payments[0].amount'),200);
+    // 订单列表左滑露出复制;竖向滚动不能误触,副本直接进完整编辑
+    await evaluate(`__TANJI__.db.accounts=[{id:1,name:'甲账号',color:0},{id:2,name:'乙账号',color:1}];__TANJI__.renderTrip()`);
+    await click('.tab[data-tab="orders"]');
+    const swipeCopy=await evaluate(`(()=>{const track=document.querySelector('#v-orders .order-swipe-track'),item=track.closest('.order-swipe');const fire=(type,touches,changedTouches=touches)=>track.dispatchEvent(new TouchEvent(type,{touches,changedTouches,bubbles:true,cancelable:true}));const swipe=(x0,y0,x1,y1)=>{const start=new Touch({identifier:1,target:track,clientX:x0,clientY:y0}),move=new Touch({identifier:1,target:track,clientX:x1,clientY:y1});fire('touchstart',[start]);fire('touchmove',[move]);fire('touchend',[],[move]);return item.classList.contains('open')};return {vertical:swipe(300,200,295,330),horizontal:swipe(300,400,170,405)}})()`);
+    assert.deepEqual(swipeCopy,{vertical:false,horizontal:true},'订单左滑复制与竖向滚动冲突判定异常');
+    await click('#v-orders .order-swipe [data-act="copy-order"]');
+    assert.equal(await evaluate('__TANJI__.db.orders.length'),2);
+    assert.equal(await evaluate('document.querySelector("#sheet-edit").classList.contains("show")&&__TANJI__.ui.editId===2'),true,'复制后应直接编辑副本');
+    assert.equal(await evaluate('__TANJI__.db.orders[1].shotAt===null&&__TANJI__.db.orders[1].depositPaidAt===null'),true,'副本不能带历史进度');
+    await fill('#e-price','800');await click('[data-act="save-edit"]');
+    assert.deepEqual(await evaluate('__TANJI__.db.orders.map(o=>o.price)'),[1000,800],'副本改价不能影响原订单');
+    // 多账号创建:同一表单一次拆成两个独立订单
+    await click('.tab[data-tab="home"]');await click('#v-home [data-act="new-order"]');await click('#f-acc-block [data-id="2"]');
+    await fill('#f-store','双账号测试店');await fill('#f-price','500');await fill('#f-deposit','0');await fill('#f-date','2026-11-22');await click('[data-act="save-order"]');
+    assert.equal(await evaluate('__TANJI__.db.orders.length'),4);
+    assert.deepEqual(await evaluate('__TANJI__.db.orders.slice(-2).map(o=>o.accountId)'),[1,2],'两个选中账号应各生成一单');
+    assert.deepEqual(await evaluate('__TANJI__.db.orders.slice(-2).map(o=>o.id)'),[3,4],'拆单必须分配不同订单 ID');
+    assert.equal(await evaluate('__TANJI__.db.orders.slice(-2).every(o=>o.store==="双账号测试店"&&o.price===500&&o.shotAt===null)'),true);
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);

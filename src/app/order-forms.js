@@ -1,11 +1,11 @@
 /* ================= 新建预约 + 编辑订单 + 随手拍输入(P0 §3) ================= */
-import {$,esc,fmtHM,TODAY,validDateTime,nowStr} from './util.js';
+import {$,esc,fmtHM,TODAY,validDateTime,nowStr,relativeDayLabel} from './util.js';
 import {db,Store,save} from './storage.js';
 import {Notify} from './notify.js';
 import {ui,showTab,renderAll} from './ui.js';
 import {moneyCents,byId,gpsText,hasAnyReceipt,paymentSpec,hasReceipt,unDep,unFin,needMain,needSub} from './derived.js';
 import {showSheet,closeSheets,toast} from './sheets.js';
-import {ACCS,accMulti,renderAccPick,renderProvPick,chanFromDraft} from './accounts.js';
+import {ACCS,accMulti,accById,renderAccPick,renderProvPick,chanFromDraft} from './accounts.js';
 import {pay,capturePlace,clearSnooze} from './order-actions.js';
 import {openDetail,rerenderDetail} from './detail.js';
 
@@ -24,7 +24,12 @@ export function conflictFor(date,time,excludeId){
   if(overlap.length)return `<b>该时段已有排期(前后 2 小时内):</b>${rows(overlap)}不影响保存——可找人代拍或错峰。`;
   return `<b>当天已有 ${same.length} 个排期:</b>${rows(same)}`;
 }
+function updateDateRelative(prefix){
+  const el=$('#'+prefix+'-date-relative'),label=relativeDayLabel($('#'+prefix+'-date').value);
+  el.textContent=label;el.style.display=label?'inline-flex':'none';
+}
 export function updateConflict(){
+  updateDateRelative('f');
   const el=$('#f-conflict');
   const date=$('#f-date').value,time=$('#f-time').value||'10:00';
   const msg=conflictFor(date,time,0);
@@ -36,8 +41,10 @@ export function openNew(){
   $('#f-partner').value='';$('#f-location').value='';
   $('#f-need-main').checked=true;$('#f-need-sub').checked=false;
   $('#f-date').value=TODAY;$('#f-time').value='10:00';$('#f-err').style.display='none';
-  ui.draftProv='';ui.draftAccId=ACCS().length?ACCS()[0].id:null;
-  renderAccPick('f-acc-block',ui.draftAccId);renderProvPick('f-prov-block','');
+  // 正在按某个账号筛选时,新预约默认挂到该账号;「全部」或无有效筛选仍回落到首个账号。
+  ui.draftProv='';ui.draftAccId=ui.accFilter!=null&&accById(ui.accFilter)?ui.accFilter:(ACCS().length?ACCS()[0].id:null);
+  ui.draftAccIds=ui.draftAccId==null?[]:[ui.draftAccId];
+  renderAccPick('f-acc-block',ui.draftAccIds,true);renderProvPick('f-prov-block','');
   updateConflict();
   showSheet('sheet-new');
 }
@@ -49,26 +56,41 @@ export function saveOrder(){
   if(priceCents===null||depositCents===null||depositCents>priceCents){fail('总价和定金须为有效非负金额，最多两位小数，定金不能超过总价');return}
   const needMain=$('#f-need-main').checked,needSub=$('#f-need-sub').checked;
   if(!needMain&&!needSub){fail('出片要求至少要勾选正片或副片');return}
-  if(accMulti()&&ui.draftAccId==null){fail('请选择账号');return}
+  const accountIds=ACCS().length?(accMulti()?[...new Set(ui.draftAccIds||[])].filter(id=>accById(id)):[ACCS()[0].id]):[null];
+  if(accMulti()&&!accountIds.length){fail('请至少选择一个账号');return}
   const date=$('#f-date').value||TODAY,time=$('#f-time').value||'10:00',appt=`${date}T${time}`;
   const settleVia=$('#f-settle').value;
   if(!validDateTime(appt)){fail('请填写有效的预约日期和时间');return}
   if(!['private','douyin'].includes(settleVia)){fail('请选择有效的结算方式');return}
   const maxId=db.orders.reduce((max,x)=>Number.isSafeInteger(x.id)&&x.id>0?Math.max(max,x.id):NaN,0);
-  const id=maxId+1;
-  if(!Number.isSafeInteger(id)||id<1){fail('订单编号超出安全范围或已有异常编号，无法新建');return}
-  // 通知 id 分段要求 orderId<100000(见 storage.js NOTIFY_OFFSET),个人记账远达不到,到顶直接拦下
-  if(id>=100000){fail('订单编号已达上限(99999),请先导出备份并联系支持');return}
-  const o={id,store,cat:$('#f-cat').value,
+  const firstId=maxId+1,lastId=firstId+accountIds.length-1;
+  if(!Number.isSafeInteger(firstId)||firstId<1){fail('订单编号超出安全范围或已有异常编号，无法新建');return}
+  // 通知 id 分段要求 orderId<100000(见 storage.js NOTIFY_OFFSET),拆单也必须全部落在范围内
+  if(!Number.isSafeInteger(lastId)||lastId>=100000){fail('订单编号已达上限(99999),请先导出备份并联系支持');return}
+  const base={store,cat:$('#f-cat').value,
     contact:$('#f-contact').value.trim(),price:priceCents/100,deposit:depositCents/100,settleVia,
     channel:chanFromDraft(),partner:$('#f-partner').value.trim(),
-    accountId:ACCS().length?(accMulti()?ui.draftAccId:ACCS()[0].id):null,
     location:$('#f-location').value.trim(),deliverMain:needMain,deliverSub:needSub,reviewResult:'',publishedAt:null,
     appt,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
     depositPaidAt:null,finalPaidAt:null,remindAt:null,note:$('#f-note').value.trim()};
-  db.orders.push(o);save();Notify.syncDeliver();
+  const created=accountIds.map((accountId,index)=>({...base,id:firstId+index,accountId}));
+  db.orders.push(...created);save();Notify.syncDeliver();
   closeSheets();ui.selDay=date;ui.vMon={y:+date.slice(0,4),m:+date.slice(5,7)};showTab('trip');renderAll();
-  toast(`已添加预约:${store}`);
+  toast(created.length>1?`已添加 ${created.length} 笔独立预约:${store}`:`已添加预约:${store}`);
+}
+
+/* 复制的是预约资料,不是既有履约/资金历史。副本立即获得独立 ID 并落库,
+ * 随后复用完整编辑表单改账号、价格等;原订单与流水不受后续修改影响。 */
+export function duplicateOrder(oid){
+  const source=byId(oid);if(!source)return;
+  const maxId=db.orders.reduce((max,x)=>Number.isSafeInteger(x.id)&&x.id>0?Math.max(max,x.id):NaN,0),id=maxId+1;
+  if(!Number.isSafeInteger(id)||id<1){toast('订单编号异常，无法复制');return}
+  if(id>=100000){toast('订单编号已达上限(99999),请先导出备份并联系支持');return}
+  const copy={...source,id,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
+    depositPaidAt:null,finalPaidAt:null,remindAt:null,reviewResult:'',publishedAt:null};
+  for(const key of ['remindLog','photoThumb','gpsPlace'])delete copy[key];
+  db.orders.push(copy);save();Notify.syncDeliver();Notify.syncDaily();
+  closeSheets();renderAll();openEdit(id);toast('已复制订单，正在编辑副本');
 }
 
 /* ================= 编辑订单(全环节可改) ================= */
@@ -122,8 +144,7 @@ export function openEdit(oid){
     <div id="e-prov-block"></div>
     <div class="frow"><label>组队</label><input id="e-partner" value="${esc(o.partner||'')}" placeholder="组队/出镜搭档,单人拍摄可空"></div>
     <div class="frow"><label>地点</label><input id="e-location" value="${esc(o.location||'')}" placeholder="如:万象城 3 层"></div>
-    <div class="frow"><label>预约日期</label><input id="e-date" type="date" value="${esc((o.appt||'').slice(0,10))}"></div>
-    <div class="frow"><label>预约时间</label><input id="e-time" type="time" value="${esc((o.appt||'').slice(11,16))}"></div>
+    <div class="frow date-row"><label>预约时间</label><input id="e-date" type="date" value="${esc((o.appt||'').slice(0,10))}"><input id="e-time" type="time" value="${esc((o.appt||'').slice(11,16))}"><span class="date-relative" id="e-date-relative" aria-live="polite"></span></div>
     <div class="frow"><label>出片要求</label><div style="display:flex;gap:22px;align-items:center;padding:6px 2px">
       <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="e-need-main" ${needMain(o)?'checked':''} style="width:17px;height:17px;accent-color:var(--brand)"> 正片</label>
       <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="e-need-sub" ${needSub(o)?'checked':''} style="width:17px;height:17px;accent-color:var(--brand)"> 副片</label>
@@ -153,6 +174,7 @@ export function openEdit(oid){
   showSheet('sheet-edit');
 }
 function updateEditConflict(){
+  updateDateRelative('e');
   const el=$('#e-conflict');
   const date=$('#e-date').value,time=$('#e-time').value||'10:00';
   const msg=conflictFor(date,time,ui.editId);

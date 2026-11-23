@@ -24,7 +24,15 @@ export function fmtDT(s){return s?`${fmtD(s)} ${fmtHM(s)}`:'—'}
 export function fmtMoney(n,masked){return masked?'¥✱✱✱':'¥'+n.toLocaleString('zh-CN',{maximumFractionDigits:2})}
 export const DOW='一二三四五六日',dowOf=s=>DOW[(new Date(s.length===10?s+'T00:00':s).getDay()+6)%7];
 export function daysBetween(fromStr){return TanJiLogic.daysBetween(fromStr,new Date())}
-export function greeting(){const h=new Date().getHours();return h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好'}
+/* 完整原始日期 + 星期 + 今天/明天/后天/N 天后;按自然日计算,不受时区与夏令时影响。 */
+export function relativeDayLabel(value,baseDay=TODAY){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!/^\d{4}-\d{2}-\d{2}$/.test(baseDay))return '';
+  const target=new Date(value+'T00:00:00'),base=new Date(baseDay+'T00:00:00');
+  if(Number.isNaN(target.getTime())||Number.isNaN(base.getTime())||toISO(target)!==value||toISO(base)!==baseDay)return '';
+  const days=Math.round((Date.UTC(target.getFullYear(),target.getMonth(),target.getDate())-Date.UTC(base.getFullYear(),base.getMonth(),base.getDate()))/864e5);
+  const relative=days===0?'今天':days===1?'明天':days===2?'后天':days===-1?'昨天':days===-2?'前天':days>2?`${days} 天后`:`${-days} 天前`;
+  return `${value} 周${dowOf(value)} · ${relative}`;
+}
 
 /* 多账号段(§3):clipboard 助手,特许 import env.js 读 CAP。 */
 export async function copyText(text){

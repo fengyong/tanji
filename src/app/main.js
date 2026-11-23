@@ -15,7 +15,7 @@ import './actions.js'; // 副作用引入:注册全局 click 事件委托(无导
 import {statsFor} from './stats.js';
 import {rerenderDetail} from './detail.js';
 import {renderHome} from './views/home.js';
-import {renderTrip} from './views/trip.js';
+import {renderTrip,initTripGestures} from './views/trip.js';
 import {renderOrders} from './views/orders.js';
 import {renderPay} from './views/pay.js';
 import {renderStats} from './views/stats.js';
@@ -43,6 +43,8 @@ registerDailySync(()=>Notify.syncDaily());
 registerBytesBuilder(buildSqliteBytes);
 
 /* ================= 启动 ================= */
+// 在首次数据加载前切换原生排版:安全区由 CSS env() 提供,假状态栏不再进入原生画面。
+document.documentElement.classList.toggle('native',isNative);
 if(!isNative&&'serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
   addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>toast('离线缓存安装失败，联网时仍可使用')));
 }
@@ -83,6 +85,7 @@ $('#f-date').value=TODAY;
   initAvatarInput();
   initShotInput();
   initSheetGestures();
+  initTripGestures();
   if(!had&&!Store.blocked)await save();
   initSqlite().then(s=>{if(s){Store.sqlite3=s;if(!Store.blocked&&!Store.busy)persistFull()}else if(!isNative)toast('SQLite 引擎未能加载，JSON 保存和备份仍可用')});
 })();

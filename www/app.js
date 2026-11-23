@@ -49,9 +49,13 @@ function fmtMoney(n, masked) {
 }
 var DOW = "\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u65E5";
 var dowOf = (s) => DOW[(new Date(s.length === 10 ? s + "T00:00" : s).getDay() + 6) % 7];
-function greeting() {
-  const h = (/* @__PURE__ */ new Date()).getHours();
-  return h < 11 ? "\u65E9\u4E0A\u597D" : h < 14 ? "\u4E2D\u5348\u597D" : h < 18 ? "\u4E0B\u5348\u597D" : "\u665A\u4E0A\u597D";
+function relativeDayLabel(value, baseDay = TODAY) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !/^\d{4}-\d{2}-\d{2}$/.test(baseDay)) return "";
+  const target = /* @__PURE__ */ new Date(value + "T00:00:00"), base = /* @__PURE__ */ new Date(baseDay + "T00:00:00");
+  if (Number.isNaN(target.getTime()) || Number.isNaN(base.getTime()) || toISO(target) !== value || toISO(base) !== baseDay) return "";
+  const days = Math.round((Date.UTC(target.getFullYear(), target.getMonth(), target.getDate()) - Date.UTC(base.getFullYear(), base.getMonth(), base.getDate())) / 864e5);
+  const relative = days === 0 ? "\u4ECA\u5929" : days === 1 ? "\u660E\u5929" : days === 2 ? "\u540E\u5929" : days === -1 ? "\u6628\u5929" : days === -2 ? "\u524D\u5929" : days > 2 ? `${days} \u5929\u540E` : `${-days} \u5929\u524D`;
+  return `${value} \u5468${dowOf(value)} \xB7 ${relative}`;
 }
 async function copyText(text) {
   try {
@@ -925,7 +929,7 @@ async function nativeReadSnapshot(mode, suffix = "json") {
 }
 
 // src/app/ui.js
-var ui = { tab: "home", chip: "all", bucket: "all", period: "7", selDay: TODAY, q: "", detail: null, payCtx: null, privacy: false, shareUrl: null, shareBlob: null, vMon: { y: now.getFullYear(), m: now.getMonth() + 1 }, accFilter: null, editAccountId: null, draftAvatar: null, draftColor: 0, draftProv: "", draftAccId: null, assignAcc: null, remindOid: null, expectOid: null };
+var ui = { tab: "home", chip: "all", bucket: "all", period: "7", selDay: TODAY, q: "", detail: null, payCtx: null, privacy: false, shareUrl: null, shareBlob: null, vMon: { y: now.getFullYear(), m: now.getMonth() + 1 }, accFilter: null, editAccountId: null, draftAvatar: null, draftColor: 0, draftProv: "", draftAccId: null, draftAccIds: [], assignAcc: null, remindOid: null, expectOid: null };
 var lastDailySyncDay = "";
 var dailySyncFn = null;
 function registerDailySync(fn) {
@@ -1456,22 +1460,23 @@ function accChipbarHTML() {
   for (const a of ACCS()) html += chip(a.name, a.id);
   return `<div class="chipbar">${html}</div>`;
 }
-function renderAccPick(elId, sel) {
+function renderAccPick(elId, sel, multiple = false) {
   const el = $("#" + elId);
   if (!el) return;
   if (!accMulti()) {
     el.innerHTML = "";
     return;
   }
-  el.innerHTML = `<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">\u8D26\u53F7 <span style="color:var(--red)">*</span></div>
+  const selected = new Set(multiple ? sel || [] : [sel]);
+  el.innerHTML = `<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">\u8D26\u53F7${multiple ? "\uFF08\u53EF\u591A\u9009\uFF09" : ""} <span style="color:var(--red)">*</span></div>
     <div class="acc-sel">${ACCS().map((a) => {
     const c = accColor(a);
-    const n = db.orders.filter((o) => o.accountId === a.id).length;
-    return `<button type="button" class="acc-opt ${sel === a.id ? "sel" : ""}" data-act="acc-pick" data-id="${a.id}" style="${sel === a.id ? `border-color:${c.ink};background:${c.bg}` : ""}">
-        <span class="acc-dot"></span>${accAvatarHTML(a, "width:30px;height:30px;font-size:14px;border-radius:10px")}
+    const n = db.orders.filter((o) => o.accountId === a.id).length, on = selected.has(a.id);
+    return `<button type="button" class="acc-opt ${multiple ? "multi " : ""}${on ? "sel" : ""}" data-act="${multiple ? "acc-toggle" : "acc-pick"}" data-id="${a.id}" aria-pressed="${on}" style="${on ? `border-color:${c.ink};background:${c.bg}` : ""}">
+        <span class="acc-dot">${multiple && on ? "\u2713" : ""}</span>${accAvatarHTML(a, "width:30px;height:30px;font-size:14px;border-radius:10px")}
         <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${n} \u5355</span></button>`;
   }).join("")}</div>
-    <div class="rsub" style="margin:6px 2px 0">\u70B9\u6574\u884C\u5373\u9009\u4E2D;\u53EA\u5EFA 1 \u4E2A\u8D26\u53F7\u65F6\u6B64\u533A\u5757\u4E0D\u51FA\u73B0,\u8BA2\u5355\u81EA\u52A8\u5F52\u5C5E</div></div>`;
+    <div class="rsub" style="margin:6px 2px 0">${multiple ? "\u6BCF\u4E2A\u9009\u4E2D\u8D26\u53F7\u5404\u751F\u6210\u4E00\u7B14\u72EC\u7ACB\u8BA2\u5355\uFF0C\u540E\u7EED\u5206\u522B\u7EF4\u62A4" : "\u70B9\u6574\u884C\u5373\u9009\u4E2D;\u53EA\u5EFA 1 \u4E2A\u8D26\u53F7\u65F6\u6B64\u533A\u5757\u4E0D\u51FA\u73B0,\u8BA2\u5355\u81EA\u52A8\u5F52\u5C5E"}</div></div>`;
 }
 function renderProvPick(elId, val) {
   const el = $("#" + elId);
@@ -1859,6 +1864,7 @@ function openDetail(id) {
         <div class="hsub" style="margin-top:3px">${esc(o.cat)}${o.contact ? " \xB7 " + esc(o.contact) : ""}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
+        <button class="sheet-close" data-act="copy-order" data-oid="${esc(o.id)}" title="\u590D\u5236\u8BA2\u5355" aria-label="\u590D\u5236\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button>
         <button class="sheet-close" data-act="edit-order" data-oid="${esc(o.id)}" title="\u7F16\u8F91" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
         <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
@@ -2109,7 +2115,13 @@ function conflictFor(date, time, excludeId) {
   if (overlap.length) return `<b>\u8BE5\u65F6\u6BB5\u5DF2\u6709\u6392\u671F(\u524D\u540E 2 \u5C0F\u65F6\u5185):</b>${rows(overlap)}\u4E0D\u5F71\u54CD\u4FDD\u5B58\u2014\u2014\u53EF\u627E\u4EBA\u4EE3\u62CD\u6216\u9519\u5CF0\u3002`;
   return `<b>\u5F53\u5929\u5DF2\u6709 ${same.length} \u4E2A\u6392\u671F:</b>${rows(same)}`;
 }
+function updateDateRelative(prefix) {
+  const el = $("#" + prefix + "-date-relative"), label = relativeDayLabel($("#" + prefix + "-date").value);
+  el.textContent = label;
+  el.style.display = label ? "inline-flex" : "none";
+}
 function updateConflict() {
+  updateDateRelative("f");
   const el = $("#f-conflict");
   const date = $("#f-date").value, time = $("#f-time").value || "10:00";
   const msg = conflictFor(date, time, 0);
@@ -2133,8 +2145,9 @@ function openNew() {
   $("#f-time").value = "10:00";
   $("#f-err").style.display = "none";
   ui.draftProv = "";
-  ui.draftAccId = ACCS().length ? ACCS()[0].id : null;
-  renderAccPick("f-acc-block", ui.draftAccId);
+  ui.draftAccId = ui.accFilter != null && accById(ui.accFilter) ? ui.accFilter : ACCS().length ? ACCS()[0].id : null;
+  ui.draftAccIds = ui.draftAccId == null ? [] : [ui.draftAccId];
+  renderAccPick("f-acc-block", ui.draftAccIds, true);
   renderProvPick("f-prov-block", "");
   updateConflict();
   showSheet("sheet-new");
@@ -2160,8 +2173,9 @@ function saveOrder() {
     fail("\u51FA\u7247\u8981\u6C42\u81F3\u5C11\u8981\u52FE\u9009\u6B63\u7247\u6216\u526F\u7247");
     return;
   }
-  if (accMulti() && ui.draftAccId == null) {
-    fail("\u8BF7\u9009\u62E9\u8D26\u53F7");
+  const accountIds = ACCS().length ? accMulti() ? [...new Set(ui.draftAccIds || [])].filter((id) => accById(id)) : [ACCS()[0].id] : [null];
+  if (accMulti() && !accountIds.length) {
+    fail("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u8D26\u53F7");
     return;
   }
   const date = $("#f-date").value || TODAY, time = $("#f-time").value || "10:00", appt = `${date}T${time}`;
@@ -2175,17 +2189,16 @@ function saveOrder() {
     return;
   }
   const maxId = db.orders.reduce((max, x) => Number.isSafeInteger(x.id) && x.id > 0 ? Math.max(max, x.id) : NaN, 0);
-  const id = maxId + 1;
-  if (!Number.isSafeInteger(id) || id < 1) {
+  const firstId = maxId + 1, lastId = firstId + accountIds.length - 1;
+  if (!Number.isSafeInteger(firstId) || firstId < 1) {
     fail("\u8BA2\u5355\u7F16\u53F7\u8D85\u51FA\u5B89\u5168\u8303\u56F4\u6216\u5DF2\u6709\u5F02\u5E38\u7F16\u53F7\uFF0C\u65E0\u6CD5\u65B0\u5EFA");
     return;
   }
-  if (id >= 1e5) {
+  if (!Number.isSafeInteger(lastId) || lastId >= 1e5) {
     fail("\u8BA2\u5355\u7F16\u53F7\u5DF2\u8FBE\u4E0A\u9650(99999),\u8BF7\u5148\u5BFC\u51FA\u5907\u4EFD\u5E76\u8054\u7CFB\u652F\u6301");
     return;
   }
-  const o = {
-    id,
+  const base = {
     store,
     cat: $("#f-cat").value,
     contact: $("#f-contact").value.trim(),
@@ -2194,7 +2207,6 @@ function saveOrder() {
     settleVia,
     channel: chanFromDraft(),
     partner: $("#f-partner").value.trim(),
-    accountId: ACCS().length ? accMulti() ? ui.draftAccId : ACCS()[0].id : null,
     location: $("#f-location").value.trim(),
     deliverMain: needMain2,
     deliverSub: needSub2,
@@ -2210,7 +2222,8 @@ function saveOrder() {
     remindAt: null,
     note: $("#f-note").value.trim()
   };
-  db.orders.push(o);
+  const created = accountIds.map((accountId, index) => ({ ...base, id: firstId + index, accountId }));
+  db.orders.push(...created);
   save();
   Notify.syncDeliver();
   closeSheets();
@@ -2218,7 +2231,42 @@ function saveOrder() {
   ui.vMon = { y: +date.slice(0, 4), m: +date.slice(5, 7) };
   showTab("trip");
   renderAll();
-  toast(`\u5DF2\u6DFB\u52A0\u9884\u7EA6:${store}`);
+  toast(created.length > 1 ? `\u5DF2\u6DFB\u52A0 ${created.length} \u7B14\u72EC\u7ACB\u9884\u7EA6:${store}` : `\u5DF2\u6DFB\u52A0\u9884\u7EA6:${store}`);
+}
+function duplicateOrder(oid) {
+  const source = byId(oid);
+  if (!source) return;
+  const maxId = db.orders.reduce((max, x) => Number.isSafeInteger(x.id) && x.id > 0 ? Math.max(max, x.id) : NaN, 0), id = maxId + 1;
+  if (!Number.isSafeInteger(id) || id < 1) {
+    toast("\u8BA2\u5355\u7F16\u53F7\u5F02\u5E38\uFF0C\u65E0\u6CD5\u590D\u5236");
+    return;
+  }
+  if (id >= 1e5) {
+    toast("\u8BA2\u5355\u7F16\u53F7\u5DF2\u8FBE\u4E0A\u9650(99999),\u8BF7\u5148\u5BFC\u51FA\u5907\u4EFD\u5E76\u8054\u7CFB\u652F\u6301");
+    return;
+  }
+  const copy = {
+    ...source,
+    id,
+    shotAt: null,
+    submittedAt: null,
+    shortAt: null,
+    longAt: null,
+    depositPaidAt: null,
+    finalPaidAt: null,
+    remindAt: null,
+    reviewResult: "",
+    publishedAt: null
+  };
+  for (const key of ["remindLog", "photoThumb", "gpsPlace"]) delete copy[key];
+  db.orders.push(copy);
+  save();
+  Notify.syncDeliver();
+  Notify.syncDaily();
+  closeSheets();
+  renderAll();
+  openEdit(id);
+  toast("\u5DF2\u590D\u5236\u8BA2\u5355\uFF0C\u6B63\u5728\u7F16\u8F91\u526F\u672C");
 }
 var EDIT_FIELDS = ["e-store", "e-cat", "e-settle", "e-partner", "e-location", "e-date", "e-time", "e-price", "e-deposit", "e-contact", "e-note"];
 var EDIT_CHECKS = ["e-need-main", "e-need-sub"];
@@ -2283,8 +2331,7 @@ function openEdit(oid) {
     <div id="e-prov-block"></div>
     <div class="frow"><label>\u7EC4\u961F</label><input id="e-partner" value="${esc(o.partner || "")}" placeholder="\u7EC4\u961F/\u51FA\u955C\u642D\u6863,\u5355\u4EBA\u62CD\u6444\u53EF\u7A7A"></div>
     <div class="frow"><label>\u5730\u70B9</label><input id="e-location" value="${esc(o.location || "")}" placeholder="\u5982:\u4E07\u8C61\u57CE 3 \u5C42"></div>
-    <div class="frow"><label>\u9884\u7EA6\u65E5\u671F</label><input id="e-date" type="date" value="${esc((o.appt || "").slice(0, 10))}"></div>
-    <div class="frow"><label>\u9884\u7EA6\u65F6\u95F4</label><input id="e-time" type="time" value="${esc((o.appt || "").slice(11, 16))}"></div>
+    <div class="frow date-row"><label>\u9884\u7EA6\u65F6\u95F4</label><input id="e-date" type="date" value="${esc((o.appt || "").slice(0, 10))}"><input id="e-time" type="time" value="${esc((o.appt || "").slice(11, 16))}"><span class="date-relative" id="e-date-relative" aria-live="polite"></span></div>
     <div class="frow"><label>\u51FA\u7247\u8981\u6C42</label><div style="display:flex;gap:22px;align-items:center;padding:6px 2px">
       <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="e-need-main" ${needMain(o) ? "checked" : ""} style="width:17px;height:17px;accent-color:var(--brand)"> \u6B63\u7247</label>
       <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="e-need-sub" ${needSub(o) ? "checked" : ""} style="width:17px;height:17px;accent-color:var(--brand)"> \u526F\u7247</label>
@@ -2317,6 +2364,7 @@ function openEdit(oid) {
   showSheet("sheet-edit");
 }
 function updateEditConflict() {
+  updateDateRelative("e");
   const el = $("#e-conflict");
   const date = $("#e-date").value, time = $("#e-time").value || "10:00";
   const msg = conflictFor(date, time, ui.editId);
@@ -2765,14 +2813,18 @@ function renderOrders() {
   }).length;
   const chips = [["all", "\u5168\u90E8"], ["wait", "\u5F85\u62CD\u6444"], ["doing", "\u8FDB\u884C\u4E2D"], ["unpaid", "\u5F85\u6536\u6B3E"], ["over", "\u903E\u671F"], ["done", "\u5DF2\u5B8C\u7ED3"]].map(([k, l]) => `<button class="fchip ${ui.chip === k ? "on" : ""}" data-act="chip" data-chip="${k}">${l} <b>${cnt(k)}</b></button>`).join("");
   const rows = all.length ? all.map((o) => `
-    <div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
-      <div class="rmain">
-        <div class="rname">${esc(o.store)}</div>
-        <div class="rsub">${o.shotAt ? `\u62CD\u6444 ${fmtD(o.shotAt)}` : `\u9884\u7EA6 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} \xB7 ${esc(o.cat)}${o.partner ? " \xB7 \u51FA\u955C " + esc(o.partner) : ""}</div>
-        <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}${isOver(o) ? `<span class="chip c-red">\u6B20 ${overdueDays(o)} \u5929</span>` : ""}${snoozed(o) ? '<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>' : ""}${stepBtn(o)}</div>
-      </div>
-      <div class="rside">${priceCell(o)}
-        <div class="rsub" style="${owedOf(o) > 0 ? "color:var(--red);font-weight:700" : ""}">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney4(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div>
+    <div class="order-swipe" data-oid="${esc(o.id)}">
+      <div class="order-swipe-actions"><button type="button" tabindex="-1" data-act="copy-order" data-oid="${esc(o.id)}" aria-label="\u590D\u5236 ${esc(o.store)}"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg><span>\u590D\u5236</span></button></div>
+      <div class="row order-swipe-track${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
+        <div class="rmain">
+          <div class="rname">${esc(o.store)}</div>
+          <div class="rsub">${o.shotAt ? `\u62CD\u6444 ${fmtD(o.shotAt)}` : `\u9884\u7EA6 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} \xB7 ${esc(o.cat)}${o.partner ? " \xB7 \u51FA\u955C " + esc(o.partner) : ""}</div>
+          <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}${isOver(o) ? `<span class="chip c-red">\u6B20 ${overdueDays(o)} \u5929</span>` : ""}${snoozed(o) ? '<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>' : ""}${stepBtn(o)}</div>
+        </div>
+        <div class="rside">${priceCell(o)}
+          <div class="rsub" style="${owedOf(o) > 0 ? "color:var(--red);font-weight:700" : ""}">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney4(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div>
+        </div>
+        <button class="icon-btn" style="width:40px;height:40px;background:var(--brand-soft);color:var(--brand);box-shadow:none" data-act="edit-order" data-oid="${esc(o.id)}" aria-label="\u7F16\u8F91 ${esc(o.store)}" title="\u7F16\u8F91\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
       </div>
     </div>`).join("") : `<div class="empty"><div class="e-ic">\u{1F50D}</div>\u6CA1\u6709\u7B26\u5408\u6761\u4EF6\u7684\u8BA2\u5355</div>`;
   $("#v-orders").innerHTML = `
@@ -2786,6 +2838,7 @@ function renderOrders() {
       <input id="q-input" placeholder="\u641C\u7D22\u5546\u5BB6 / \u5730\u70B9 / \u8054\u7CFB\u4EBA / \u5907\u6CE8" value="${esc(ui.q)}"></div>
     <div class="chips">${chips}</div>
     <div class="card rows">${rows}</div>`;
+  initOrderSwipeActions();
   const qi = $("#q-input");
   let composing = false;
   const search = (value) => {
@@ -2806,6 +2859,59 @@ function renderOrders() {
   qi.addEventListener("input", (e) => {
     if (e.isComposing || composing) return;
     search(e.target.value);
+  });
+}
+function initOrderSwipeActions() {
+  document.querySelectorAll("#v-orders .order-swipe").forEach((item) => {
+    const track = item.querySelector(".order-swipe-track");
+    let start = null;
+    track.addEventListener("touchstart", (event) => {
+      if (event.touches.length !== 1 || event.target.closest?.("button,input,textarea,select")) {
+        start = null;
+        return;
+      }
+      document.querySelectorAll("#v-orders .order-swipe.open").forEach((other) => {
+        if (other !== item) other.classList.remove("open");
+      });
+      const touch = event.touches[0];
+      start = { id: touch.identifier, x: touch.clientX, y: touch.clientY, base: item.classList.contains("open") ? -78 : 0, swiped: false };
+    }, { passive: true });
+    track.addEventListener("touchmove", (event) => {
+      if (!start || event.touches.length !== 1) {
+        start = null;
+        return;
+      }
+      const touch = Array.from(event.touches).find((item2) => item2.identifier === start.id);
+      if (!touch) return;
+      const dx = touch.clientX - start.x, dy = touch.clientY - start.y;
+      if (!start.swiped && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) start.swiped = true;
+      if (!start.swiped) return;
+      event.preventDefault();
+      const offset = Math.max(-78, Math.min(0, start.base + dx));
+      track.style.transition = "none";
+      track.style.transform = `translateX(${offset}px)`;
+    }, { passive: false });
+    track.addEventListener("touchend", (event) => {
+      if (!start) return;
+      const touch = Array.from(event.changedTouches).find((item2) => item2.identifier === start.id);
+      if (!touch) {
+        start = null;
+        return;
+      }
+      const dx = touch.clientX - start.x, swiped = start.swiped;
+      start = null;
+      track.style.transition = "";
+      track.style.transform = "";
+      if (!swiped) return;
+      event.preventDefault();
+      if (dx < -32) item.classList.add("open");
+      else if (dx > 24) item.classList.remove("open");
+    }, { passive: false });
+    track.addEventListener("touchcancel", () => {
+      start = null;
+      track.style.transition = "";
+      track.style.transform = "";
+    }, { passive: true });
   });
 }
 
@@ -3039,11 +3145,14 @@ function renderStats() {
 var fmtMoney7 = (n) => fmtMoney(n, ui.privacy);
 function orderRowTrip(o) {
   const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney7(unDep(o))}</span>` : "";
-  return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
-    <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
-    <div class="rmain"><div class="rname">${esc(o.store)}</div>
-      <div class="chiprow">${workChip(o)}${depChip || payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}</div></div>
-    <div class="rside"><div class="rprice">${fmtMoney7(o.price)}</div><div class="rsub">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney7(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div></div>
+  return `<div class="row trip-row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
+    <div class="trip-row-head">
+      <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
+      <div class="rmain"><div class="rname">${esc(o.store)}</div>${o.location ? `<div class="rsub trip-place">${esc(o.location)}</div>` : ""}</div>
+      <div class="rside"><div class="rprice">${fmtMoney7(o.price)}</div><div class="rsub">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney7(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div></div>
+      <button class="icon-btn" style="width:40px;height:40px;background:var(--brand-soft);color:var(--brand);box-shadow:none" data-act="edit-order" data-oid="${esc(o.id)}" aria-label="\u7F16\u8F91 ${esc(o.store)}" title="\u7F16\u8F91\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
+    </div>
+    <div class="chiprow trip-chips">${accOrderTag(o)}${workChip(o)}${depChip || payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}</div>
   </div>`;
 }
 function renderTrip() {
@@ -3102,7 +3211,7 @@ function renderTrip() {
   $("#v-trip").innerHTML = `
     <div class="htop-row">
       <div><div class="eyebrow">\u6574\u6708\u6863\u671F \xB7 \u2039 \u203A \u53EF\u7FFB\u6708</div><h1 class="big">\u884C\u7A0B</h1>
-      <div class="hsub">\u70B9\u6309\u65E5\u671F\u67E5\u770B\u5F53\u65E5 \xB7 \u5206\u4EAB\u6309\u94AE\u53EF\u751F\u6210\u5F53\u65E5\u884C\u7A0B\u56FE</div></div>
+      <div class="hsub">\u5DE6\u53F3\u6ED1\u52A8\u5207\u65E5 \xB7 \u70B9\u65E5\u671F\u67E5\u770B \xB7 \u5206\u4EAB\u751F\u6210\u5F53\u65E5\u884C\u7A0B\u56FE</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         ${headBtns(true)}
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button>
@@ -3126,6 +3235,56 @@ function renderTrip() {
     <div class="card rows">${listHtml}</div>
     <div class="sec-title">${m}\u6708\u5168\u90E8\u6863\u671F \xB7 \u5F80\u4E0B\u6EDA\u770B\u6574\u6708</div>
     ${up}`;
+}
+function tripSwipeStep(dx, dy, duration) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (duration < 0 || duration > 800 || ax < 56 || ay > 48 || ax < ay * 1.35) return 0;
+  return dx < 0 ? 1 : -1;
+}
+function shiftTripDay(step) {
+  if (step !== 1 && step !== -1) return;
+  const date = /* @__PURE__ */ new Date(ui.selDay + "T00:00:00");
+  if (Number.isNaN(date.getTime())) return;
+  date.setDate(date.getDate() + step);
+  ui.selDay = toISO(date);
+  ui.vMon = { y: date.getFullYear(), m: date.getMonth() + 1 };
+  renderTrip();
+}
+function initTripGestures() {
+  const view = $("#v-trip");
+  if (!view) return;
+  let start = null;
+  const reset = () => {
+    start = null;
+  };
+  view.addEventListener("touchstart", (event) => {
+    if (ui.tab !== "trip" || event.touches.length !== 1 || event.target.closest?.(".n7,.chipbar")) {
+      reset();
+      return;
+    }
+    const touch = event.touches[0];
+    start = { id: touch.identifier, x: touch.clientX, y: touch.clientY, at: event.timeStamp };
+  }, { passive: true });
+  view.addEventListener("touchmove", (event) => {
+    if (start && event.touches.length !== 1) reset();
+  }, { passive: true });
+  view.addEventListener("touchend", (event) => {
+    if (!start || ui.tab !== "trip") {
+      reset();
+      return;
+    }
+    const touch = Array.from(event.changedTouches).find((item) => item.identifier === start.id);
+    if (!touch) {
+      reset();
+      return;
+    }
+    const step = tripSwipeStep(touch.clientX - start.x, touch.clientY - start.y, event.timeStamp - start.at);
+    reset();
+    if (!step) return;
+    event.preventDefault();
+    shiftTripDay(step);
+  }, { passive: false });
+  view.addEventListener("touchcancel", reset, { passive: true });
 }
 
 // src/app/actions.js
@@ -3233,8 +3392,17 @@ registerAction("acc-filter", (t, oid) => {
 });
 registerAction("acc-pick", (t, oid) => {
   ui.draftAccId = +t.dataset.id;
-  renderAccPick("f-acc-block", ui.draftAccId);
   renderAccPick("e-acc-block", ui.draftAccId);
+});
+registerAction("acc-toggle", (t, oid) => {
+  const id = +t.dataset.id;
+  if (!accById(id)) return;
+  const selected = new Set(ui.draftAccIds || []);
+  if (selected.has(id)) selected.delete(id);
+  else selected.add(id);
+  ui.draftAccIds = [...selected];
+  ui.draftAccId = ui.draftAccIds[0] ?? null;
+  renderAccPick("f-acc-block", ui.draftAccIds, true);
 });
 registerAction("prov-pick", (t, oid) => {
   ui.draftProv = t.dataset.v;
@@ -3432,6 +3600,9 @@ registerAction("mile", (t, oid) => {
     }
   } else if (mark(oid, key, "\u5DF2\u6807\u8BB0\u300C" + MILE_LABEL[key] + "\u300D") && key === "shotAt") capturePlace(oid);
 });
+registerAction("copy-order", (t, oid) => {
+  duplicateOrder(oid);
+});
 registerAction("edit-order", (t, oid) => {
   openEdit(oid);
 });
@@ -3621,7 +3792,6 @@ function renderHome() {
   $("#v-home").innerHTML = `
     <div class="htop-row">
       <div><div class="eyebrow">${now.getMonth() + 1}\u6708${now.getDate()}\u65E5 \u5468${dowOf(TODAY)}</div>
-      <h1 class="big">${greeting()},\u8FBE\u4EBA</h1>
       <div class="hsub">\u4ECA\u65E5 ${todays.length} \u5355${todays.length ? ` \xB7 ${todoToday.length ? `\u5F85\u62CD ${todoToday.length}` : "\u5DF2\u5168\u90E8\u62CD\u5B8C"}` : ""} \xB7 ${over.length ? `${over.length} \u7B14\u5F85\u50AC\u6536` : "\u6536\u6B3E\u6B63\u5E38"}</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         ${headBtns(true)}
@@ -3666,6 +3836,7 @@ registerStorageHooks({ renderAll, showTab, toast, closeSheets, notify: Notify, r
 registerBadgeCounter(() => db.orders.filter(accMatch).filter((o) => isOver(o) && !snoozed(o)).length);
 registerDailySync(() => Notify.syncDaily());
 registerBytesBuilder(buildSqliteBytes);
+document.documentElement.classList.toggle("native", isNative);
 if (!isNative && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
   addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => toast("\u79BB\u7EBF\u7F13\u5B58\u5B89\u88C5\u5931\u8D25\uFF0C\u8054\u7F51\u65F6\u4ECD\u53EF\u4F7F\u7528")));
 }
@@ -3717,6 +3888,7 @@ $("#f-date").value = TODAY;
   initAvatarInput();
   initShotInput();
   initSheetGestures();
+  initTripGestures();
   if (!had && !Store.blocked) await save();
   initSqlite().then((s) => {
     if (s) {

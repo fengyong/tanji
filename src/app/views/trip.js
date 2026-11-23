@@ -1,9 +1,9 @@
 /* ================= 渲染:行程(P0 §3) ================= */
-import {$,esc,pad,dOff,TODAY,dowOf,fmtMoney as fmtMoneyBase,fmtHM,fmtD} from '../util.js';
+import {$,esc,pad,dOff,TODAY,dowOf,toISO,fmtMoney as fmtMoneyBase,fmtHM,fmtD} from '../util.js';
 import {db} from '../storage.js';
 import {ui} from '../ui.js';
 import {workChip,payChip,owedOf,unDep,upcoming7,accOrderIds,accMatch} from '../derived.js';
-import {accBar,accTint,accChipbarHTML,dayBadge} from '../accounts.js';
+import {accBar,accTint,accOrderTag,accChipbarHTML,dayBadge} from '../accounts.js';
 import {headBtns} from '../stats.js';
 /* 隐私模式:本文件全部金额渲染经此包装(P0 修复:双参化后调用点必须带 ui.privacy) */
 const fmtMoney=n=>fmtMoneyBase(n,ui.privacy);
@@ -11,11 +11,14 @@ const fmtMoney=n=>fmtMoneyBase(n,ui.privacy);
 /* ================= 渲染:行程 ================= */
 export function orderRowTrip(o){
   const depChip=unDep(o)>0?`<span class="chip c-red">待定金 ${fmtMoney(unDep(o))}</span>`:'';
-  return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
-    <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
-    <div class="rmain"><div class="rname">${esc(o.store)}</div>
-      <div class="chiprow">${workChip(o)}${depChip||payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}</div></div>
-    <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div><div class="rsub">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div></div>
+  return `<div class="row trip-row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
+    <div class="trip-row-head">
+      <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
+      <div class="rmain"><div class="rname">${esc(o.store)}</div>${o.location?`<div class="rsub trip-place">${esc(o.location)}</div>`:''}</div>
+      <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div><div class="rsub">${owedOf(o)>0?'待收 '+fmtMoney(owedOf(o)):'已结清'}</div></div>
+      <button class="icon-btn" style="width:40px;height:40px;background:var(--brand-soft);color:var(--brand);box-shadow:none" data-act="edit-order" data-oid="${esc(o.id)}" aria-label="编辑 ${esc(o.store)}" title="编辑订单"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
+    </div>
+    <div class="chiprow trip-chips">${accOrderTag(o)}${workChip(o)}${depChip||payChip(o)}${o.channel&&o.channel!=='直客'?`<span class="chip c-gray">${esc(o.channel)}</span>`:''}</div>
   </div>`;
 }
 export function renderTrip(){
@@ -67,7 +70,7 @@ export function renderTrip(){
   $('#v-trip').innerHTML=`
     <div class="htop-row">
       <div><div class="eyebrow">整月档期 · ‹ › 可翻月</div><h1 class="big">行程</h1>
-      <div class="hsub">点按日期查看当日 · 分享按钮可生成当日行程图</div></div>
+      <div class="hsub">左右滑动切日 · 点日期查看 · 分享生成当日行程图</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         ${headBtns(true)}
         <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>预约</button>
@@ -91,4 +94,42 @@ export function renderTrip(){
     <div class="card rows">${listHtml}</div>
     <div class="sec-title">${m}月全部档期 · 往下滚看整月</div>
     ${up}`;
+}
+
+/* 左滑下一天、右滑上一天。纯判定便于回归:短位移视为点击,
+ * 纵向占优/斜滑留给滚动,慢拖不做翻页,避免和现有交互抢手势。 */
+export function tripSwipeStep(dx,dy,duration){
+  const ax=Math.abs(dx),ay=Math.abs(dy);
+  if(duration<0||duration>800||ax<56||ay>48||ax<ay*1.35)return 0;
+  return dx<0?1:-1;
+}
+export function shiftTripDay(step){
+  if(step!==1&&step!==-1)return;
+  const date=new Date(ui.selDay+'T00:00:00');
+  if(Number.isNaN(date.getTime()))return;
+  date.setDate(date.getDate()+step);
+  ui.selDay=toISO(date);ui.vMon={y:date.getFullYear(),m:date.getMonth()+1};
+  renderTrip();
+}
+export function initTripGestures(){
+  const view=$('#v-trip');if(!view)return;
+  let start=null;
+  const reset=()=>{start=null};
+  view.addEventListener('touchstart',event=>{
+    // 账号条和未来 7 天本身可横滑,不把滚动它们误判成切日。
+    if(ui.tab!=='trip'||event.touches.length!==1||event.target.closest?.('.n7,.chipbar')){reset();return}
+    const touch=event.touches[0];
+    start={id:touch.identifier,x:touch.clientX,y:touch.clientY,at:event.timeStamp};
+  },{passive:true});
+  view.addEventListener('touchmove',event=>{if(start&&event.touches.length!==1)reset()},{passive:true});
+  view.addEventListener('touchend',event=>{
+    if(!start||ui.tab!=='trip'){reset();return}
+    const touch=Array.from(event.changedTouches).find(item=>item.identifier===start.id);
+    if(!touch){reset();return}
+    const step=tripSwipeStep(touch.clientX-start.x,touch.clientY-start.y,event.timeStamp-start.at);
+    reset();if(!step)return;
+    // 只有确认是切日时才拦截合成点击;普通点按与竖向滚动全程不 preventDefault。
+    event.preventDefault();shiftTripDay(step);
+  },{passive:false});
+  view.addEventListener('touchcancel',reset,{passive:true});
 }

@@ -5,7 +5,7 @@ import {db,Store,save,switchMode,replaceData,loadState,accountCopyText} from './
 import {Notify} from './notify.js';
 import {byId,isOver,snoozed,REVIEW_LABEL} from './derived.js';
 import {ACCS,accById,accColor,accAvatarHTML,renderAccPick,renderProvPick,renderPal,renderAvatarPreview,openAccount,saveAccount,deleteAccount} from './accounts.js';
-import {openNew,saveOrder,openEdit,saveEdit,toggleReceipt,updateConflict} from './order-forms.js';
+import {openNew,saveOrder,duplicateOrder,openEdit,saveEdit,toggleReceipt,updateConflict} from './order-forms.js';
 import {mark,pay,openPay,capturePlace,openRemind,saveRemind,openExpect,saveExpect,clearExpect,MILE_ORDER} from './order-actions.js';
 import {openDetail,rerenderDetail,MILE_LABEL} from './detail.js';
 import {closeSheets,showSheet,toast,dismissToast} from './sheets.js';
@@ -119,7 +119,15 @@ registerAction('acc-filter',(t,oid)=>{
 });
 
 registerAction('acc-pick',(t,oid)=>{
-  ui.draftAccId=+t.dataset.id;renderAccPick('f-acc-block',ui.draftAccId);renderAccPick('e-acc-block',ui.draftAccId);
+  ui.draftAccId=+t.dataset.id;renderAccPick('e-acc-block',ui.draftAccId);
+});
+
+registerAction('acc-toggle',(t,oid)=>{
+  const id=+t.dataset.id;if(!accById(id))return;
+  const selected=new Set(ui.draftAccIds||[]);
+  if(selected.has(id))selected.delete(id);else selected.add(id);
+  ui.draftAccIds=[...selected];ui.draftAccId=ui.draftAccIds[0]??null;
+  renderAccPick('f-acc-block',ui.draftAccIds,true);
 });
 
 registerAction('prov-pick',(t,oid)=>{
@@ -270,6 +278,10 @@ registerAction('mile',(t,oid)=>{
         if(confirm(msg)){[key,...after].forEach(k=>o[k]=null);save();renderAll();rerenderDetail();Notify.syncDeliver();Notify.syncDaily();toast('已清除,可重新标记')}
       }
       else if(mark(oid,key,'已标记「'+MILE_LABEL[key]+'」')&&key==='shotAt')capturePlace(oid);
+});
+
+registerAction('copy-order',(t,oid)=>{
+  duplicateOrder(oid);
 });
 
 registerAction('edit-order',(t,oid)=>{

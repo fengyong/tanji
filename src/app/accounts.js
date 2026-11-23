@@ -52,15 +52,16 @@ export function accChipbarHTML(){
   for(const a of ACCS())html+=chip(a.name,a.id);
   return `<div class="chipbar">${html}</div>`;
 }
-export function renderAccPick(elId,sel){
+export function renderAccPick(elId,sel,multiple=false){
   const el=$('#'+elId);if(!el)return;
   if(!accMulti()){el.innerHTML='';return}
-  el.innerHTML=`<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">账号 <span style="color:var(--red)">*</span></div>
-    <div class="acc-sel">${ACCS().map(a=>{const c=accColor(a);const n=db.orders.filter(o=>o.accountId===a.id).length;
-      return `<button type="button" class="acc-opt ${sel===a.id?'sel':''}" data-act="acc-pick" data-id="${a.id}" style="${sel===a.id?`border-color:${c.ink};background:${c.bg}`:''}">
-        <span class="acc-dot"></span>${accAvatarHTML(a,'width:30px;height:30px;font-size:14px;border-radius:10px')}
+  const selected=new Set(multiple?(sel||[]):[sel]);
+  el.innerHTML=`<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">账号${multiple?'（可多选）':''} <span style="color:var(--red)">*</span></div>
+    <div class="acc-sel">${ACCS().map(a=>{const c=accColor(a);const n=db.orders.filter(o=>o.accountId===a.id).length,on=selected.has(a.id);
+      return `<button type="button" class="acc-opt ${multiple?'multi ':''}${on?'sel':''}" data-act="${multiple?'acc-toggle':'acc-pick'}" data-id="${a.id}" aria-pressed="${on}" style="${on?`border-color:${c.ink};background:${c.bg}`:''}">
+        <span class="acc-dot">${multiple&&on?'✓':''}</span>${accAvatarHTML(a,'width:30px;height:30px;font-size:14px;border-radius:10px')}
         <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${n} 单</span></button>`}).join('')}</div>
-    <div class="rsub" style="margin:6px 2px 0">点整行即选中;只建 1 个账号时此区块不出现,订单自动归属</div></div>`;
+    <div class="rsub" style="margin:6px 2px 0">${multiple?'每个选中账号各生成一笔独立订单，后续分别维护':'点整行即选中;只建 1 个账号时此区块不出现,订单自动归属'}</div></div>`;
 }
 export function renderProvPick(elId,val){
   const el=$('#'+elId);if(!el)return;

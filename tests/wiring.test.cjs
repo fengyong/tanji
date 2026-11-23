@@ -117,6 +117,14 @@ test('随手拍输入在只读模式下必须拒绝写入(change 处理器绕过
   assert.ok(guardIdx < writeIdx, '只读检查必须发生在写入 photoThumb 之前');
 });
 
+test('原生壳按真实安全区排版并隐藏 Web 假状态栏', () => {
+  assert.match(index, /html\.native \.statusbar,html\.native \.island\{display:none\}/);
+  assert.match(index, /html\.native \.view\{padding-top:calc\(18px \+ env\(safe-area-inset-top,0px\)\)\}/);
+  const mainSrc = readApp('main.js');
+  assert.match(mainSrc, /document\.documentElement\.classList\.toggle\('native',isNative\)/);
+  assert.match(mainSrc, /initTripGestures\(\)/, '行程触摸手势必须在启动时接线');
+});
+
 /* ---------- P0 拆分安全网(2026-11-22) ---------- */
 
 test('markup 里出现的每个 data-act 都必须在事件委托里有对应 case', () => {
@@ -142,8 +150,8 @@ test('markup 里出现的每个 data-act 都必须在事件委托里有对应 ca
   );
 
   // 反向:注册了但 markup 已删的动作也要抓(死注册 = 看不见的腐肉)
-  // 白名单:toggle-dep/toggle-fin 由 order-forms.js:95 动态拼接(data-act="${…}"),静态枚举不到
-  const DYNAMIC = new Set(['toggle-dep', 'toggle-fin']);
+  // 白名单:收款动作与账号选择动作由 JS 动态拼接(data-act="${…}"),静态枚举不到
+  const DYNAMIC = new Set(['toggle-dep', 'toggle-fin', 'acc-pick', 'acc-toggle']);
   const actsSet = new Set(acts);
   const dead = [...registered].filter(r => !actsSet.has(r) && !DYNAMIC.has(r));
   assert.deepEqual(

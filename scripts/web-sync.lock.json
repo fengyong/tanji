@@ -6,7 +6,7 @@
   "files": {
     "index.html": {
       "main": "3d4f454769af69ccf2d68622ed9504c5072015ad",
-      "native": "17b2835038cf1a6506e06c46ace5fd7b8c4d9f29",
+      "native": "04ea55e62ff7dbd9bc7bd524d60720836ef03b49",
       "nativePath": "www/index.html",
       "note": "主应用 UI(markup)与模块入口"
     },

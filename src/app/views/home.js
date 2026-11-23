@@ -1,5 +1,5 @@
 /* ================= 渲染:首页(P0 §3) ================= */
-import {$,esc,fmtMoney as fmtMoneyBase,fmtD,fmtHM,now,TODAY,dowOf,greeting} from '../util.js';
+import {$,esc,fmtMoney as fmtMoneyBase,fmtD,fmtHM,now,TODAY,dowOf} from '../util.js';
 import {db} from '../storage.js';
 import {ui} from '../ui.js';
 import {isOver,snoozed,owedOf,overdueDays,workOf,unDep,payChip,workChip,deliverLate,accMatch,deliveredAll,needMain,needSub} from '../derived.js';
@@ -79,7 +79,6 @@ export function renderHome(){
   $('#v-home').innerHTML=`
     <div class="htop-row">
       <div><div class="eyebrow">${now.getMonth()+1}月${now.getDate()}日 周${dowOf(TODAY)}</div>
-      <h1 class="big">${greeting()},达人</h1>
       <div class="hsub">今日 ${todays.length} 单${todays.length?` · ${todoToday.length?`待拍 ${todoToday.length}`:'已全部拍完'}`:''} · ${over.length?`${over.length} 笔待催收`:'收款正常'}</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         ${headBtns(true)}

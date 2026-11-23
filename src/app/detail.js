@@ -132,6 +132,7 @@ export function openDetail(id){
         <div class="hsub" style="margin-top:3px">${esc(o.cat)}${o.contact?' · '+esc(o.contact):''}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
+        <button class="sheet-close" data-act="copy-order" data-oid="${esc(o.id)}" title="复制订单" aria-label="复制订单"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button>
         <button class="sheet-close" data-act="edit-order" data-oid="${esc(o.id)}" title="编辑" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
         <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>

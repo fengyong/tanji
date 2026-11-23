@@ -105,6 +105,13 @@ test('seven-day summary and bars share natural-day boundaries',()=>{
 test('clock crosses midnight without forcing a manually selected day',()=>{
   const a=app();a.tick(86400000);a.run('refreshClock()');assert.equal(a.run('TODAY'),'2026-11-22');assert.equal(a.run('ui.selDay'),'2026-11-22');a.run('ui.selDay="2026-10-01"');a.tick(86400000);a.run('refreshClock()');assert.equal(a.run('ui.selDay'),'2026-10-01');
 });
+test('home header keeps the date and summary without a decorative greeting',()=>{
+  const a=app();setState(a);a.run('renderHome()');
+  const html=a.element('#v-home').innerHTML;
+  assert.doesNotMatch(html,/达人|早上好|中午好|下午好|晚上好/);
+  assert.match(html,/11月21日 周六/);
+  assert.match(html,/今日 0 单/);
+});
 test('HTML text and attributes are escaped, including search input',()=>{
   const a=app();setState(a,[order({store:'<img src=x onerror=alert(1)>',channel:'" onclick="bad'})]);assert.doesNotMatch(a.run('orderRowTrip(db.orders[0])'),/<img/);assert.match(a.run('orderRowTrip(db.orders[0])'),/&lt;img/);a.run('ui.q=\'" autofocus onfocus="bad\';renderOrders()');assert.match(a.element('#v-orders').innerHTML,/&quot;/);
 });
@@ -152,8 +159,97 @@ test('import preview rejects inconsistent receipts without changing data',async(
   const a=app();setState(a);a.context.file={name:'broken.json',size:100,text:async()=>JSON.stringify({orders:[order({depositPaidAt:'2026-11-01T10:00'})],payments:[]})};
   await a.run('previewImport(file)');assert.equal(a.run('Store.pending'),null);assert.equal(a.run('db.orders[0].store'),'测试店');assert.match(a.element('#toast').textContent,/不一致/);
 });
+test('appointment dates show weekday and intuitive relative days',()=>{
+  const a=app();setState(a);
+  assert.equal(a.run("relativeDayLabel('2026-11-21')"),'2026-11-21 周六 · 今天');
+  assert.equal(a.run("relativeDayLabel('2026-11-22')"),'2026-11-22 周日 · 明天');
+  assert.equal(a.run("relativeDayLabel('2026-11-23')"),'2026-11-23 周一 · 后天');
+  assert.equal(a.run("relativeDayLabel('2026-11-24')"),'2026-11-24 周二 · 3 天后');
+  assert.equal(a.run("relativeDayLabel('2026-11-28')"),'2026-11-28 周六 · 7 天后');
+  assert.equal(a.run("relativeDayLabel('2026-11-20')"),'2026-11-20 周五 · 昨天');
+  assert.equal(a.run("relativeDayLabel('2026-11-19')"),'2026-11-19 周四 · 前天');
+  assert.equal(a.run("relativeDayLabel('2026-02-30')"),'');
+  a.run('openNew()');assert.equal(a.element('#f-date-relative').textContent,'2026-11-21 周六 · 今天');
+  a.element('#f-date').value='2026-11-28';a.run('updateConflict()');assert.equal(a.element('#f-date-relative').textContent,'2026-11-28 周六 · 7 天后');
+  a.element('#e-date').value='2026-11-01';a.run('openEdit(1)');assert.equal(a.element('#e-date-relative').textContent,'2026-11-01 周日 · 20 天前');
+});
 test('month navigation clamps selected dates at month end',()=>{
   const a=app();a.run('ui.selDay="2026-01-31";ui.vMon={y:2026,m:1}');a.events.click({target:{closest:()=>({dataset:{act:'mnav',d:'1'}})}});assert.equal(a.run('ui.selDay'),'2026-02-28');
+});
+test('new appointment defaults to the filtered account and trip rows reuse its tag',()=>{
+  const a=app();setState(a,[order({accountId:2})]);
+  a.run("db.accounts=[{id:1,name:'甲账号',color:0},{id:2,name:'乙账号',color:1}];ui.accFilter=2;openNew()");
+  assert.equal(a.run('ui.draftAccId'),2);
+  assert.match(a.element('#f-acc-block').innerHTML,/乙账号/);
+  assert.ok(a.run('orderRowTrip(db.orders[0]).includes(accOrderTag(db.orders[0]))'),'行程行必须复用订单页账号标签');
+  seedForm(a,'f');a.run('saveOrder()');assert.equal(a.run('db.orders[db.orders.length-1].accountId'),2,'保存后必须真的挂到筛选账号');
+  a.run('ui.accFilter=null;openNew()');assert.equal(a.run('ui.draftAccId'),1,'全部账号时仍默认首个账号');
+  a.run('ui.accFilter=999;openNew()');assert.equal(a.run('ui.draftAccId'),1,'失效筛选不能带出新订单');
+});
+test('multi-account creation splits independent orders from one form',()=>{
+  const a=app();setState(a,[]);
+  a.run("db.accounts=[{id:1,name:'甲账号',color:0},{id:2,name:'乙账号',color:1}];ui.accFilter=2;openNew()");
+  assert.deepEqual(a.json('ui.draftAccIds'),[2]);
+  const toggle=id=>a.events.click({target:{closest:()=>({dataset:{act:'acc-toggle',id:String(id)}})}});
+  toggle(1);assert.deepEqual(a.json('ui.draftAccIds'),[2,1]);
+  seedForm(a,'f');a.run('saveOrder()');
+  assert.equal(a.run('db.orders.length'),2);
+  assert.deepEqual(a.json('db.orders.map(o=>o.id)'),[1,2]);
+  assert.deepEqual(a.json('db.orders.map(o=>o.accountId)'),[2,1]);
+  assert.equal(a.run('db.orders[0].store'),a.run('db.orders[1].store'));
+  assert.equal(a.run('db.orders[0].appt'),a.run('db.orders[1].appt'));
+  a.run("db.orders[0].price=600;db.orders[0].shotAt='2026-11-22T11:00';db.payments.push({oid:1,kind:'定金',amount:200,at:'2026-11-22T11:30',method:'微信'})");
+  assert.equal(a.run('db.orders[1].price'),1000,'改一个拆单的金额不能影响另一个');
+  assert.equal(a.run('db.orders[1].shotAt'),null,'一个拆单拍摄不能推进另一个');
+  assert.equal(a.run('db.payments.filter(p=>p.oid===2).length'),0,'收款流水不能串账号');
+  a.run('openNew()');toggle(2);seedForm(a,'f');a.run('saveOrder()');
+  assert.equal(a.run('db.orders.length'),2,'一个账号都没选时不能创建');
+  assert.match(a.element('#f-err').textContent,/至少选择一个账号/);
+});
+test('duplicating an order copies intake fields but resets progress and payment history',()=>{
+  const source=order({accountId:2,price:1200,deposit:200,location:'万象城 3 层',depositPaidAt:'2026-11-01T09:00',submittedAt:'2026-11-02T10:00',photoThumb:'data:image/jpeg;base64,abc',gpsPlace:'22.1,114.1',remindLog:[{at:'2026-11-03T10:00',note:'已催'}]});
+  const a=app();setState(a,[source],[{oid:1,kind:'定金',amount:200,at:'2026-11-01T09:00',method:'微信'}]);
+  a.run("db.accounts=[{id:1,name:'甲账号',color:0},{id:2,name:'乙账号',color:1}];openDetail(1)");
+  assert.match(a.element('#detail-body').innerHTML,/data-act="copy-order"/);
+  a.events.click({target:{closest:()=>({dataset:{act:'copy-order',oid:'1'}})}});
+  assert.equal(a.run('db.orders.length'),2);assert.equal(a.run('ui.editId'),2,'复制后应直接编辑副本');
+  assert.equal(a.run('db.orders[1].store'),'测试店');assert.equal(a.run('db.orders[1].accountId'),2);assert.equal(a.run('db.orders[1].price'),1200);assert.equal(a.run('db.orders[1].location'),'万象城 3 层');
+  assert.equal(a.run('db.orders[1].shotAt'),null);assert.equal(a.run('db.orders[1].submittedAt'),null);assert.equal(a.run('db.orders[1].depositPaidAt'),null);assert.equal(a.run('db.orders[1].reviewResult'),'');
+  assert.equal(a.run('"photoThumb" in db.orders[1]'),false);assert.equal(a.run('"remindLog" in db.orders[1]'),false);
+  assert.equal(a.run('db.payments.filter(p=>p.oid===2).length'),0);
+  a.run('ui.draftAccId=1');seedForm(a,'e',{store:'测试店',date:'2026-11-01',price:'800',deposit:'100'});a.run('saveEdit()');
+  assert.equal(a.run('db.orders[0].accountId'),2);assert.equal(a.run('db.orders[0].price'),1200);assert.equal(a.run('db.orders[0].submittedAt'),'2026-11-02T10:00');
+  assert.equal(a.run('db.orders[1].accountId'),1,a.element('#toast').textContent);assert.equal(a.run('db.orders[1].price'),800);
+  a.run('pay(2,"deposit")');
+  assert.equal(a.run('db.orders[0].depositPaidAt'),'2026-11-01T09:00','副本收款不能改原订单');
+  assert.equal(a.run('db.payments.filter(p=>p.oid===1).length'),1);assert.equal(a.run('db.payments.filter(p=>p.oid===2).length'),1);
+});
+test('trip and order rows enter the full edit form directly without promoting delete',()=>{
+  const a=app();setState(a,[order({location:'万象城 3 层'})]);a.run('ui.selDay="2026-11-01";ui.vMon={y:2026,m:11};renderTrip();renderOrders()');
+  const row=a.run('orderRowTrip(db.orders[0])');
+  assert.match(row,/trip-row-head/);assert.match(row,/trip-chips/);assert.match(row,/trip-place">万象城 3 层/,'行程行应以双层布局展示地点与状态');
+  assert.match(row,/data-act="edit-order" data-oid="1" aria-label="编辑 测试店" title="编辑订单"/);
+  assert.match(a.element('#v-orders').innerHTML,/data-act="edit-order" data-oid="1" aria-label="编辑 测试店" title="编辑订单"/);
+  assert.match(a.element('#v-orders').innerHTML,/order-swipe-actions[\s\S]*data-act="copy-order"/,'订单列表应提供左滑复制入口');
+  assert.doesNotMatch(row,/del-order/,'低频删除不应提升到行程列表');
+  assert.doesNotMatch(a.element('#v-orders').innerHTML,/del-order/,'低频删除不应提升到订单列表');
+  a.events.click({target:{closest:()=>({dataset:{act:'edit-order',oid:'1'}})}});
+  assert.equal(a.run('ui.editId'),1);assert.equal(a.run('ui.detail'),null);
+  assert.match(a.element('#edit-body').innerHTML,/id="e-store"/);
+  assert.match(a.element('#edit-body').innerHTML,/id="e-location"/);
+  assert.match(a.element('#edit-body').innerHTML,/id="e-note"/);
+});
+test('trip swipe follows page direction and rejects clicks, scrolling and slow drags',()=>{
+  const a=app();setState(a);
+  assert.equal(a.run('tripSwipeStep(-80,10,250)'),1,'左滑应下一天');
+  assert.equal(a.run('tripSwipeStep(80,-10,250)'),-1,'右滑应上一天');
+  assert.equal(a.run('tripSwipeStep(-20,2,120)'),0,'短位移仍是点击');
+  assert.equal(a.run('tripSwipeStep(-30,100,250)'),0,'纵向滚动不能切日');
+  assert.equal(a.run('tripSwipeStep(-70,60,250)'),0,'斜滑不能切日');
+  assert.equal(a.run('tripSwipeStep(-100,0,1000)'),0,'慢拖不能切日');
+  a.run('ui.selDay="2026-11-30";ui.vMon={y:2026,m:11};shiftTripDay(1)');
+  assert.equal(a.run('ui.selDay'),'2026-12-01');assert.equal(a.run('ui.vMon.m'),12,'跨月必须同步日历');
+  a.run('shiftTripDay(-1)');assert.equal(a.run('ui.selDay'),'2026-11-30');assert.equal(a.run('ui.vMon.m'),11);
 });
 test('home collection link includes every active overdue order',()=>{
   const a=app();setState(a,[order({depositPaidAt:'2026-11-01T09:00'}),order({id:2,store:'第二店',shotAt:'2026-10-01T10:00',depositPaidAt:'2026-10-01T09:00'})]);

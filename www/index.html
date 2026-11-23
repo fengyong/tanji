@@ -74,6 +74,13 @@
     .view{padding-top:calc(18px + env(safe-area-inset-top))}
     .tabbar{padding-bottom:calc(26px + env(safe-area-inset-bottom))}
   }
+  /* Capacitor 不一定命中 standalone:原生壳单独按真实安全区排版,
+     同时撤掉 Web 演示用的假状态栏和假灵动岛,避免与系统状态栏叠影。 */
+  html.native body{padding:0}
+  html.native .phone{width:100vw;height:100vh;height:100dvh;min-height:0;border:none;border-radius:0;box-shadow:none}
+  html.native .statusbar,html.native .island{display:none}
+  html.native .view{padding-top:calc(18px + env(safe-area-inset-top,0px))}
+  html.native .tabbar{padding-bottom:calc(26px + env(safe-area-inset-bottom,0px))}
   .island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:33px;background:#101014;border-radius:18px;z-index:60}
   .statusbar{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 7px;z-index:55;font-size:15px;font-weight:600;color:#111;pointer-events:none}
   .sb-icons{display:flex;align-items:center;gap:5px}
@@ -128,6 +135,19 @@
   .rprice.shot>span{position:relative;z-index:1;text-shadow:0 1px 0 rgba(255,255,255,.7)}
   .row:active{background:#F7F7FA}
   .rows{padding:2px 12px}
+  /* 行程每天单量不多:允许两层信息,不再把地点与状态硬挤在一行 */
+  .trip-row{display:block;padding:14px 0}
+  .trip-row-head{display:flex;align-items:flex-start;gap:10px;min-width:0}
+  .trip-row .rname{white-space:normal;line-height:1.35}
+  .trip-place{white-space:normal;line-height:1.45}
+  .trip-chips{margin:9px 0 0 62px}
+  /* 订单列表左滑只露出次级「复制」;编辑继续常驻,行程切日手势不复用这里 */
+  .order-swipe{position:relative;overflow:hidden}
+  .order-swipe-track{position:relative;z-index:1;background:#fff;transition:transform .2s ease}
+  .order-swipe.open .order-swipe-track{transform:translateX(-78px)}
+  .order-swipe-actions{position:absolute;inset:0 0 0 auto;width:78px;display:flex;background:var(--brand-soft);color:var(--brand)}
+  .order-swipe-actions button{flex:1;border:none;background:transparent;color:inherit;font:inherit;font-size:11px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+  .order-swipe-actions .ic{width:18px;height:18px}
 
   .chip{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
   .c-blue{background:var(--blue-soft);color:var(--blue)}
@@ -250,6 +270,11 @@
   .frow input,.frow select,.frow textarea{border:none;outline:none;font-size:15px;flex:1;font-family:inherit;background:transparent;color:var(--ink);text-align:right;min-width:0}
   .frow textarea{text-align:left;resize:none;font-size:14px;line-height:1.5}
   .frow input::placeholder,.frow textarea::placeholder{color:#B9B9C0}
+  .date-row{flex-wrap:wrap}
+  .date-row input[type="date"]{flex:1.4}
+  .date-row input[type="time"]{flex:.8}
+  .date-row .date-relative{flex-basis:calc(100% - 86px);max-width:calc(100% - 86px);margin-left:86px;margin-top:0;margin-bottom:2px}
+  .date-relative{display:inline-flex;align-items:center;flex-shrink:0;white-space:nowrap;border-radius:8px;padding:4px 7px;background:var(--brand-soft);color:var(--brand);font-size:11px;font-weight:700}
   .ferr{font-size:12px;color:var(--red);margin-top:8px;display:none}
   .banner-amber{background:#FFF7E6;color:#B26B00;border-radius:12px;padding:10px 13px;font-size:12.5px;font-weight:600;line-height:1.55;margin-top:12px;display:none}
   .banner-amber b{color:#8f5600}
@@ -379,6 +404,9 @@
   .acc-dot{width:19px;height:19px;border-radius:50%;border:2px solid #C6C6CD;flex-shrink:0;position:relative;background:#fff}
   .acc-opt.sel .acc-dot{border-color:var(--brand)}
   .acc-opt.sel .acc-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--brand)}
+  .acc-opt.multi .acc-dot{border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;line-height:1}
+  .acc-opt.multi.sel .acc-dot{background:var(--brand);color:#fff}
+  .acc-opt.multi.sel .acc-dot::after{display:none}
   .acc-opt .acc-name{font-size:14.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .acc-opt .acc-cnt{margin-left:auto;font-size:12px;color:var(--sub);flex-shrink:0}
   .avpick{display:flex;align-items:center;gap:14px;padding:4px 2px 12px}
@@ -573,9 +601,8 @@
           <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="f-need-sub" style="width:17px;height:17px;accent-color:var(--brand)"> 副片</label>
           <span class="rsub" style="margin:0">都勾=两个都要出</span>
         </div></div>
-        <div class="frow"><label>预约日期</label><input id="f-date" type="date"></div>
-        <div class="frow"><label>预约时间</label><input id="f-time" type="time" value="10:00"></div>
-        <div class="frow"><label>总价(¥)</label><input id="f-price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="如 1200"></div>
+        <div class="frow date-row"><label>预约时间</label><input id="f-date" type="date"><input id="f-time" type="time" value="10:00"><span class="date-relative" id="f-date-relative" aria-live="polite"></span></div>
+        <div class="frow"><label>总价(¥)</label><input id="f-price" type="number" inputmode="decimal" min="0" step="0.01"></div>
         <div class="frow"><label>定金(¥)</label><input id="f-deposit" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0 表示未约定定金"></div>
         <div class="frow"><label>联系方式</label><input id="f-contact" placeholder="店长 / 电话"></div>
         <div class="frow"><label>备注</label><textarea id="f-note" rows="2" placeholder="拍摄要点、机位、交付要求…"></textarea></div>
