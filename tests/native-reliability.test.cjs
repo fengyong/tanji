@@ -1145,3 +1145,23 @@ test('账号头像必须是严格的图片 dataURL:能拼出 HTML 属性的字�
   assert.equal(a.json(withAvatar(ok)+'.accounts[0].avatar'),ok);
   assert.equal(a.json(withAvatar('')+'.accounts[0].avatar'),'');
 });
+
+/* ---------- 第八轮深度 review:导入失败不能留下「半个替换」 ---------- */
+
+test('导入时 SQLite 写失败:镜像副本必须退回替换前数据,重启后不能变成「导入的数据」',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  setState(a,[order({id:1,store:'原有数据'})]);
+  await a.run('save()');
+  device.options.failWrites=true;
+  const ok=await a.run(`replaceData(${JSON.stringify({version:'0.6',threshold:15,orders:[order({id:5,store:'导入的新数据'})],payments:[]})})`);
+  assert.equal(ok,false,'SQLite 写失败,replaceData 应返回 false');
+  assert.equal(a.run('db.orders[0].store'),'原有数据','内存里仍是替换前的数据');
+  assert.equal(JSON.parse(device.local.get('tanji_v3_work_json')).orders[0].store,'原有数据',
+    '镜像里不能留下导入的数据:内存回滚了、镜像没回滚,重启就会按修订号取到镜像');
+  assert.match(a.run('Store.status'),/替换失败/,'横幅要说清「数据未被改动」,不能写「改动仅在当前页面」');
+  device.options.failWrites=false;
+  const b=app(device);                                   // 重启
+  await b.run('loadState()');
+  assert.equal(b.run('db.orders[0].store'),'原有数据','重启后不能变成导入的数据');
+});

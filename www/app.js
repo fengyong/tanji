@@ -770,7 +770,11 @@ async function replaceData(state) {
     await Store.queue;
     const before = snapshot(), next = snapshot(validated);
     next.previous = before;
-    if (!await persistSnapshot(next)) return false;
+    if (!await persistSnapshot(next)) {
+      if (isNative) localWrite(storageKey(Store.mode), before);
+      setStorageStatus("\u66FF\u6362\u5931\u8D25\uFF1A\u6570\u636E\u672A\u88AB\u6539\u52A8\u3002\u8BF7\u91CD\u8BD5\uFF1B\u6301\u7EED\u5931\u8D25\u8BF7\u5148\u5BFC\u51FA JSON \u5907\u4EFD\u3002");
+      return false;
+    }
     Store.backup = before;
     db = validated;
     afterLoad && afterLoad.closeSheets();
@@ -2610,13 +2614,25 @@ function renderOrders() {
     <div class="chips">${chips}</div>
     <div class="card rows">${rows}</div>`;
   const qi = $("#q-input");
-  qi.addEventListener("input", (e) => {
-    ui.q = e.target.value;
+  let composing = false;
+  const search = (value) => {
+    ui.q = value;
     const pos = qi.selectionStart;
     renderOrders();
     const q22 = $("#q-input");
     q22.focus();
     q22.setSelectionRange(pos, pos);
+  };
+  qi.addEventListener("compositionstart", () => {
+    composing = true;
+  });
+  qi.addEventListener("compositionend", () => {
+    composing = false;
+    search(qi.value);
+  });
+  qi.addEventListener("input", (e) => {
+    if (e.isComposing || composing) return;
+    search(e.target.value);
   });
 }
 

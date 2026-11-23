@@ -97,7 +97,12 @@ const server=http.createServer((request,response)=>{
     assert.deepEqual(week,{chips:7,title:true},'行程页应有未来 7 天横滑条');
     await evaluate('__TANJI__.Store.queue');await call('Page.reload');await ready();
     assert.equal(await evaluate('__TANJI__.db.orders[0].store'),'安全 <b>咖啡</b>');
-    await click('.tab[data-tab="orders"]');await click('#v-orders [data-act="open"]');
+    // 输入法合成期间不能重建搜索框:节点一换,合成被强制结束,拼音被逐段提交成字面量、候选词消失。
+    // 合成中的 input 不触发重绘(节点不变、列表不动),compositionend 之后才按最终文本筛选
+    await click('.tab[data-tab="orders"]');
+    const ime=await evaluate(`(()=>{const el=document.querySelector('#q-input');el.focus();const fire=(type,data)=>el.dispatchEvent(new CompositionEvent(type,{bubbles:true,data}));fire('compositionstart','');el.value='zzz';el.dispatchEvent(new InputEvent('input',{bubbles:true,data:'zzz',isComposing:true}));const keptNode=document.querySelector('#q-input')===el,keptRows=document.querySelectorAll('#v-orders .row').length;fire('compositionend','安全');el.value='安全';el.dispatchEvent(new InputEvent('input',{bubbles:true,data:'安全',isComposing:false}));return {keptNode,keptRows,rows:document.querySelectorAll('#v-orders .row').length,q:__TANJI__.ui.q}})()`);
+    assert.deepEqual(ime,{keptNode:true,keptRows:1,rows:1,q:'安全'}, '搜索框在输入法合成期间被重建,或合成结束后没有按最终文本筛选: '+JSON.stringify(ime));
+    await click('#v-orders [data-act="open"]');
     await click('#detail-body [data-kind="deposit"]');await click('[data-act="confirm-pay"]');
     assert.equal(await evaluate('__TANJI__.db.payments.length'),1);assert.equal(await evaluate('__TANJI__.statsFor("M").paidSum'),200);
     // 「钱必须可逆」:收款 toast 必须带撤销,且真要能把流水与标记一起回滚

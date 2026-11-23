@@ -56,5 +56,12 @@ export function renderOrders(){
     <div class="chips">${chips}</div>
     <div class="card rows">${rows}</div>`;
   const qi=$('#q-input');
-  qi.addEventListener('input',e=>{ui.q=e.target.value;const pos=qi.selectionStart;renderOrders();const q2=$('#q-input');q2.focus();q2.setSelectionRange(pos,pos)});
+  // 输入法合成期间(拼音还没上屏)不能重建输入框:节点一换,合成被强制结束,
+  // 拼音被逐段提交成字面量、候选词也没了(Chromium 实测:输入 wang 得到 wwawang)。
+  // 合成期间只记下输入值,等 compositionend 再按最终文本重绘。
+  let composing=false;
+  const search=value=>{ui.q=value;const pos=qi.selectionStart;renderOrders();const q2=$('#q-input');q2.focus();q2.setSelectionRange(pos,pos)};
+  qi.addEventListener('compositionstart',()=>{composing=true});
+  qi.addEventListener('compositionend',()=>{composing=false;search(qi.value)});
+  qi.addEventListener('input',e=>{if(e.isComposing||composing)return;search(e.target.value)});
 }

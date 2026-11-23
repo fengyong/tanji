@@ -321,7 +321,15 @@ export async function replaceData(state){
     await Store.queue;
     const before=snapshot(),next=snapshot(validated);
     next.previous=before;
-    if(!await persistSnapshot(next))return false;
+    if(!await persistSnapshot(next)){
+      // SQLite 写失败时内存仍是替换前的数据,但 nativePersistSnapshot 之后的那次镜像写入
+      // 不受影响 —— 镜像里已经是新数据、修订号还更大,下次启动按修订号取镜像:
+      // 这次「失败」的导入就静默生效了。把镜像退回替换前那份,保证「失败 = 哪里都没变」。
+      // (Web 端要两份副本都写失败才会走到这里,没有可退的残留。)
+      if(isNative)localWrite(storageKey(Store.mode),before);
+      setStorageStatus('替换失败：数据未被改动。请重试；持续失败请先导出 JSON 备份。');
+      return false;
+    }
     Store.backup=before;db=validated;afterLoad&&afterLoad.closeSheets();afterLoad&&afterLoad.resetFilters();afterLoad&&afterLoad.renderAll();
     // 数据被整体替换(导入/恢复/清空)后,已排的通知还指着旧数据:已删订单的备忘、
     // 出片提醒会在半夜凭空响起来。先撤掉当前模式的通知,再按新数据重排每日汇总与出片提醒。
