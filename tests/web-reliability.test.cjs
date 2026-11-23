@@ -305,3 +305,31 @@ test('里程碑前置守卫:未提审不许标记发布(哪怕正副片都不要
   assert.equal(a.run("mark(1,'publishedAt','发布')"),false,'未提审不能标发布');
   assert.equal(a.run('db.orders[0].publishedAt'),null,'publishedAt 不该被写进去');
 });
+
+/* ---------- P3:Store 显式状态视图(2026-11-23) ---------- */
+
+test('storePhase:就绪为 ready,数据替换中为 writing,完成后回 ready',async()=>{
+  const a=app();
+  assert.equal(a.run('storePhase()'),'ready');
+  // busy 只罩重型操作(replaceData/switchMode);save 走 queue 不占 busy
+  const pending=a.run('replaceData({orders:[],payments:[],threshold:15})');
+  assert.equal(a.run('storePhase()'),'writing','replaceData 进行中应处于 writing');
+  await pending;
+  assert.equal(a.run('storePhase()'),'ready');
+});
+test('storePhase:数据损坏进入 read-only,写入暂停但可读',async()=>{
+  const a=app();
+  a.local.set('tanji_v3_work_json','{bad');
+  await a.run('loadState()');
+  assert.equal(a.run('storePhase()'),'read-only');
+  assert.equal(a.run('Store.blocked'),true);
+});
+test('storePhase:失去多 Tab 写锁是 locked-out 终态,且必然 blocked(不变量)',async()=>{
+  const a=app();
+  a.run('navigator.locks=undefined');       // 无锁环境 = 拿不到写锁
+  await a.run('acquireWriter()');
+  assert.equal(a.run('Store.lockedOut'),true);
+  await a.run('loadState()');
+  assert.equal(a.run('storePhase()'),'locked-out');
+  assert.equal(a.run('Store.blocked'),true,'lockedOut 必须蕴含 blocked(写锁丢了写入必须停)');
+});

@@ -248,6 +248,17 @@ async function rememberMode(mode){
   const indexedOK=await idb.setMany([['tanji_v3_mode',value]]);
   return localOK||indexedOK;
 }
+/* P3:Store 布尔旗标的显式状态视图(只读派生,不改控制流)。
+   状态图:loading → ready ⇄ writing;ready/writing 可转 read-only(blocked);
+   locked-out 是终态(多 Tab 抢锁失败,只能刷新页面)。
+   不变量:lockedOut ⇒ blocked(写锁丢了写入必须停)。 */
+export function storePhase(){
+  if(Store.lockedOut)return 'locked-out';
+  if(!Store.ready)return 'loading';
+  if(Store.blocked)return 'read-only';
+  return Store.busy?'writing':'ready';
+}
+
 export async function loadState(){
   Store.ready=false;Store.blocked=Store.lockedOut;Store.backup=null;
   const [work,demo,indexedMode]=await Promise.all([readSnapshot('work'),readSnapshot('demo'),idb.get('tanji_v3_mode')]);
