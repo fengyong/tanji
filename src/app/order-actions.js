@@ -34,9 +34,21 @@ export function pay(id,kind,method='微信'){
   const t=nowStr(),amount=m[kind]/100;
   o[spec.field]=t;
   db.payments.push({oid:id,kind:spec.label,amount,at:t,method});
+  if(kind==='final')clearSnooze(o);   // 尾款收齐:这笔单不该再被提醒催收
   save();renderAll();rerenderDetail();Notify.syncDaily();
   toast(`已收${spec.label} ${fmtMoney(amount)} · ${method}`,{label:'撤销',run:()=>undoPay(id,kind,t)});
   return true;
+}
+/**
+ * 尾款不再待收(已收齐 / 改为平台结算)时,催收备忘就没有意义了。
+ * 备忘是设当时的快照,不会自己跟着收款状态走 —— 不撤的话,半夜会为一笔
+ * 已经结清的单弹「尾款该跟进了」,而详情页此时连清除入口都没有。
+ * 数据里的 remindAt 一并清掉,与已排的通知保持同一口径。
+ */
+export function clearSnooze(o){
+  if(!o||!o.remindAt)return;
+  o.remindAt=null;
+  Notify.cancelSnooze(o.id);
 }
 /**
  * 撤销刚记的一笔收款:用 (oid, kind, at) 三段定位那条流水,

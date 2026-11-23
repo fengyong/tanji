@@ -6,7 +6,7 @@ import {ui,showTab,renderAll} from './ui.js';
 import {moneyCents,byId,gpsText,hasAnyReceipt,paymentSpec,hasReceipt,unDep,unFin,needMain,needSub} from './derived.js';
 import {showSheet,closeSheets,toast} from './sheets.js';
 import {ACCS,accMulti,renderAccPick,renderProvPick,chanFromDraft} from './accounts.js';
-import {pay,capturePlace} from './order-actions.js';
+import {pay,capturePlace,clearSnooze} from './order-actions.js';
 import {openDetail,rerenderDetail} from './detail.js';
 
 /* ================= 新建预约(含时段冲突提醒,不禁止) ================= */
@@ -179,6 +179,8 @@ export function saveEdit(){
   o.deliverMain=needMain;o.deliverSub=needSub;o.reviewResult=$('#e-review').value;
   o.appt=appt;o.price=priceCents/100;o.deposit=depositCents/100;
   o.contact=$('#e-contact').value.trim();o.note=$('#e-note').value.trim();
+  // 私收单改成平台单(平台单不催收),或改完后尾款已无待收:原先设的催收备忘失效
+  if(o.settleVia==='douyin'||unFin(o)<=0)clearSnooze(o);
   const returnDetail=ui.detail===o.id?o.id:null;
   save();closeSheets();renderAll();Notify.syncDeliver();Notify.syncDaily();
   if(returnDetail!==null)openDetail(returnDetail);

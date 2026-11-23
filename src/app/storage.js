@@ -329,7 +329,12 @@ export async function replaceData(state){
     // 只排仍然有效的(remindAt 在未来);已过期的留着数据,等用户下次设置再排。
     const stamp=TanJiLogic.nowStr();
     for(const o of (validated.orders||[])){
-      if(o.remindAt&&o.remindAt>stamp)afterLoad&&afterLoad.notify.scheduleSnooze(o);
+      if(!o.remindAt)continue;
+      // 备忘只对「尾款仍待收的私收单」有意义。已结清 / 平台单带着的 remindAt 是旧数据里的残留:
+      // 既不排(会为一笔不欠钱的单弹「尾款该跟进了」),也顺手归一为空(与悬空 accountId 同一口径)——
+      // 否则详情页挂着「已设提醒」,却没有清除入口。
+      if(o.settleVia==='douyin'||TanJiLogic.unFin(o,validated.payments)<=0){o.remindAt=null;continue}
+      if(o.remindAt>stamp)afterLoad&&afterLoad.notify.scheduleSnooze(o);
     }
     return true;
   }finally{Store.busy=false}

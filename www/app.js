@@ -783,7 +783,12 @@ async function replaceData(state) {
     }
     const stamp = TanJiLogic.nowStr();
     for (const o of validated.orders || []) {
-      if (o.remindAt && o.remindAt > stamp) afterLoad && afterLoad.notify.scheduleSnooze(o);
+      if (!o.remindAt) continue;
+      if (o.settleVia === "douyin" || TanJiLogic.unFin(o, validated.payments) <= 0) {
+        o.remindAt = null;
+        continue;
+      }
+      if (o.remindAt > stamp) afterLoad && afterLoad.notify.scheduleSnooze(o);
     }
     return true;
   } finally {
@@ -1653,7 +1658,7 @@ function openDetail(id) {
         <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="3">3\u5929\u540E\u63D0\u9192</button>
         <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="7">7\u5929\u540E\u63D0\u9192</button>
       </div>
-      ${o.remindAt ? `<div class="rsub" style="text-align:center;margin-top:8px">\u5DF2\u8BBE\u63D0\u9192:${esc(fmtD(o.remindAt))} \u518D\u50AC\u6536 <button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="clear-remind" data-oid="${esc(o.id)}">\u6E05\u9664</button></div>` : ""}`;
+      ${snoozed(o) ? `<div class="rsub" style="text-align:center;margin-top:8px">\u5DF2\u8BBE\u63D0\u9192:${esc(fmtD(o.remindAt))} \u518D\u50AC\u6536 <button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="clear-remind" data-oid="${esc(o.id)}">\u6E05\u9664</button></div>` : ""}`;
   }
   let expectHtml = "";
   const lateDays = expectOverdue(o);
@@ -1763,12 +1768,18 @@ function pay(id, kind, method = "\u5FAE\u4FE1") {
   const t = nowStr(), amount = m[kind] / 100;
   o[spec.field] = t;
   db.payments.push({ oid: id, kind: spec.label, amount, at: t, method });
+  if (kind === "final") clearSnooze(o);
   save();
   renderAll();
   rerenderDetail();
   Notify.syncDaily();
   toast(`\u5DF2\u6536${spec.label} ${fmtMoney3(amount)} \xB7 ${method}`, { label: "\u64A4\u9500", run: () => undoPay(id, kind, t) });
   return true;
+}
+function clearSnooze(o) {
+  if (!o || !o.remindAt) return;
+  o.remindAt = null;
+  Notify.cancelSnooze(o.id);
 }
 function undoPay(id, kind, at) {
   const spec = paymentSpec(kind), o = byId(id);
@@ -2186,6 +2197,7 @@ function saveEdit() {
   o.deposit = depositCents / 100;
   o.contact = $("#e-contact").value.trim();
   o.note = $("#e-note").value.trim();
+  if (o.settleVia === "douyin" || unFin(o) <= 0) clearSnooze(o);
   const returnDetail = ui.detail === o.id ? o.id : null;
   save();
   closeSheets();

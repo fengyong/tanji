@@ -90,6 +90,8 @@ export function openDetail(id){
   let snoozeHtml='';
   if(payOf(o)==='待尾款'){
     const log=remindLogOf(o),last=log[log.length-1],recent=log.slice(-4).reverse();
+    // 「已设提醒」只认未到期的备忘:时间一过提醒就响完了,再写「MM-DD 再催收」说的是个过去的日期
+    // (列表页/收款页的「已设提醒」标签都走 snoozed,这里是同一口径)
     snoozeHtml=`<div class="sec-title" style="margin-top:16px">催收跟进<span class="more" data-act="remind-open" data-oid="${esc(o.id)}">再催一次 ›</span></div>
       <div class="card" style="background:#F8F8FA;box-shadow:none;padding:12px 13px">
         <div class="rsub" style="margin:0${recent.length?' 0 8px':''};line-height:1.5">${log.length?`已催 ${log.length>=50?'50+':log.length} 次 · 最近 ${esc(fmtDT(last.at))}`:'还没催过;第一次跟进也记一笔,对方怎么答下次不用重新问'}</div>
@@ -102,7 +104,7 @@ export function openDetail(id){
         <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="3">3天后提醒</button>
         <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="7">7天后提醒</button>
       </div>
-      ${o.remindAt?`<div class="rsub" style="text-align:center;margin-top:8px">已设提醒:${esc(fmtD(o.remindAt))} 再催收 <button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="clear-remind" data-oid="${esc(o.id)}">清除</button></div>`:''}`;
+      ${snoozed(o)?`<div class="rsub" style="text-align:center;margin-top:8px">已设提醒:${esc(fmtD(o.remindAt))} 再催收 <button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="clear-remind" data-oid="${esc(o.id)}">清除</button></div>`:''}`;
   }
 
   // 平台单(抖音商单)的钱不由达人催,但"说好 T+7 到账"必须能落成日期,

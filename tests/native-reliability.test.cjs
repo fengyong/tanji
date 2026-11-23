@@ -1043,3 +1043,74 @@ test('跨自然日要重排每日催收汇总(阈值是时间推移,不是数据
   assert.notEqual(after.body,first.body,'跨日重排后文案应反映当前数据');
   assert.equal(a.run('lastDailySyncDay'),a.run('TODAY'),'重排后应记下当天,同一天不重复排');
 });
+
+/* ---------- 第八轮深度 review:催收备忘要跟着收款状态走 ----------
+ * 备忘是设当时的快照,不会自己跟着收款状态走。尾款收齐 / 改成平台单之后它还在排,
+ * 半夜就会为一笔已经不欠钱的单弹「尾款该跟进了」—— 而详情页此时连清除入口都没有。 */
+
+test('尾款收齐后,催收备忘通知必须撤销、remindAt 清掉(否则半夜为已结清的单弹提醒)',async()=>{
+  const a=app();
+  setState(a,[order({id:1,store:'逾期店',shotAt:'2026-01-01T11:00',depositPaidAt:'2026-01-01T09:00'})],
+    [{oid:1,kind:'定金',amount:200,at:'2026-01-01T09:00',method:'微信'}]);
+  await a.run('save()');await a.run('loadState()');
+  a.events.click({target:{closest:()=>({dataset:{act:'snooze',oid:'1',d:'3'}})}});   // 用户点「3天后提醒」
+  await tick();await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===100001).length,1,'前置:备忘通知在排');
+  a.run('ui.payCtx={oid:1,kind:"final",method:"微信"}');
+  a.events.click({target:{closest:()=>({dataset:{act:'confirm-pay'}})}});           // 客户付清尾款
+  await tick();await tick();
+  assert.equal(a.run('unFin(db.orders[0])'),0,'前置:尾款已收齐');
+  assert.equal(a.run('db.orders[0].remindAt'),null,'已结清的单不该再带着催收备忘');
+  assert.equal(a.device.pending.filter(n=>+n.id===100001).length,0,
+    '尾款收齐后备忘通知必须撤销,实测 pending='+JSON.stringify(a.device.pending.map(n=>n.id)));
+  a.run('openDetail(1)');
+  assert.equal(a.run(`$('#detail-body').innerHTML`).includes('已设提醒'),false,'已结清的单详情页不该再出现「已设提醒」');
+});
+
+test('设了备忘的私收单改成平台单后,备忘通知必须撤销(平台单不催收)',async()=>{
+  const a=app();
+  setState(a,[OVERDUE]);
+  await a.run('save()');await a.run('loadState()');
+  a.events.click({target:{closest:()=>({dataset:{act:'snooze',oid:'1',d:'3'}})}});
+  await tick();await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===100001).length,1,'前置:备忘通知在排');
+  a.run('openEdit(1)');
+  for(const [k,v] of [['#e-store','测试店'],['#e-price','1000'],['#e-deposit','200'],['#e-date','2026-11-01'],['#e-time','10:00'],['#e-settle','douyin']])a.element(k).value=v;
+  a.element('#e-need-main').checked=true;a.element('#e-need-sub').checked=true;
+  a.events.click({target:{closest:()=>({dataset:{act:'save-edit',oid:'1'}})}});
+  await tick();await tick();
+  assert.equal(a.run('db.orders[0].settleVia'),'douyin','前置:已改为平台单');
+  assert.equal(a.run('db.orders[0].remindAt'),null,'平台单不该带着催收备忘');
+  assert.equal(a.device.pending.filter(n=>+n.id===100001).length,0,
+    '改为平台单后备忘通知必须撤销,实测 pending='+JSON.stringify(a.device.pending.map(n=>n.id)));
+});
+
+test('导入「已结清 / 平台单却带着 remindAt」的备份:不排催收备忘,残留的 remindAt 归一为空',async()=>{
+  const a=app();
+  const dep={kind:'定金',amount:200,at:'2026-01-01T09:00',method:'微信'};
+  const backup={version:'0.6',threshold:15,
+    orders:[
+      order({id:3,store:'已结清带备忘',shotAt:'2026-01-01T11:00',depositPaidAt:'2026-01-01T09:00',finalPaidAt:'2026-01-10T10:00',remindAt:'2026-11-25T09:00'}),
+      order({id:4,store:'平台单带备忘',shotAt:'2026-01-01T11:00',settleVia:'douyin',remindAt:'2026-11-25T09:00'}),
+      order({id:5,store:'仍待尾款',shotAt:'2026-01-01T11:00',depositPaidAt:'2026-01-01T09:00',remindAt:'2026-11-25T09:00'}),
+    ],
+    payments:[{oid:3,...dep},{oid:3,kind:'尾款',amount:800,at:'2026-01-10T10:00',method:'微信'},{oid:5,...dep}]};
+  assert.equal(await a.run(`replaceData(${JSON.stringify(backup)})`),true);
+  await tick();await tick();
+  assert.equal(a.device.pending.filter(n=>+n.id===100003).length,0,'已结清的单不该排催收备忘');
+  assert.equal(a.device.pending.filter(n=>+n.id===100004).length,0,'平台单不该排催收备忘');
+  assert.equal(a.device.pending.filter(n=>+n.id===100005).length,1,'仍待尾款的私收单照常重排备忘');
+  assert.deepEqual(a.json('db.orders.map(o=>[o.id,o.remindAt])'),[[3,null],[4,null],[5,'2026-11-25T09:00']]);
+});
+
+test('备忘时间一过(提醒已响完),详情页不再显示「已设提醒」(列表/收款页只认未到期,详情页同一口径)',()=>{
+  const a=app();
+  // 沙箱时钟 2026-11-21T12:00:备忘设在 11-20,已经过期
+  setState(a,[order({id:1,shotAt:'2026-01-01T11:00',depositPaidAt:'2026-01-01T09:00',remindAt:'2026-11-20T09:00'})],
+    [{oid:1,kind:'定金',amount:200,at:'2026-01-01T09:00',method:'微信'}]);
+  a.run('openDetail(1)');
+  assert.equal(a.run('snoozed(db.orders[0])'),false,'前置:备忘已过期');
+  assert.equal(a.run(`$('#detail-body').innerHTML`).includes('已设提醒:'),false,'过期的备忘不该再写「已设提醒:MM-DD 再催收」');
+  a.run("db.orders[0].remindAt='2026-11-25T09:00';openDetail(1)");
+  assert.equal(a.run(`$('#detail-body').innerHTML`).includes('已设提醒:11-25'),true,'未到期的备忘照常显示');
+});
