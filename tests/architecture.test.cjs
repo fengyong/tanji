@@ -96,7 +96,7 @@ test('依赖方向:只允许白名单内的跨层边', () => {
     ui: 4, derived: 5,
     sheets: 6, accounts: 6, stats: 6, notify: 6,
     'views/home': 7, 'views/trip': 7, 'views/orders': 7, 'views/pay': 7, 'views/stats': 7,
-    'order-forms': 7, 'order-actions': 7, detail: 7, 'share-image': 7, export: 7,
+    'order-forms': 7, 'order-actions': 7, detail: 7, 'share-image': 7, export: 7, 'avatar-crop': 7,
     actions: 8, main: 9,
   };
   // 白名单:跨层但层序不够表达的特殊允许边(每条必须带理由)
@@ -136,7 +136,7 @@ test('依赖方向:只允许白名单内的跨层边', () => {
 test('禁区:视图/业务/动作层不得出现平台与存储关键字', () => {
   // 口径声明:import 图正则只认单引号相对路径(当前代码风格下无遗漏);
   // 改风格(双引号/裸模块名)时必须同步放宽,否则本文件整体失效。
-  const CHECK = ['views/', 'detail.js', 'order-forms.js', 'order-actions.js', 'accounts.js', 'stats.js', 'sheets.js', 'share-image.js', 'export.js', 'notify.js', 'actions.js', 'main.js'];
+  const CHECK = ['views/', 'detail.js', 'order-forms.js', 'order-actions.js', 'accounts.js', 'stats.js', 'sheets.js', 'share-image.js', 'export.js', 'avatar-crop.js', 'notify.js', 'actions.js', 'main.js'];
   for (const rel of CHECK) {
     const files = rel.endsWith('/') ? jsFiles(path.join(APP, rel)) : [path.join(APP, rel)];
     for (const file of files) {

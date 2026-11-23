@@ -4,9 +4,19 @@ const os=require('node:os');
 const path=require('node:path');
 const http=require('node:http');
 const {spawn}=require('node:child_process');
+const zlib=require('node:zlib');
 const root=path.join(__dirname,'..','www');
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'tanji-browser-'));
 const chrome=process.env.CHROME_BIN||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+/* 600×300 测试图:左/中/右三等分分别是红/绿/蓝。头像默认取居中正方形 → 中心是绿;
+   把图拖到最右 → 中心变蓝。用来验证「取景框对着哪,存进去的就是哪一块」。 */
+function stripPng(file){
+  const W=600,H=300,raw=Buffer.alloc((W*3+1)*H);
+  for(let y=0;y<H;y++){const o=y*(W*3+1);for(let x=0;x<W;x++){const c=x<200?[255,0,0]:x<400?[0,200,0]:[0,0,255];raw[o+1+x*3]=c[0];raw[o+2+x*3]=c[1];raw[o+3+x*3]=c[2]}}
+  const chunk=(type,data)=>{const len=Buffer.alloc(4);len.writeUInt32BE(data.length);const body=Buffer.concat([Buffer.from(type),data]);const crc=Buffer.alloc(4);crc.writeUInt32BE(zlib.crc32(body)>>>0);return Buffer.concat([len,body,crc])};
+  const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(W,0);ihdr.writeUInt32BE(H,4);ihdr[8]=8;ihdr[9]=2;
+  fs.writeFileSync(file,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]));
+}
 const server=http.createServer((request,response)=>{
   const pathname=new URL(request.url,'http://localhost').pathname;
   const relative=pathname==='/'?'index.html':pathname.slice(1);
@@ -183,13 +193,48 @@ const server=http.createServer((request,response)=>{
     assert.ok(iosRow.isLink?/^https:\/\/apps\.apple\.com\//.test(iosRow.href):iosRow.badge==='即将上架','iOS 原生版入口状态异常: '+JSON.stringify(iosRow));
     await click('#v-stats [data-act="restore-backup"]');await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.busy?setTimeout(check,25):resolve();check()})');
     assert.equal(await evaluate('__TANJI__.db.orders.length'),1);assert.equal(await evaluate('__TANJI__.db.payments.length'),1);
+    // 头像裁剪:选图 → 全屏裁剪层 → 「使用」只把 128×128 的裁剪结果存进草稿。
+    // 不调整直接用 = 以前的居中正方形裁切(逐像素一致);拖动后存的是取景框对着的那一块;「取消」不动草稿。
+    const stripPath=path.join(profile,'strip.png');stripPng(stripPath);
+    const stripB64=fs.readFileSync(stripPath).toString('base64');
+    const centerPixel=async url=>evaluate(`(async()=>{const i=new Image();i.src=${JSON.stringify(url)};await i.decode();const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.drawImage(i,0,0);return [i.naturalWidth,i.naturalHeight,...g.getImageData(64,64,1,1).data].slice(0,6)})()`);
+    const pickAvatar=async()=>{const {root:doc}=await call('DOM.getDocument');const input=await call('DOM.querySelector',{nodeId:doc.nodeId,selector:'#avatar-file'});await call('DOM.setFileInputFiles',{nodeId:input.nodeId,files:[stripPath]});await evaluate('new Promise(resolve=>{const check=()=>!document.querySelector("#avatar-crop").hidden?resolve():setTimeout(check,25);check()})')};
+    const nextDraft=async not=>evaluate(`new Promise(resolve=>{const check=()=>__TANJI__.ui.draftAvatar&&__TANJI__.ui.draftAvatar!==${JSON.stringify(not)}?resolve(__TANJI__.ui.draftAvatar):setTimeout(check,25);check()})`);
+    await click('.tab[data-tab="stats"]');await evaluate(`document.querySelector('#v-stats [data-act="open-account"]').click()`);
+    // 记下每次出图用的取景区域(原图像素坐标):断言的是几何,不是 JPEG 字节 —— 同一张图先按预览尺寸
+    // 画过再缩小出图,浏览器走的重采样路径略有差异,色块边缘会有个位数级的像素差,肉眼不可见。
+    await evaluate("window.__cropRects=[];const origCrop=TanJiImage.crop;TanJiImage.crop=async(img,rect,preset)=>{window.__cropRects.push(rect);return origCrop(img,rect,preset)};'ok'");
+    await pickAvatar();
+    assert.equal(await evaluate('__TANJI__.ui.draftAvatar'),null,'选图后先进裁剪层,草稿不该被改');
+    await click('[data-act="crop-use"]');
+    const centered=await nextDraft(null);
+    assert.equal(await evaluate(`document.querySelector('#avatar-crop').hidden`),true,'「使用」后裁剪层应收起');
+    assert.equal(await evaluate(`document.querySelector('#sheet-account').classList.contains('show')`),true,'账号弹层应保持打开');
+    assert.deepEqual(await evaluate('window.__cropRects'),[{sx:150,sy:0,sw:300,sh:300}],'不调整直接「使用」= 以前的居中正方形裁切:600×300 的图应取中间 300×300,实际 '+JSON.stringify(await evaluate('window.__cropRects')));
+    let [w,h,...rgb]=await centerPixel(centered);
+    assert.deepEqual([w,h],[128,128],'头像必须是 128×128');
+    assert.ok(rgb[1]>150&&rgb[0]<40&&rgb[2]<40,'默认取景框对着的应是中间的绿色区域,实测 '+rgb);
+    await pickAvatar();
+    const box=await evaluate(`(()=>{const r=document.querySelector('#crop-canvas').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+    await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:box.x,y:box.y});
+    await call('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:box.x-400,y:box.y});
+    await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:box.x-400,y:box.y});
+    await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+    await click('[data-act="crop-use"]');
+    const dragged=await nextDraft(centered);
+    rgb=(await centerPixel(dragged)).slice(2);
+    assert.ok(rgb[2]>150&&rgb[0]<40&&rgb[1]<40,'把图拖到最右后,存进去的应是右边的蓝色区域,实测 '+rgb);
+    await pickAvatar();
+    await click('[data-act="crop-cancel"]');
+    assert.deepEqual(await evaluate(`[document.querySelector('#avatar-crop').hidden,__TANJI__.ui.draftAvatar===${JSON.stringify(dragged)}]`),[true,true],'「取消」应收起裁剪层且不动草稿');
+    await click('#sheet-account [data-act="close-sheet"]');
     await evaluate('navigator.serviceWorker.ready');await evaluate('__TANJI__.Store.queue');
     await call('Network.enable');await call('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0});
     await call('Page.reload');await ready();assert.equal(await evaluate('__TANJI__.db.orders.length'),1);assert.equal(await evaluate('__TANJI__.db.payments[0].amount'),200);
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','touch feel locked','sheet drag to dismiss','future 7 days bar','collection follow-up log','payment + statistics','payment undo','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','offline reload'],consoleErrors:errors},null,2));
+    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','touch feel locked','sheet drag to dismiss','future 7 days bar','collection follow-up log','payment + statistics','payment undo','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','avatar crop','offline reload'],consoleErrors:errors},null,2));
     await send('Browser.close');
   }finally{
     if(socket)socket.close();

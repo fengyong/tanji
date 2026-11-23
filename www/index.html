@@ -395,6 +395,17 @@
   .pal-name b{color:var(--ink);font-weight:700}
   .prov-chip{cursor:pointer}
   .prov-chip.on{background:var(--ink);color:#fff;font-weight:700}
+
+  /* ===== 头像裁剪层 =====
+     全屏盖在账号弹层之上:账号弹层保持打开,表单输入不丢,也不和弹层的下拉关闭手势纠缠。
+     顶/底留白对齐状态栏(52px)与 Home 指示条。 */
+  .crop{position:absolute;inset:0;z-index:100;background:#0E0E12;display:flex;flex-direction:column;padding:52px 0 24px}
+  .crop[hidden]{display:none}
+  .crop-top{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 8px;color:#fff}
+  .crop-title{font-size:15px;font-weight:700}
+  .crop-use{border:none;border-radius:16px;background:var(--brand);color:#fff;font:inherit;font-size:13.5px;font-weight:700;padding:8px 18px}
+  .crop canvas{flex:1;min-height:0;width:100%;display:block;touch-action:none}
+  .crop-hint{text-align:center;color:rgba(255,255,255,.6);font-size:12px;padding:10px 0 6px}
 </style>
 </head>
 <body>
@@ -601,6 +612,17 @@
           <button class="btn ghost" data-act="export-json">导出 JSON 备份</button>
         </div>
       </div>
+    </div>
+
+    <!-- 头像裁剪层:选完图后盖上来。账号里只存「使用」时裁出的 128×128 结果,原图不落库。 -->
+    <div class="crop" id="avatar-crop" hidden>
+      <div class="crop-top">
+        <button class="sheet-close" data-act="crop-cancel" aria-label="取消"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <span class="crop-title">调整头像</span>
+        <button class="crop-use" data-act="crop-use">使用</button>
+      </div>
+      <canvas id="crop-canvas" aria-label="拖动或双指缩放调整头像"></canvas>
+      <div class="crop-hint">拖动调整位置 · 双指缩放 · 双击放大</div>
     </div>
 
     <div class="toast" id="toast"></div>

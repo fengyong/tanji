@@ -1555,27 +1555,200 @@ function deleteAccount() {
   renderAll();
   toast("\u5DF2\u5220\u9664\u8D26\u53F7");
 }
-function initAvatarInput() {
-  const input = $("#avatar-file");
-  input.addEventListener("change", async () => {
-    const file = input.files && input.files[0];
-    input.value = "";
-    if (!file) return;
-    try {
-      ui.draftAvatar = await TanJiImage.avatar(file);
-      renderAvatarPreview();
-      toast("\u5934\u50CF\u5DF2\u5C31\u7EEA,\u4FDD\u5B58\u540E\u751F\u6548");
-    } catch (e) {
-      toast("\u8FD9\u5F20\u56FE\u5904\u7406\u4E0D\u4E86,\u6362\u4E00\u5F20\u8BD5\u8BD5");
-    }
-  });
-}
 function dayBadge(n, sum) {
   if (sum >= 2500) return { e: "\u{1F48E}", t: "\u738B\u724C\u65E5" };
   if (n >= 5) return { e: "\u{1F525}", t: "\u7206\u5355" };
   if (sum >= 1e3) return { e: "\u{1F4B0}", t: "\u5343\u5143\u65E5" };
   if (n >= 3) return { e: "\u2B50", t: "\u5FD9\u788C\u65E5" };
   return null;
+}
+
+// src/app/avatar-crop.js
+var MAX_ZOOM = 4;
+function coverScale(img, crop) {
+  return Math.max(crop.size / img.naturalWidth, crop.size / img.naturalHeight);
+}
+function clampView(view, img, crop) {
+  const min = coverScale(img, crop);
+  const scale = Math.min(Math.max(view.scale, min), min * MAX_ZOOM);
+  const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
+  return {
+    scale,
+    x: Math.min(Math.max(view.x, crop.x + crop.size - w), crop.x),
+    y: Math.min(Math.max(view.y, crop.y + crop.size - h), crop.y)
+  };
+}
+function initialView(img, crop) {
+  const scale = coverScale(img, crop);
+  return clampView({ scale, x: crop.x + (crop.size - img.naturalWidth * scale) / 2, y: crop.y + (crop.size - img.naturalHeight * scale) / 2 }, img, crop);
+}
+function zoomAt(view, img, crop, factor, px, py) {
+  const scale = view.scale * factor;
+  return clampView({ scale, x: px - (px - view.x) * (scale / view.scale), y: py - (py - view.y) * (scale / view.scale) }, img, crop);
+}
+function sourceRect(view, crop) {
+  const sw = crop.size / view.scale;
+  return { sx: (crop.x - view.x) / view.scale, sy: (crop.y - view.y) / view.scale, sw, sh: sw };
+}
+var session = null;
+var nextFrame = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (fn) => setTimeout(fn, 16);
+var isCover = (s) => Math.abs(s.view.scale - coverScale(s.img, s.crop)) < 1e-6;
+function previewBitmap(img) {
+  const k = Math.min(1, 2048 / Math.max(img.naturalWidth, img.naturalHeight));
+  if (k === 1) return null;
+  const cv = document.createElement("canvas");
+  cv.width = Math.max(1, Math.round(img.naturalWidth * k));
+  cv.height = Math.max(1, Math.round(img.naturalHeight * k));
+  const ctx = cv.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  return cv;
+}
+function draw() {
+  const s = session;
+  if (!s) return;
+  s.raf = 0;
+  const g = $("#crop-canvas").getContext("2d");
+  if (!g) return;
+  const { box, dpr, crop: c, view: v } = s, src = s.preview || s.img, k = s.preview ? s.preview.width / s.img.naturalWidth : 1;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = "#0E0E12";
+  g.fillRect(0, 0, box.width, box.height);
+  g.drawImage(src, v.x, v.y, s.img.naturalWidth * v.scale * k, s.img.naturalHeight * v.scale * k);
+  g.fillStyle = "rgba(14,14,18,.62)";
+  g.beginPath();
+  g.rect(0, 0, box.width, box.height);
+  g.rect(c.x, c.y, c.size, c.size);
+  g.fill("evenodd");
+  g.strokeStyle = "rgba(255,255,255,.9)";
+  g.lineWidth = 1.5;
+  g.strokeRect(c.x + 0.75, c.y + 0.75, c.size - 1.5, c.size - 1.5);
+  g.strokeStyle = "rgba(255,255,255,.55)";
+  g.lineWidth = 1;
+  g.beginPath();
+  g.arc(c.x + c.size / 2, c.y + c.size / 2, c.size / 2, 0, Math.PI * 2);
+  g.stroke();
+}
+function scheduleDraw() {
+  if (session && !session.raf) session.raf = nextFrame(draw);
+}
+function openCrop(img) {
+  if (!img || !(img.naturalWidth > 0 && img.naturalHeight > 0)) throw new Error("\u56FE\u7247\u8BFB\u53D6\u5931\u8D25");
+  closeCrop();
+  const canvas = $("#crop-canvas");
+  $("#avatar-crop").hidden = false;
+  const box = canvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.max(1, Math.round(box.width * dpr));
+  canvas.height = Math.max(1, Math.round(box.height * dpr));
+  const size = Math.max(1, Math.floor(Math.min(box.width - 32, box.height - 32)));
+  const crop = { x: (box.width - size) / 2, y: (box.height - size) / 2, size };
+  session = { img, crop, box, dpr, preview: previewBitmap(img), pointers: /* @__PURE__ */ new Map(), pan: null, pinch: null, tap: null, raf: 0 };
+  session.view = initialView(img, crop);
+  draw();
+}
+function closeCrop() {
+  if (!session) return;
+  session = null;
+  $("#avatar-crop").hidden = true;
+}
+async function useCrop() {
+  const s = session;
+  if (!s) return;
+  const rect = sourceRect(s.view, s.crop);
+  closeCrop();
+  try {
+    ui.draftAvatar = await TanJiImage.crop(s.img, rect, "avatar");
+    renderAvatarPreview();
+    toast("\u5934\u50CF\u5DF2\u5C31\u7EEA,\u4FDD\u5B58\u540E\u751F\u6548");
+  } catch (e) {
+    toast("\u8FD9\u5F20\u56FE\u5904\u7406\u4E0D\u4E86,\u6362\u4E00\u5F20\u8BD5\u8BD5");
+  }
+}
+function bindGestures() {
+  const canvas = $("#crop-canvas");
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const points = (s) => [...s.pointers.values()];
+  canvas.addEventListener("pointerdown", (e) => {
+    const s = session;
+    if (!s) return;
+    e.preventDefault();
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch (err) {
+    }
+    const p = pos(e);
+    s.pointers.set(e.pointerId, p);
+    if (s.pointers.size === 1) {
+      s.pinch = null;
+      s.pan = { x: s.view.x, y: s.view.y, p };
+      const now2 = Date.now();
+      if (s.tap && now2 - s.tap.t < 300 && Math.hypot(p.x - s.tap.x, p.y - s.tap.y) < 28) {
+        const factor = isCover(s) ? 2.5 : coverScale(s.img, s.crop) / s.view.scale;
+        s.view = zoomAt(s.view, s.img, s.crop, factor, s.crop.x + s.crop.size / 2, s.crop.y + s.crop.size / 2);
+        s.pan = { x: s.view.x, y: s.view.y, p };
+        s.tap = null;
+        scheduleDraw();
+      } else s.tap = { x: p.x, y: p.y, t: now2 };
+    } else if (s.pointers.size === 2) {
+      const [a, b] = points(s);
+      s.pan = null;
+      s.tap = null;
+      s.pinch = { scale: s.view.scale, x: s.view.x, y: s.view.y, dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+    }
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    const s = session;
+    if (!s || !s.pointers.has(e.pointerId)) return;
+    const p = pos(e);
+    s.pointers.set(e.pointerId, p);
+    if (s.pointers.size === 1 && s.pan) s.view = clampView({ ...s.view, x: s.pan.x + p.x - s.pan.p.x, y: s.pan.y + p.y - s.pan.p.y }, s.img, s.crop);
+    else if (s.pointers.size === 2 && s.pinch) {
+      const [a, b] = points(s), scale = s.pinch.scale * (Math.hypot(a.x - b.x, a.y - b.y) / s.pinch.dist);
+      s.view = clampView({ scale, x: (a.x + b.x) / 2 - (s.pinch.cx - s.pinch.x) * (scale / s.pinch.scale), y: (a.y + b.y) / 2 - (s.pinch.cy - s.pinch.y) * (scale / s.pinch.scale) }, s.img, s.crop);
+    } else return;
+    scheduleDraw();
+  });
+  const end = (e) => {
+    const s = session;
+    if (!s) return;
+    s.pointers.delete(e.pointerId);
+    if (s.pointers.size === 1) {
+      const [p] = points(s);
+      s.pinch = null;
+      s.pan = { x: s.view.x, y: s.view.y, p };
+    } else if (!s.pointers.size) {
+      s.pan = null;
+      s.pinch = null;
+    }
+  };
+  canvas.addEventListener("pointerup", end);
+  canvas.addEventListener("pointercancel", end);
+  canvas.addEventListener("wheel", (e) => {
+    const s = session;
+    if (!s) return;
+    e.preventDefault();
+    s.view = zoomAt(s.view, s.img, s.crop, Math.exp(-e.deltaY * 15e-4), s.crop.x + s.crop.size / 2, s.crop.y + s.crop.size / 2);
+    scheduleDraw();
+  }, { passive: false });
+}
+function initAvatarInput() {
+  const input = $("#avatar-file");
+  bindGestures();
+  input.addEventListener("change", async () => {
+    const file = input.files && input.files[0];
+    input.value = "";
+    if (!file) return;
+    try {
+      openCrop(await TanJiImage.load(file));
+    } catch (e) {
+      closeCrop();
+      toast("\u8FD9\u5F20\u56FE\u5904\u7406\u4E0D\u4E86,\u6362\u4E00\u5F20\u8BD5\u8BD5");
+    }
+  });
 }
 
 // src/app/detail.js
@@ -3104,6 +3277,12 @@ registerAction("remove-avatar", (t, oid) => {
   ui.draftAvatar = null;
   renderAvatarPreview();
 });
+registerAction("crop-cancel", (t, oid) => {
+  closeCrop();
+});
+registerAction("crop-use", (t, oid) => {
+  useCrop();
+});
 registerAction("copy-account", (t, oid) => {
   const a = accById(t.dataset.id);
   if (!a) {
@@ -3366,7 +3545,7 @@ document.addEventListener("click", (e) => {
     toast("\u6B63\u5728\u8BFB\u5199\u6570\u636E\uFF0C\u8BF7\u7A0D\u5019");
     return;
   }
-  if (Store.blocked && !["retry-storage", "export-json", "export-csv", "export-db", "export-checkpoint", "tab", "open", "close-sheet", "privacy", "app-store-soon", "goto-collect", "chip", "bucket", "period", "day", "mnav", "mtoday", "share", "share-confirm", "open-schema", "open-account", "acc-filter", "acc-pick", "prov-pick", "pal-pick", "copy-account", "assign-open", "pick-avatar", "shot-pick", "nav-place", "remind-open", "expect-open"].includes(act)) {
+  if (Store.blocked && !["retry-storage", "export-json", "export-csv", "export-db", "export-checkpoint", "tab", "open", "close-sheet", "privacy", "app-store-soon", "goto-collect", "chip", "bucket", "period", "day", "mnav", "mtoday", "share", "share-confirm", "open-schema", "open-account", "acc-filter", "acc-pick", "prov-pick", "pal-pick", "copy-account", "assign-open", "pick-avatar", "crop-cancel", "crop-use", "shot-pick", "nav-place", "remind-open", "expect-open"].includes(act)) {
     toast("\u4E3A\u4FDD\u62A4\u539F\u6570\u636E\uFF0C\u5199\u5165\u5DF2\u6682\u505C\uFF0C\u8BF7\u5148\u91CD\u8BD5\u8BFB\u53D6");
     return;
   }

@@ -131,18 +131,6 @@ export function deleteAccount(){
   if(ui.accFilter===a.id)ui.accFilter=null;
   save();closeSheets();renderAll();toast('已删除账号');
 }
-export function initAvatarInput(){
-  const input=$('#avatar-file');
-  input.addEventListener('change',async()=>{
-    const file=input.files&&input.files[0];input.value='';
-    if(!file)return;
-    try{
-      // 裁剪/压缩/体积上限统一交给图像模块,页面不再自己碰 canvas
-      ui.draftAvatar=await TanJiImage.avatar(file);
-      renderAvatarPreview();toast('头像已就绪,保存后生效');
-    }catch(e){toast('这张图处理不了,换一张试试')}
-  });
-}
 
 /* ================= 单日勋章(激励) =================
  * ⭐ 忙碌日 ≥3 单 · 🔥 爆单 ≥5 单(点封顶 6)

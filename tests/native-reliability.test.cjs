@@ -1165,3 +1165,73 @@ test('导入时 SQLite 写失败:镜像副本必须退回替换前数据,重启�
   await b.run('loadState()');
   assert.equal(b.run('db.orders[0].store'),'原有数据','重启后不能变成导入的数据');
 });
+
+/* ---------- 头像裁剪(第八轮 follow-up):取景数学 + 选图 → 裁剪层 → 使用/取消 ---------- */
+const IMG={naturalWidth:600,naturalHeight:300},CROP={x:16,y:100,size:358};
+
+test('头像裁剪·取景数学:不调整 = 居中裁切;缩放有上下限;取景框始终落在图内;缩放锚点不动',()=>{
+  const a=app();
+  const near=(x,y,msg)=>assert.ok(Math.abs(x-y)<1e-6,`${msg}(${x} ≠ ${y})`);
+  a.run(`globalThis.__img=${JSON.stringify(IMG)};globalThis.__crop=${JSON.stringify(CROP)};`);
+  a.run('globalThis.__v=initialView(__img,__crop);globalThis.__r=sourceRect(__v,__crop);');
+  near(a.run('__r.sx'),150,'不调整时取的应是水平居中的正方形: sx');near(a.run('__r.sy'),0,'sy');near(a.run('__r.sw'),300,'sw');
+  // 乱拉一通:缩放被夹在 [刚好铺满, 铺满×4],取景框不会超出图
+  a.run('globalThis.__far=clampView({scale:1e6,x:-1e6,y:1e6},__img,__crop);globalThis.__r2=sourceRect(__far,__crop);');
+  near(a.run('__far.scale'),358/300*a.run('MAX_ZOOM'),'缩放上限 = 铺满×MAX_ZOOM');
+  const r2=a.json('__r2');
+  assert.ok(r2.sx>=-1e-6&&r2.sy>=-1e-6&&r2.sx+r2.sw<=600+1e-6&&r2.sy+r2.sh<=300+1e-6,'取景框超出图片范围:'+JSON.stringify(r2));
+  a.run('globalThis.__far=clampView({scale:1e-9,x:0,y:0},__img,__crop);');
+  near(a.run('__far.scale'),358/300,'缩放下限 = 刚好铺满');
+  // 以某点为锚放大 2 倍:锚点底下的图像内容原地不动
+  a.run('globalThis.__z=zoomAt(__v,__img,__crop,2,__crop.x+100,__crop.y+50);');
+  const vx=a.run('__v.x'),vs=a.run('__v.scale'),zx=a.run('__z.x'),zs=a.run('__z.scale'),vy=a.run('__v.y'),zy=a.run('__z.y');
+  near((CROP.x+100-vx)/vs,(CROP.x+100-zx)/zs,'缩放锚点横向漂了');
+  near((CROP.y+50-vy)/vs,(CROP.y+50-zy)/zs,'缩放锚点纵向漂了');
+});
+
+test('TanJiImage.crop:先铺白底,再把源矩形画到预设尺寸,按预设卡体积上限',async()=>{
+  const a=app();
+  const calls=[];
+  const cv=a.element('created:canvas');
+  cv.getContext=()=>({fillRect:(...args)=>calls.push(['fillRect',...args]),drawImage:(...args)=>calls.push(['drawImage',...args])});
+  cv.toDataURL=(type,quality)=>{calls.push(['toDataURL',type,quality]);return 'data:image/jpeg;base64,'+'A'.repeat(2400)};
+  const url=await a.run(`TanJiImage.crop({naturalWidth:600,naturalHeight:300,complete:true},{sx:150,sy:0,sw:300,sh:300},'avatar')`);
+  assert.equal(url,'data:image/jpeg;base64,'+'A'.repeat(2400),'返回成品 dataURL');
+  assert.deepEqual([cv.width,cv.height],[128,128],'按 avatar 预设输出 128×128');
+  assert.deepEqual(calls[0],['fillRect',0,0,128,128],'第一步必须铺白底(JPEG 没有透明通道)');
+  assert.deepEqual(calls[1].slice(2),[150,0,300,300,0,0,128,128],'源矩形 → 目标尺寸');
+  assert.deepEqual(calls[2],['toDataURL','image/jpeg',0.82],'按预设质量出 JPEG');
+  await assert.rejects(()=>a.run(`TanJiImage.crop({naturalWidth:600,naturalHeight:300,complete:true},{sx:150,sy:0,sw:300,sh:300},'nope')`),/未知的图像预设/);
+  await assert.rejects(()=>a.run(`TanJiImage.crop({naturalWidth:600,naturalHeight:300,complete:true},{sx:0,sy:0,sw:0,sh:0},'avatar')`),/裁剪区域无效/);
+  cv.toDataURL=()=> 'data:image/jpeg;base64,'+'A'.repeat(300000);
+  await assert.rejects(()=>a.run(`TanJiImage.crop({naturalWidth:600,naturalHeight:300,complete:true},{sx:150,sy:0,sw:300,sh:300},'avatar')`),/偏大/);
+});
+
+test('头像裁剪·选图后进裁剪层,「使用」只把裁剪结果存进草稿,「取消」不动草稿',async()=>{
+  const a=app();
+  a.run(`TanJiImage.load=async()=>({naturalWidth:600,naturalHeight:300,complete:true});`);
+  a.run(`globalThis.__crops=[];TanJiImage.crop=async(img,rect,preset)=>{globalThis.__crops.push([rect,preset]);return 'data:image/jpeg;base64,/9j/crop'};`);
+  a.element('#crop-canvas').getBoundingClientRect=()=>({left:0,top:0,width:390,height:600});
+  let handler=null;
+  const orig=a.context.document.querySelector;
+  a.context.document.querySelector=sel=>sel==='#avatar-file'?{value:'x',files:[{name:'a.jpg',size:10,type:'image/jpeg'}],addEventListener:(n,fn)=>{if(n==='change')handler=fn}}:orig(sel);
+  a.run('initAvatarInput()');
+  a.context.document.querySelector=orig;
+  assert.ok(handler,'应拿到相册选图的 change 处理器');
+  await handler();
+  assert.equal(a.element('#avatar-crop').hidden,false,'选图后应打开裁剪层');
+  assert.equal(a.run('ui.draftAvatar'),null,'进裁剪层时草稿不变');
+  a.events.click({target:{closest:()=>({dataset:{act:'crop-use'}})}});
+  for(let i=0;i<4;i++)await tick();
+  assert.equal(a.run('ui.draftAvatar'),'data:image/jpeg;base64,/9j/crop','「使用」后草稿 = 裁剪结果');
+  const [[rect,preset]]=a.run('globalThis.__crops');
+  assert.equal(preset,'avatar');
+  assert.ok(Math.abs(rect.sx-150)<1e-9&&Math.abs(rect.sw-300)<1e-9,'不调整直接使用 = 居中裁切(600×300 的图裁中间 300×300),实际 '+JSON.stringify(rect));
+  assert.equal(a.element('#avatar-crop').hidden,true,'「使用」后裁剪层应收起');
+  await handler();
+  a.events.click({target:{closest:()=>({dataset:{act:'crop-cancel'}})}});
+  assert.equal(a.element('#avatar-crop').hidden,true,'「取消」应收起裁剪层');
+  assert.equal(a.run('ui.draftAvatar'),'data:image/jpeg;base64,/9j/crop','「取消」不动草稿');
+  assert.equal(a.run('globalThis.__crops.length'),1,'「取消」不该出图');
+});
+

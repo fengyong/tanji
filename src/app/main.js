@@ -7,7 +7,7 @@ import {Notify} from './notify.js';
 import {isOver,snoozed,overdueDays,accMatch} from './derived.js';
 import {buildSqliteBytes} from './sqlite-bytes.js';
 import {closeSheets,showSheet,toast} from './sheets.js';
-import {initAvatarInput} from './accounts.js';
+import {initAvatarInput} from './avatar-crop.js';
 import {initShotInput} from './order-forms.js';
 import {initSheetGestures} from './sheets.js';
 import {initSqlite} from './sqlite-bytes.js';

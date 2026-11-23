@@ -18,6 +18,7 @@ import * as sqliteNS from '../src/app/sqlite-bytes.js';
 import * as statsNS from '../src/app/stats.js';
 import * as shareNS from '../src/app/share-image.js';
 import * as notifyNS from '../src/app/notify.js';
+import * as avatarCropNS from '../src/app/avatar-crop.js';
 import '../src/app/actions.js'; // 顶层 click 委托(与旧加载顺序一致,启动段除外)
 import * as homeNS from '../src/app/views/home.js';
 import * as tripNS from '../src/app/views/trip.js';
@@ -28,7 +29,7 @@ const { renderHome } = homeNS, { renderTrip } = tripNS, { renderOrders } = order
   { renderPay } = payNS, { renderStats } = statsViewNS;
 
 Object.assign(globalThis, storageNS, utilNS, envNS, uiNS, derivedNS, demoNS, accountsNS,
-  orderFormsNS, orderActionsNS, detailNS, sheetsNS, exportNS, sqliteNS, statsNS, shareNS, notifyNS,
+  orderFormsNS, orderActionsNS, detailNS, sheetsNS, exportNS, sqliteNS, statsNS, shareNS, notifyNS, avatarCropNS,
   homeNS, tripNS, ordersNS, payNS, statsViewNS);
 
 /* export let 是模块 live binding,Object.assign 只拷当前值,之后读到的是死副本。

@@ -11,6 +11,7 @@ import {openDetail,rerenderDetail,MILE_LABEL} from './detail.js';
 import {closeSheets,showSheet,toast,dismissToast} from './sheets.js';
 import {exportCsv,exportJson,exportDb,download,confirmImport,restoreCheckpoint,exportCheckpoint} from './export.js';
 import {shareToday} from './share-image.js';
+import {closeCrop,useCrop} from './avatar-crop.js';
 import {renderOrders} from './views/orders.js';
 import {renderPay} from './views/pay.js';
 import {renderStats} from './views/stats.js';
@@ -158,6 +159,14 @@ registerAction('shot-clear',(t,oid)=>{
 
 registerAction('remove-avatar',(t,oid)=>{
   ui.draftAvatar=null;renderAvatarPreview();
+});
+
+registerAction('crop-cancel',(t,oid)=>{
+  closeCrop();
+});
+
+registerAction('crop-use',(t,oid)=>{
+  useCrop();
 });
 
 registerAction('copy-account',(t,oid)=>{
@@ -362,7 +371,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
   if(!Store.ready||Store.busy){toast('正在读写数据，请稍候');return}
-  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','shot-pick','nav-place','remind-open','expect-open'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
+  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','crop-cancel','crop-use','shot-pick','nav-place','remind-open','expect-open'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
   refreshClock();
   const fn=ACTIONS[act];
   if(fn)fn(t,oid);

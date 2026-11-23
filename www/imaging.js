@@ -36,8 +36,16 @@
 
   const isDataURL=value=>typeof value==='string'&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value);
 
-  /** File / Blob / dataURL → 已解码的 Image */
+  /** File / Blob / dataURL / 已解码的 <img> → 已解码的 Image */
   function load(source){
+    // 已经解码好的 <img>(头像裁剪器持有原图):直接复用,不二次解码
+    if(source&&typeof source.naturalWidth==='number'){
+      if(source.complete&&source.naturalWidth)return Promise.resolve(source);
+      return new Promise((resolve,reject)=>{
+        source.addEventListener('load',()=>resolve(source),{once:true});
+        source.addEventListener('error',()=>reject(new Error('图片读取失败')),{once:true});
+      });
+    }
     return new Promise((resolve,reject)=>{
       const img=new Image();
       let objectURL=null;
@@ -80,7 +88,38 @@
       ctx.globalAlpha=white;ctx.fillStyle='#fff';
       ctx.fillRect(0,0,width,height);ctx.globalAlpha=1;
     }
-    return cv.toDataURL('image/jpeg',quality);               // 5. JPEG 出图
+    return toJpeg(cv,quality);                               // 5. JPEG 出图
+  }
+
+  /** canvas → JPEG dataURL(白底在绘制时铺过) */
+  const toJpeg=(cv,quality)=>cv.toDataURL('image/jpeg',quality);
+
+  /**
+   * 从图片里裁出一块区域作为成品(头像裁剪器用):铺白底 → 按源矩形缩放到预设尺寸 → JPEG。
+   * 原图怎么拿、裁哪里由调用方决定;这里只负责出图与体积上限,与 render 同一条出口。
+   * @param {HTMLImageElement|File|Blob|string} source 已解码的 <img>(不二次解码)或其它来源
+   * @param {{sx,sy,sw,sh}} rect 原图像素坐标下的源区域
+   * @param {'avatar'|'door'|string} preset 预设名(决定输出尺寸、质量与体积上限)
+   */
+  async function crop(source,rect,preset='avatar'){
+    const opt=Object.prototype.hasOwnProperty.call(PRESETS,preset)?PRESETS[preset]:null;
+    if(!opt)throw new Error('未知的图像预设');
+    if(!rect||!(rect.sw>0&&rect.sh>0))throw new Error('裁剪区域无效');
+    const img=await load(source);
+    const {width,height,quality=0.8}=opt;
+
+    const cv=document.createElement('canvas');
+    cv.width=width;cv.height=height;
+    const ctx=cv.getContext('2d');
+    if(!ctx)throw new Error('当前环境不支持 canvas');
+
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);   // 1. 白底
+    ctx.drawImage(img,rect.sx,rect.sy,rect.sw,rect.sh,0,0,width,height);   // 2. 源区域 → 目标尺寸
+
+    const url=toJpeg(cv,quality);
+    const limit=LIMIT[preset]||Infinity;
+    if(url.length>limit)throw new Error('图片处理后仍然偏大');
+    return url;
   }
 
   /**
@@ -106,5 +145,5 @@
   /* DB 侧校验用:与 validateState 保持同一套判定,上限按预设区分 */
   const isValidStored=(value,max=LIMIT.avatar)=>isDataURL(value)&&value.length<=max;
 
-  root.TanJiImage={make,doorThumb,avatar,PRESETS,LIMIT,isDataURL,isValidStored};
+  root.TanJiImage={make,doorThumb,avatar,PRESETS,LIMIT,isDataURL,isValidStored,load,crop};
 })(typeof globalThis!=='undefined'?globalThis:this);
