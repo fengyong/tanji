@@ -268,6 +268,23 @@ const server=http.createServer((request,response)=>{
     assert.deepEqual(await evaluate('__TANJI__.db.orders.slice(-2).map(o=>o.accountId)'),[1,2],'两个选中账号应各生成一单');
     assert.deepEqual(await evaluate('__TANJI__.db.orders.slice(-2).map(o=>o.id)'),[3,4],'拆单必须分配不同订单 ID');
     assert.equal(await evaluate('__TANJI__.db.orders.slice(-2).every(o=>o.store==="双账号测试店"&&o.price===500&&o.shotAt===null)'),true);
+    // 连点防护(P1-2):保存后 sheet 有 340ms 滑动动画,期间 visibility 仍是 visible、
+    // 按钮仍可命中 —— 不锁指针事件,快速连点/双指同击会重复建单(多账号拆单时一次翻倍)。
+    // 机制断言(确定性):保存动作一触发,sheet 的指针事件必须立刻锁掉;
+    // 行为断言(兜底):紧接着再原地点一次,不能多出订单。
+    await click('.tab[data-tab="home"]');await click('#v-home [data-act="new-order"]');
+    await fill('#f-store','连点防护店');await fill('#f-price','300');await fill('#f-deposit','0');await fill('#f-date','2026-11-22');
+    // 等开场动画结束再取按钮坐标:动画中 getBoundingClientRect 是中间态,派发会落空
+    await evaluate('Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})))');
+    const savePos=await evaluate(`(()=>{const btn=document.querySelector('#sheet-new [data-act="save-order"]');const r=btn.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+    await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:savePos.x,y:savePos.y});
+    await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:savePos.x,y:savePos.y});
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('#sheet-new [data-act="save-order"]').closest('.sheet')).pointerEvents`),'none','保存后 sheet 必须锁掉指针事件:340ms 关闭动画期间按钮仍可见,连点会重复建单');
+    assert.equal(await evaluate('__TANJI__.db.orders.length'),5,'第一次保存应建出一笔');
+    await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:savePos.x,y:savePos.y});
+    await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:savePos.x,y:savePos.y});
+    await evaluate('Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})))');
+    assert.equal(await evaluate('__TANJI__.db.orders.length'),5,'连点保存只能建一笔订单,实测 '+await evaluate('__TANJI__.db.orders.length'));
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);

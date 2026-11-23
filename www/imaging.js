@@ -41,6 +41,9 @@
     // 已经解码好的 <img>(头像裁剪器持有原图):直接复用,不二次解码
     if(source&&typeof source.naturalWidth==='number'){
       if(source.complete&&source.naturalWidth)return Promise.resolve(source);
+      // 解码已失败(complete 但 naturalWidth=0):load/error 事件都已经错过,
+      // 挂监听会让 Promise 永久悬挂,裁剪器卡在「头像已就绪」之前的等待态
+      if(source.complete)return Promise.reject(new Error('图片读取失败'));
       return new Promise((resolve,reject)=>{
         source.addEventListener('load',()=>resolve(source),{once:true});
         source.addEventListener('error',()=>reject(new Error('图片读取失败')),{once:true});

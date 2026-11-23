@@ -277,7 +277,11 @@ export async function loadState(){
       if(source.value===null)continue;
       try{
         db=validateState({...source.value,payments:source.value.payments??[]});Store.mode='work';Store.ready=true;
-        await save();await rememberMode('work');return true;
+        // 返回值要照实:blocked(Web 多 Tab 抢锁失败)时 save/rememberMode 都是 false,
+        // 却 return true 会谎报迁移成功 —— 旧数据只加载进内存(只读),下次启动还会再走一遍
+        const saved=await save();
+        if(saved)await rememberMode('work');
+        return saved;
       }catch(error){source.ok=false}
     }
     if(sources.some(s=>!s.ok||s.value!==null)||work.uncertain||demo.uncertain)return blockLoad();

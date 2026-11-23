@@ -176,4 +176,12 @@ export function openDetail(id){
   showSheet('sheet-detail');
 }
 
-export function rerenderDetail(){if(ui.detail!=null&&ui.editId==null&&byId(ui.detail))openDetail(ui.detail)}
+export function rerenderDetail(){
+  if(ui.detail!=null&&ui.editId==null&&byId(ui.detail)){
+    // #detail-body 就是滚动容器:每 60s 的前台刷新、标记/收款后的重绘都会整体重建
+    // innerHTML,不记滚动位置的话,用户正看着的催收时间线每分钟被弹回顶部一次
+    const body=$('#detail-body'),top=body?body.scrollTop:0;
+    openDetail(ui.detail);
+    if(body)body.scrollTop=top;
+  }
+}

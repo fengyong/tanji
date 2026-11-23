@@ -37,7 +37,7 @@ registerDetailRerender(rerenderDetail);
 /* P1-T1:storage 的 UI 刷新与 SQLite 字节构建经注入回调,不再走 globalThis */
 import {registerStorageHooks,registerBytesBuilder} from './storage.js';
 import {download,previewImport} from './export.js';
-registerStorageHooks({renderAll,showTab,toast,closeSheets,notify:Notify,resetFilters(){ui.q='';ui.chip='all';ui.bucket='all'}});
+registerStorageHooks({renderAll,showTab,toast,closeSheets,notify:Notify,resetFilters(){ui.q='';ui.chip='all';ui.bucket='all';ui.accFilter=null}});
 registerBadgeCounter(()=>liveDb.orders.filter(accMatch).filter(o=>isOver(o)&&!snoozed(o)).length);
 registerDailySync(()=>Notify.syncDaily());
 registerBytesBuilder(buildSqliteBytes);

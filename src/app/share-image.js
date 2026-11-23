@@ -36,7 +36,7 @@ export function buildTodayImage(day=TODAY){
     g.fillText(o.store,pad+156,y+46,W-pad*2-320);
     const st=WT[workOf(o)][0];
     g.fillStyle=st;g.font='700 24px -apple-system,PingFang SC';g.fillText('● '+workOf(o),pad+158,y+88);
-    g.fillStyle='#8E8E93';g.font='500 24px -apple-system,PingFang SC';g.fillText(o.cat,pad+300,y+88);
+    g.fillStyle='#8E8E93';g.font='500 24px -apple-system,PingFang SC';g.fillText(o.cat,pad+300,y+88,W-pad*2-300);
     y+=rowH+gap;
   }
   g.fillStyle='#B9B9C0';g.font='500 24px -apple-system,PingFang SC';

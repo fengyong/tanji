@@ -87,7 +87,7 @@ export function duplicateOrder(oid){
   if(!Number.isSafeInteger(id)||id<1){toast('订单编号异常，无法复制');return}
   if(id>=100000){toast('订单编号已达上限(99999),请先导出备份并联系支持');return}
   const copy={...source,id,shotAt:null,submittedAt:null,shortAt:null,longAt:null,
-    depositPaidAt:null,finalPaidAt:null,remindAt:null,reviewResult:'',publishedAt:null};
+    depositPaidAt:null,finalPaidAt:null,remindAt:null,expectPayAt:null,reviewResult:'',publishedAt:null};
   for(const key of ['remindLog','photoThumb','gpsPlace'])delete copy[key];
   db.orders.push(copy);save();Notify.syncDeliver();Notify.syncDaily();
   closeSheets();renderAll();openEdit(id);toast('已复制订单，正在编辑副本');
@@ -163,7 +163,7 @@ export function openEdit(oid){
     <div class="sec-title">收款记录(可撤销 / 补记)</div>
     <div class="btn2" id="e-payments"></div>
     <div class="rsub" style="margin-top:6px;line-height:1.5">补记前请先保存修改；按已保存金额记一笔，平台单使用抖音商单，私收默认微信。撤销仅用于纠正错误收款，会同时移除对应流水。</div>`;
-  ui.draftProv=o.channel||'直客';ui.draftAccId=o.accountId??(ACCS().length?ACCS()[0].id:null);
+  ui.draftProv=o.channel||'直客';ui.draftAccId=o.accountId??null;
   renderAccPick('e-acc-block',ui.draftAccId);renderProvPick('e-prov-block',ui.draftProv);
   renderEditReceipts(o);ui.editSnapshot=editDraft();
   updateEditConflict();
@@ -193,14 +193,20 @@ export function saveEdit(){
   if(!['private','douyin'].includes(settleVia)){toast('请选择有效的结算方式');return}
   const needMain=$('#e-need-main').checked,needSub=$('#e-need-sub').checked;
   if(!needMain&&!needSub){toast('出片要求至少要勾选正片或副片');return}
-  if(accMulti()&&ui.draftAccId==null){toast('请选择账号');return}
+  // 账号不再强制:多账号下可选具体账号,也可选「未指定」(draftAccId=null),
+  // 只有「一个都没选」的新建流程才拦(见 saveOrder)
   o.store=store;o.cat=$('#e-cat').value;o.settleVia=settleVia;
   o.channel=chanFromDraft();o.partner=$('#e-partner').value.trim();
   o.location=$('#e-location').value.trim();
-  o.accountId=ACCS().length?(accMulti()?ui.draftAccId:ACCS()[0].id):null;
+  // 账号归属:多账号按用户选择(含「未指定」=null);单账号时不碰原值 ——
+  // 只改个备注就把「未指定」的历史单静默挂到唯一账号,是编辑期不该有的改挂
+  if(accMulti())o.accountId=ui.draftAccId??null;
   o.deliverMain=needMain;o.deliverSub=needSub;o.reviewResult=$('#e-review').value;
   o.appt=appt;o.price=priceCents/100;o.deposit=depositCents/100;
   o.contact=$('#e-contact').value.trim();o.note=$('#e-note').value.trim();
+  // 预计到账日只对平台单有意义:改回私收时清掉残留,否则数据里留着一个
+  // UI 上没有入口的字段,还会随 CSV/JSON/.db 导出继续带走
+  if(o.settleVia!=='douyin'&&o.expectPayAt!=null)o.expectPayAt=null;
   // 私收单改成平台单(平台单不催收),或改完后尾款已无待收:原先设的催收备忘失效
   if(o.settleVia==='douyin'||unFin(o)<=0)clearSnooze(o);
   const returnDetail=ui.detail===o.id?o.id:null;

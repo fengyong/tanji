@@ -79,7 +79,7 @@ export function renderTrip(){
     ${accChipbarHTML()}
     <div class="mgrid">
       <div class="mhead">
-        <div class="mtitle">${y}年${m}月<span class="msum">${mOrders.length} 个档期 · 成交 ${fmtMoney(mSum)} · 已收 ${fmtMoney(mPaidSum)}${mBadges}</span></div>
+        <div class="mtitle">${y}年${m}月<span class="msum">${mOrders.length} 个档期 · 成交 ${fmtMoney(mSum)} · 实收 ${fmtMoney(mPaidSum)}${mBadges}</span></div>
         <div class="mnav">
           <button data-act="mnav" data-d="-1">‹</button>
           <button data-act="mtoday" class="mtod">今天</button>

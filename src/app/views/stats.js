@@ -37,7 +37,9 @@ function accountSectionHtml(){
 }
 export function renderStats(){
   const st=statsFor(ui.period,db.orders.filter(accMatch));
-  const avg=st.deals.length?Math.round(st.dealSum/st.deals.length):0;
+  // 客单价保留到分:Math.round 取整会把 750.5 显示成 751、0.4 元/单显示成 ¥0,
+  // 与「金额精确到分」的整体口径相悖
+  const avg=st.deals.length?Math.round(st.dealSum/st.deals.length*100)/100:0;
   let days=[];
   if(ui.period==='M'){const e=new Date(now.getFullYear(),now.getMonth(),now.getDate());for(let d=new Date(st.start);d<=e;d.setDate(d.getDate()+1))days.push(toISO(d))}
   else{for(let i=+ui.period-1;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);days.push(toISO(d))}}
@@ -67,7 +69,7 @@ export function renderStats(){
     <div class="mini-grid">
       <div class="mini"><div class="mv">${fmtMoney(st.dealSum)}</div><div class="ml">成交额 · ${st.deals.length} 单</div></div>
       <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(st.paidSum)}</div><div class="ml">实收金额 · ${st.paid.length} 笔</div></div>
-      <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} 单</div><div class="ml">已交付完结</div></div>
+      <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} 单</div><div class="ml">已交付完结(按交付日)</div></div>
       <div class="mini"><div class="mv">${fmtMoney(avg)}</div><div class="ml">客单价</div></div>
     </div>
     <div class="card" style="margin-top:14px">

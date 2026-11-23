@@ -136,6 +136,9 @@
 
   /** 平台单(抖音商单)过了预计到账日仍没收款 → 返回超期天数,否则 0 */
   function expectOverdue(o,payments=[],today=new Date()){
+    // 预计到账是平台单的口径:私收单的钱不由平台结,数据里带了 expectPayAt
+    // 也只是旧备份/残留,不该算超期(与 overdueDays/isOver 对平台单的排除同一层防御)
+    if(o.settleVia!=='douyin')return 0;
     if(unFin(o,payments)<=0||!validDateTime(o.expectPayAt))return 0;
     return daysBetween(o.expectPayAt,today);
   }

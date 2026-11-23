@@ -27,10 +27,10 @@ export function buildSqliteBytes(state=db){
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
     const so=d.prepare('INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     state.orders.forEach(o=>{
-      so.bind([o.id,o.store,o.cat,o.contact,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
+      so.bind([o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit,o.appt,o.shotAt,o.submittedAt,o.shortAt,o.longAt,
                o.depositPaidAt,o.finalPaidAt,o.settleVia||'private',o.remindAt||null,o.channel||null,o.partner||null,
                o.location||null,o.gpsPlace||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,
-               o.accountId||null,o.note||null,(o.remindLog&&o.remindLog.length?JSON.stringify(o.remindLog):null),o.expectPayAt||null,null,null]);
+               o.accountId||null,o.note||null,(o.remindLog&&o.remindLog.length?JSON.stringify(o.remindLog):null),o.expectPayAt||null,nowStr(),nowStr()]);
       so.step();so.reset();
     });
     so.finalize();

@@ -1235,3 +1235,75 @@ test('头像裁剪·选图后进裁剪层,「使用」只把裁剪结果存进�
   assert.equal(a.run('globalThis.__crops.length'),1,'「取消」不该出图');
 });
 
+/* ---------- 第九轮深度 review(种子期实测):账号筛选残留 / 编辑改挂 / 到账日残留 / 清拍摄带照片 ---------- */
+
+test('切换数据模式后账号筛选必须复位:否则演示数据整列表空白且没有入口恢复',async()=>{
+  const a=app();
+  setState(a,[order({accountId:2})]);
+  a.run("db.accounts=[{id:1,name:'甲账号',color:0},{id:2,name:'乙账号',color:1}];ui.accFilter=2;renderAll()");
+  assert.equal(a.run('db.orders.filter(accMatch).length'),1,'前置:按账号筛选只看到该账号的单');
+  await a.run('switchMode("demo")');
+  assert.equal(a.run('ui.accFilter'),null,
+    '切模式后筛选必须复位:demo 的单 accountId 全是 null,旧筛选会把它们全部滤掉');
+  assert.equal(a.run('db.orders.filter(accMatch).length'),17,'复位后演示数据应完整可见');
+  // 反向:切回工作模式同样复位(导入 replaceData 也走同一个 resetFilters)
+  await a.run('switchMode("work")');
+  assert.equal(a.run('ui.accFilter'),null);
+});
+
+test('编辑「未指定」订单不被静默改挂到第一个账号,也可主动改回未指定',()=>{
+  const a=app();
+  setState(a,[order({accountId:null})]);
+  a.run("db.accounts=[{id:1,name:'甲账号',color:0},{id:2,name:'乙账号',color:1}]");
+  const fillEdit=()=>{
+    a.element('#e-store').value='测试店';a.element('#e-price').value='1000';a.element('#e-deposit').value='200';
+    a.element('#e-settle').value='private';
+    a.element('#e-need-main').checked=true;a.element('#e-need-sub').checked=true;
+    a.element('#e-date').value='2026-11-01';a.element('#e-time').value='10:00';
+  };
+  const save=()=>a.events.click({target:{closest:()=>({dataset:{act:'save-edit',oid:'1'}})}});
+  const pick=id=>a.events.click({target:{closest:()=>({dataset:{act:'acc-pick',id:String(id)}})}});
+  a.run('openEdit(1)');
+  assert.equal(a.run('ui.draftAccId'),null,'未指定的单进入编辑,草稿不应被兜底成第一个账号');
+  assert.match(a.element('#e-acc-block').innerHTML,/未指定/,'编辑弹层要有「未指定」选项');
+  fillEdit();save();
+  assert.equal(a.run('db.orders[0].accountId'),null,'没碰账号选择直接保存,归属不能变');
+  a.run('openEdit(1)');pick(2);fillEdit();save();
+  assert.equal(a.run('db.orders[0].accountId'),2,'选中账号 2 后应挂上');
+  a.run('openEdit(1)');pick('');fillEdit();save();
+  assert.equal(a.run('ui.draftAccId'),null,'「未指定」项(data-id 为空串)应把草稿清成 null,不能被 +空串 转成 0');
+  assert.equal(a.run('db.orders[0].accountId'),null,'保存后应回到未指定');
+});
+
+test('平台单改回私收后预计到账日必须清掉;复制订单也不继承到账日',()=>{
+  const a=app();
+  setState(a,[order({settleVia:'douyin',expectPayAt:'2026-11-30T10:00'})]);
+  a.run('openEdit(1)');
+  a.element('#e-store').value='测试店';a.element('#e-price').value='1000';a.element('#e-deposit').value='200';
+  a.element('#e-need-main').checked=true;a.element('#e-need-sub').checked=true;
+  a.element('#e-settle').value='private';a.element('#e-date').value='2026-11-01';a.element('#e-time').value='10:00';
+  a.events.click({target:{closest:()=>({dataset:{act:'save-edit',oid:'1'}})}});
+  assert.equal(a.run('db.orders[0].settleVia'),'private');
+  assert.equal(a.run('db.orders[0].expectPayAt'),null,'改回私收后不该留着平台到账日(UI 上没有入口清它)');
+  // 复制平台单:副本是一个新档期,不继承原单的预计到账日
+  a.run('db.orders[0].settleVia="douyin";db.orders[0].expectPayAt="2026-11-30T10:00"');
+  a.events.click({target:{closest:()=>({dataset:{act:'copy-order',oid:'1'}})}});
+  assert.equal(a.run('db.orders.length'),2);
+  assert.equal(a.run('db.orders[1].expectPayAt'),null,'副本不带到账日');
+});
+
+test('清除「拍摄」里程碑时,门口的随手照也要一并删掉',()=>{
+  const a=app();
+  const thumb='data:image/jpeg;base64,'+'A'.repeat(2400);
+  setState(a,[order({shotAt:'2026-11-01T11:00',submittedAt:'2026-11-01T20:00',photoThumb:thumb})]);
+  a.events.click({target:{closest:()=>({dataset:{act:'mile',oid:'1',key:'shotAt'}})}});
+  assert.equal(a.run('db.orders[0].shotAt'),null,'拍摄记录应被清除');
+  assert.equal('photoThumb' in a.json('db.orders[0]'),false,
+    '时间线清了照片还在:列表金额格照样铺底图,成了「未拍摄却到过店」的矛盾态');
+  assert.equal(a.run('db.orders[0].submittedAt'),null,'下游里程碑照旧级联清除');
+  // 只清「提审」不动照片:照片属于拍摄节点,与提审无关
+  setState(a,[order({shotAt:'2026-11-01T11:00',submittedAt:'2026-11-01T20:00',photoThumb:thumb})]);
+  a.events.click({target:{closest:()=>({dataset:{act:'mile',oid:'1',key:'submittedAt'}})}});
+  assert.equal(a.run('db.orders[0].photoThumb'),thumb,'清提审不该删照片');
+});
+

@@ -56,12 +56,18 @@ export function renderAccPick(elId,sel,multiple=false){
   const el=$('#'+elId);if(!el)return;
   if(!accMulti()){el.innerHTML='';return}
   const selected=new Set(multiple?(sel||[]):[sel]);
-  el.innerHTML=`<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">账号${multiple?'（可多选）':''} <span style="color:var(--red)">*</span></div>
-    <div class="acc-sel">${ACCS().map(a=>{const c=accColor(a);const n=db.orders.filter(o=>o.accountId===a.id).length,on=selected.has(a.id);
+  // 编辑(单选)模式要给「未指定」:历史单/删过账号的单 accountId=null,
+  // 没有这一项,多账号下订单一旦挂上就再也摘不回未指定(只能删账号这种破坏性操作)。
+  // 新建(多选)模式不要——新建至少要选一个账号,与 saveOrder 的校验同口径。
+  const unassigned=multiple?'':`<button type="button" class="acc-opt ${selected.has(null)?'sel':''}" data-act="acc-pick" data-id="" aria-pressed="${selected.has(null)}" style="${selected.has(null)?'border-color:var(--brand);background:var(--brand-soft)':''}">
+      <span class="acc-dot"></span>${accAvatarHTML(null,'width:30px;height:30px;font-size:14px;border-radius:10px')}
+      <span class="acc-name">未指定</span><span class="acc-cnt">${db.orders.filter(o=>o.accountId==null).length} 单</span></button>`;
+  el.innerHTML=`<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">账号${multiple?'（可多选） <span style="color:var(--red)">*</span>':' <span class="rsub" style="font-weight:400">可改挂,也可设为「未指定」</span>'}</div>
+    <div class="acc-sel">${unassigned}${ACCS().map(a=>{const c=accColor(a);const n=db.orders.filter(o=>o.accountId===a.id).length,on=selected.has(a.id);
       return `<button type="button" class="acc-opt ${multiple?'multi ':''}${on?'sel':''}" data-act="${multiple?'acc-toggle':'acc-pick'}" data-id="${a.id}" aria-pressed="${on}" style="${on?`border-color:${c.ink};background:${c.bg}`:''}">
         <span class="acc-dot">${multiple&&on?'✓':''}</span>${accAvatarHTML(a,'width:30px;height:30px;font-size:14px;border-radius:10px')}
         <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${n} 单</span></button>`}).join('')}</div>
-    <div class="rsub" style="margin:6px 2px 0">${multiple?'每个选中账号各生成一笔独立订单，后续分别维护':'点整行即选中;只建 1 个账号时此区块不出现,订单自动归属'}</div></div>`;
+    <div class="rsub" style="margin:6px 2px 0">${multiple?'每个选中账号各生成一笔独立订单，后续分别维护':'点整行即选中;「未指定」= 不挂账号,可在统计页批量改挂'}</div></div>`;
 }
 export function renderProvPick(elId,val){
   const el=$('#'+elId);if(!el)return;

@@ -82,6 +82,7 @@ async function copyText(text) {
 }
 
 // src/app/demo.js
+var FINAL_METHOD = { 14: "\u94F6\u884C\u5361", 15: "\u6296\u97F3\u5546\u5355", 16: "\u652F\u4ED8\u5B9D" };
 function demoSeed() {
   const O = [
     {
@@ -329,7 +330,6 @@ function demoSeed() {
       price: 1600,
       deposit: 500,
       settleVia: "private",
-      finalMethod: "\u94F6\u884C\u5361",
       appt: dOff(-6, "17:30"),
       shotAt: dOff(-6, "18:10"),
       submittedAt: dOff(-5, "11:00"),
@@ -348,7 +348,6 @@ function demoSeed() {
       price: 900,
       deposit: 300,
       settleVia: "douyin",
-      finalMethod: "\u6296\u97F3\u5546\u5355",
       appt: dOff(-12, "10:00"),
       shotAt: dOff(-12, "10:35"),
       submittedAt: dOff(-11, "14:00"),
@@ -367,7 +366,6 @@ function demoSeed() {
       price: 800,
       deposit: 200,
       settleVia: "private",
-      finalMethod: "\u652F\u4ED8\u5B9D",
       appt: dOff(-25, "09:30"),
       shotAt: dOff(-25, "10:10"),
       submittedAt: dOff(-24, "10:00"),
@@ -400,7 +398,7 @@ function demoSeed() {
   const P = [];
   O.forEach((o) => {
     if (o.depositPaidAt && o.deposit > 0) P.push({ oid: o.id, kind: "\u5B9A\u91D1", amount: o.deposit, at: o.depositPaidAt, method: o.depMethod || "\u5FAE\u4FE1" });
-    if (o.finalPaidAt) P.push({ oid: o.id, kind: "\u5C3E\u6B3E", amount: o.price - o.deposit, at: o.finalPaidAt, method: o.finalMethod || (o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u5FAE\u4FE1") });
+    if (o.finalPaidAt) P.push({ oid: o.id, kind: "\u5C3E\u6B3E", amount: o.price - o.deposit, at: o.finalPaidAt, method: FINAL_METHOD[o.id] || (o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u5FAE\u4FE1") });
   });
   return { orders: O, payments: P, threshold: 15 };
 }
@@ -709,9 +707,9 @@ async function loadState() {
         db = validateState({ ...source.value, payments: source.value.payments ?? [] });
         Store.mode = "work";
         Store.ready = true;
-        await save();
-        await rememberMode("work");
-        return true;
+        const saved = await save();
+        if (saved) await rememberMode("work");
+        return saved;
       } catch (error) {
         source.ok = false;
       }
@@ -1075,7 +1073,9 @@ var deliveredAll = (o) => TanJiLogic.deliveredAll(o);
 function showSheet(id) {
   $("#mask").classList.add("show");
   document.querySelectorAll(".sheet").forEach((s) => s.classList.remove("show"));
-  $("#" + id).classList.add("show");
+  const target = $("#" + id);
+  target.style.pointerEvents = "";
+  target.classList.add("show");
 }
 function closeSheets() {
   $("#mask").classList.remove("show");
@@ -1083,6 +1083,7 @@ function closeSheets() {
     s.classList.remove("show");
     s.style.transition = "";
     s.style.transform = "";
+    s.style.pointerEvents = "none";
   });
   ui.detail = null;
   ui.payCtx = null;
@@ -1338,8 +1339,8 @@ function buildSqliteBytes(state = db) {
       so.bind([
         o.id,
         o.store,
-        o.cat,
-        o.contact,
+        o.cat || null,
+        o.contact || null,
         o.price,
         o.deposit,
         o.appt,
@@ -1363,8 +1364,8 @@ function buildSqliteBytes(state = db) {
         o.note || null,
         o.remindLog && o.remindLog.length ? JSON.stringify(o.remindLog) : null,
         o.expectPayAt || null,
-        null,
-        null
+        nowStr(),
+        nowStr()
       ]);
       so.step();
       so.reset();
@@ -1468,15 +1469,18 @@ function renderAccPick(elId, sel, multiple = false) {
     return;
   }
   const selected = new Set(multiple ? sel || [] : [sel]);
-  el.innerHTML = `<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">\u8D26\u53F7${multiple ? "\uFF08\u53EF\u591A\u9009\uFF09" : ""} <span style="color:var(--red)">*</span></div>
-    <div class="acc-sel">${ACCS().map((a) => {
+  const unassigned = multiple ? "" : `<button type="button" class="acc-opt ${selected.has(null) ? "sel" : ""}" data-act="acc-pick" data-id="" aria-pressed="${selected.has(null)}" style="${selected.has(null) ? "border-color:var(--brand);background:var(--brand-soft)" : ""}">
+      <span class="acc-dot"></span>${accAvatarHTML(null, "width:30px;height:30px;font-size:14px;border-radius:10px")}
+      <span class="acc-name">\u672A\u6307\u5B9A</span><span class="acc-cnt">${db.orders.filter((o) => o.accountId == null).length} \u5355</span></button>`;
+  el.innerHTML = `<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">\u8D26\u53F7${multiple ? '\uFF08\u53EF\u591A\u9009\uFF09 <span style="color:var(--red)">*</span>' : ' <span class="rsub" style="font-weight:400">\u53EF\u6539\u6302,\u4E5F\u53EF\u8BBE\u4E3A\u300C\u672A\u6307\u5B9A\u300D</span>'}</div>
+    <div class="acc-sel">${unassigned}${ACCS().map((a) => {
     const c = accColor(a);
     const n = db.orders.filter((o) => o.accountId === a.id).length, on = selected.has(a.id);
     return `<button type="button" class="acc-opt ${multiple ? "multi " : ""}${on ? "sel" : ""}" data-act="${multiple ? "acc-toggle" : "acc-pick"}" data-id="${a.id}" aria-pressed="${on}" style="${on ? `border-color:${c.ink};background:${c.bg}` : ""}">
         <span class="acc-dot">${multiple && on ? "\u2713" : ""}</span>${accAvatarHTML(a, "width:30px;height:30px;font-size:14px;border-radius:10px")}
         <span class="acc-name">${esc(a.name)}</span><span class="acc-cnt">${n} \u5355</span></button>`;
   }).join("")}</div>
-    <div class="rsub" style="margin:6px 2px 0">${multiple ? "\u6BCF\u4E2A\u9009\u4E2D\u8D26\u53F7\u5404\u751F\u6210\u4E00\u7B14\u72EC\u7ACB\u8BA2\u5355\uFF0C\u540E\u7EED\u5206\u522B\u7EF4\u62A4" : "\u70B9\u6574\u884C\u5373\u9009\u4E2D;\u53EA\u5EFA 1 \u4E2A\u8D26\u53F7\u65F6\u6B64\u533A\u5757\u4E0D\u51FA\u73B0,\u8BA2\u5355\u81EA\u52A8\u5F52\u5C5E"}</div></div>`;
+    <div class="rsub" style="margin:6px 2px 0">${multiple ? "\u6BCF\u4E2A\u9009\u4E2D\u8D26\u53F7\u5404\u751F\u6210\u4E00\u7B14\u72EC\u7ACB\u8BA2\u5355\uFF0C\u540E\u7EED\u5206\u522B\u7EF4\u62A4" : "\u70B9\u6574\u884C\u5373\u9009\u4E2D;\u300C\u672A\u6307\u5B9A\u300D= \u4E0D\u6302\u8D26\u53F7,\u53EF\u5728\u7EDF\u8BA1\u9875\u6279\u91CF\u6539\u6302"}</div></div>`;
 }
 function renderProvPick(elId, val) {
   const el = $("#" + elId);
@@ -1908,7 +1912,11 @@ function openDetail(id) {
   showSheet("sheet-detail");
 }
 function rerenderDetail() {
-  if (ui.detail != null && ui.editId == null && byId(ui.detail)) openDetail(ui.detail);
+  if (ui.detail != null && ui.editId == null && byId(ui.detail)) {
+    const body = $("#detail-body"), top = body ? body.scrollTop : 0;
+    openDetail(ui.detail);
+    if (body) body.scrollTop = top;
+  }
 }
 
 // src/app/order-actions.js
@@ -2255,6 +2263,7 @@ function duplicateOrder(oid) {
     depositPaidAt: null,
     finalPaidAt: null,
     remindAt: null,
+    expectPayAt: null,
     reviewResult: "",
     publishedAt: null
   };
@@ -2351,7 +2360,7 @@ function openEdit(oid) {
     <div class="btn2" id="e-payments"></div>
     <div class="rsub" style="margin-top:6px;line-height:1.5">\u8865\u8BB0\u524D\u8BF7\u5148\u4FDD\u5B58\u4FEE\u6539\uFF1B\u6309\u5DF2\u4FDD\u5B58\u91D1\u989D\u8BB0\u4E00\u7B14\uFF0C\u5E73\u53F0\u5355\u4F7F\u7528\u6296\u97F3\u5546\u5355\uFF0C\u79C1\u6536\u9ED8\u8BA4\u5FAE\u4FE1\u3002\u64A4\u9500\u4EC5\u7528\u4E8E\u7EA0\u6B63\u9519\u8BEF\u6536\u6B3E\uFF0C\u4F1A\u540C\u65F6\u79FB\u9664\u5BF9\u5E94\u6D41\u6C34\u3002</div>`;
   ui.draftProv = o.channel || "\u76F4\u5BA2";
-  ui.draftAccId = o.accountId ?? (ACCS().length ? ACCS()[0].id : null);
+  ui.draftAccId = o.accountId ?? null;
   renderAccPick("e-acc-block", ui.draftAccId);
   renderProvPick("e-prov-block", ui.draftProv);
   renderEditReceipts(o);
@@ -2405,17 +2414,13 @@ function saveEdit() {
     toast("\u51FA\u7247\u8981\u6C42\u81F3\u5C11\u8981\u52FE\u9009\u6B63\u7247\u6216\u526F\u7247");
     return;
   }
-  if (accMulti() && ui.draftAccId == null) {
-    toast("\u8BF7\u9009\u62E9\u8D26\u53F7");
-    return;
-  }
   o.store = store;
   o.cat = $("#e-cat").value;
   o.settleVia = settleVia;
   o.channel = chanFromDraft();
   o.partner = $("#e-partner").value.trim();
   o.location = $("#e-location").value.trim();
-  o.accountId = ACCS().length ? accMulti() ? ui.draftAccId : ACCS()[0].id : null;
+  if (accMulti()) o.accountId = ui.draftAccId ?? null;
   o.deliverMain = needMain2;
   o.deliverSub = needSub2;
   o.reviewResult = $("#e-review").value;
@@ -2424,6 +2429,7 @@ function saveEdit() {
   o.deposit = depositCents / 100;
   o.contact = $("#e-contact").value.trim();
   o.note = $("#e-note").value.trim();
+  if (o.settleVia !== "douyin" && o.expectPayAt != null) o.expectPayAt = null;
   if (o.settleVia === "douyin" || unFin(o) <= 0) clearSnooze(o);
   const returnDetail = ui.detail === o.id ? o.id : null;
   save();
@@ -2741,7 +2747,7 @@ function buildTodayImage(day = TODAY) {
     g.fillText("\u25CF " + workOf(o), pad2 + 158, y + 88);
     g.fillStyle = "#8E8E93";
     g.font = "500 24px -apple-system,PingFang SC";
-    g.fillText(o.cat, pad2 + 300, y + 88);
+    g.fillText(o.cat, pad2 + 300, y + 88, W - pad2 * 2 - 300);
     y += rowH + gap;
   }
   g.fillStyle = "#B9B9C0";
@@ -3005,7 +3011,7 @@ function accountSectionHtml() {
 }
 function renderStats() {
   const st = statsFor(ui.period, db.orders.filter(accMatch));
-  const avg = st.deals.length ? Math.round(st.dealSum / st.deals.length) : 0;
+  const avg = st.deals.length ? Math.round(st.dealSum / st.deals.length * 100) / 100 : 0;
   let days = [];
   if (ui.period === "M") {
     const e = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -3043,7 +3049,7 @@ function renderStats() {
     <div class="mini-grid">
       <div class="mini"><div class="mv">${fmtMoney6(st.dealSum)}</div><div class="ml">\u6210\u4EA4\u989D \xB7 ${st.deals.length} \u5355</div></div>
       <div class="mini"><div class="mv" style="color:#239648">${fmtMoney6(st.paidSum)}</div><div class="ml">\u5B9E\u6536\u91D1\u989D \xB7 ${st.paid.length} \u7B14</div></div>
-      <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} \u5355</div><div class="ml">\u5DF2\u4EA4\u4ED8\u5B8C\u7ED3</div></div>
+      <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} \u5355</div><div class="ml">\u5DF2\u4EA4\u4ED8\u5B8C\u7ED3(\u6309\u4EA4\u4ED8\u65E5)</div></div>
       <div class="mini"><div class="mv">${fmtMoney6(avg)}</div><div class="ml">\u5BA2\u5355\u4EF7</div></div>
     </div>
     <div class="card" style="margin-top:14px">
@@ -3220,7 +3226,7 @@ function renderTrip() {
     ${accChipbarHTML()}
     <div class="mgrid">
       <div class="mhead">
-        <div class="mtitle">${y}\u5E74${m}\u6708<span class="msum">${mOrders.length} \u4E2A\u6863\u671F \xB7 \u6210\u4EA4 ${fmtMoney7(mSum)} \xB7 \u5DF2\u6536 ${fmtMoney7(mPaidSum)}${mBadges}</span></div>
+        <div class="mtitle">${y}\u5E74${m}\u6708<span class="msum">${mOrders.length} \u4E2A\u6863\u671F \xB7 \u6210\u4EA4 ${fmtMoney7(mSum)} \xB7 \u5B9E\u6536 ${fmtMoney7(mPaidSum)}${mBadges}</span></div>
         <div class="mnav">
           <button data-act="mnav" data-d="-1">\u2039</button>
           <button data-act="mtoday" class="mtod">\u4ECA\u5929</button>
@@ -3391,7 +3397,7 @@ registerAction("acc-filter", (t, oid) => {
   renderAll();
 });
 registerAction("acc-pick", (t, oid) => {
-  ui.draftAccId = +t.dataset.id;
+  ui.draftAccId = t.dataset.id === "" ? null : +t.dataset.id;
   renderAccPick("e-acc-block", ui.draftAccId);
 });
 registerAction("acc-toggle", (t, oid) => {
@@ -3588,9 +3594,11 @@ registerAction("mile", (t, oid) => {
   if (!o || !Object.prototype.hasOwnProperty.call(MILE_LABEL, key)) return;
   if (o[key]) {
     const after = MILE_ORDER.slice(MILE_ORDER.indexOf(key) + 1).filter((k) => o[k]);
+    const photoNote = key === "shotAt" && o.photoThumb ? "\u95E8\u53E3\u7684\u968F\u624B\u7167\u4E5F\u4F1A\u4E00\u5E76\u5220\u9664\u3002" : "";
     const msg = after.length ? `\u6E05\u9664\u300C${MILE_LABEL[key]}\u300D\uFF1F\u5176\u540E\u7684\u300C${after.map((k) => MILE_LABEL[k]).join("\u300D\u300C")}\u300D\u4E5F\u5C06\u4E00\u5E76\u6E05\u9664\u3002` : `\u6E05\u9664\u300C${MILE_LABEL[key]}\u300D\u8BB0\u5F55?`;
-    if (confirm(msg)) {
+    if (confirm(msg + photoNote)) {
       [key, ...after].forEach((k) => o[k] = null);
+      if (key === "shotAt") delete o.photoThumb;
       save();
       renderAll();
       rerenderDetail();
@@ -3708,6 +3716,8 @@ registerAction("retry-storage", (t, oid) => {
     });
   } else save();
 });
+var TAP_GUARD = /* @__PURE__ */ new Set(["privacy", "set-review", "th", "notify-toggle"]);
+var lastTap = { act: "", oid: 0, at: 0 };
 document.addEventListener("click", (e) => {
   const t = e.target.closest("[data-act]");
   if (!t) return;
@@ -3722,7 +3732,14 @@ document.addEventListener("click", (e) => {
   }
   refreshClock();
   const fn = ACTIONS[act];
-  if (fn) fn(t, oid);
+  if (fn) {
+    if (TAP_GUARD.has(act)) {
+      const now2 = Date.now();
+      if (act === lastTap.act && oid === lastTap.oid && now2 - lastTap.at < 350) return;
+      lastTap = { act, oid, at: now2 };
+    }
+    fn(t, oid);
+  }
 });
 ["f-date", "f-time"].forEach((id) => $("#" + id).addEventListener("change", updateConflict));
 ["f-date", "f-time"].forEach((id) => $("#" + id).addEventListener("input", updateConflict));
@@ -3832,6 +3849,7 @@ registerStorageHooks({ renderAll, showTab, toast, closeSheets, notify: Notify, r
   ui.q = "";
   ui.chip = "all";
   ui.bucket = "all";
+  ui.accFilter = null;
 } });
 registerBadgeCounter(() => db.orders.filter(accMatch).filter((o) => isOver(o) && !snoozed(o)).length);
 registerDailySync(() => Notify.syncDaily());

@@ -103,6 +103,9 @@ test('平台单预计到账:过了约定日仍未收款才算超期',()=>{
   assert.equal(L.expectOverdue({...douyin,expectPayAt:'2026-11-30T10:00'},[],today),0,'还没到日子不算超期');
   assert.equal(L.expectOverdue({...douyin,finalPaidAt:'2026-11-20T10:00'},[],today),0,'已收款就不再提醒');
   assert.equal(L.expectOverdue({...douyin,expectPayAt:null},[],today),0,'没填到账日不提示');
+  // 规格层防御:私收单的钱不由平台结,数据里带了 expectPayAt 只是残留,不算超期
+  // (此前只有 UI 调用点用 settleVia 守,规格层不守 —— 旧备份/未来新入口都会漏)
+  assert.equal(L.expectOverdue(order({settleVia:'private',depositPaidAt:'2026-11-01T10:00',expectPayAt:'2026-11-15T10:00'}),[],today),0,'私收单带预计到账日不应算超期');
 });
 
 test('未来 N 天:含当天,按日汇总单量与成交额',()=>{

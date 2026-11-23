@@ -7,7 +7,10 @@ import {Store} from './storage.js';
 export function showSheet(id){
   $('#mask').classList.add('show');
   document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
-  $('#'+id).classList.add('show');
+  const target=$('#'+id);
+  // 上次关闭时锁上的指针事件,打开必须恢复(与 #mask 的 .show→pointer-events:auto 同一套路)
+  target.style.pointerEvents='';
+  target.classList.add('show');
 }
 export function closeSheets(){
   $('#mask').classList.remove('show');
@@ -15,6 +18,10 @@ export function closeSheets(){
   document.querySelectorAll('.sheet').forEach(s=>{
     s.classList.remove('show');
     s.style.transition='';s.style.transform='';
+    // 关闭有 340ms 滑动动画,期间 visibility 仍是 visible(延迟隐藏):
+    // 不锁指针事件的话,「保存预约/保存账号」被快速连点会重复建单/建账号。
+    // mask 关闭时也是立即翻 pointer-events:none,这里与它同口径。
+    s.style.pointerEvents='none';
   });
   ui.detail=null;ui.payCtx=null;ui.editId=null;ui.remindOid=null;ui.expectOid=null;Store.pending=null;
 }

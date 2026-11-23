@@ -119,7 +119,8 @@ registerAction('acc-filter',(t,oid)=>{
 });
 
 registerAction('acc-pick',(t,oid)=>{
-  ui.draftAccId=+t.dataset.id;renderAccPick('e-acc-block',ui.draftAccId);
+  // data-id="" 是「未指定」项:+'' 会得到 0,必须显式转 null
+  ui.draftAccId=t.dataset.id===''?null:+t.dataset.id;renderAccPick('e-acc-block',ui.draftAccId);
 });
 
 registerAction('acc-toggle',(t,oid)=>{
@@ -274,8 +275,11 @@ registerAction('mile',(t,oid)=>{
       if(!o||!Object.prototype.hasOwnProperty.call(MILE_LABEL,key))return;
       if(o[key]){
         const after=MILE_ORDER.slice(MILE_ORDER.indexOf(key)+1).filter(k=>o[k]);
+        // 清「拍摄」时门口的随手照也留不住:photoThumb 是「到过店」的视觉凭据,
+        // 时间线清了它还在,列表金额格照样铺底图,就成了「未拍摄却到过店」的矛盾态
+        const photoNote=key==='shotAt'&&o.photoThumb?'门口的随手照也会一并删除。':'';
         const msg=after.length?`清除「${MILE_LABEL[key]}」？其后的「${after.map(k=>MILE_LABEL[k]).join('」「')}」也将一并清除。`:`清除「${MILE_LABEL[key]}」记录?`;
-        if(confirm(msg)){[key,...after].forEach(k=>o[k]=null);save();renderAll();rerenderDetail();Notify.syncDeliver();Notify.syncDaily();toast('已清除,可重新标记')}
+        if(confirm(msg+photoNote)){[key,...after].forEach(k=>o[k]=null);if(key==='shotAt')delete o.photoThumb;save();renderAll();rerenderDetail();Notify.syncDeliver();Notify.syncDaily();toast('已清除,可重新标记')}
       }
       else if(mark(oid,key,'已标记「'+MILE_LABEL[key]+'」')&&key==='shotAt')capturePlace(oid);
 });
@@ -379,6 +383,12 @@ registerAction('retry-storage',(t,oid)=>{
 });
 
 /* ================= 事件委托(守卫逐行保留) ================= */
+/* toggle/步进类动作的同目标防连点:隐私开关、送审结果、催收阈值、通知开关都是
+   「再点一次 = 回到原状」或「数字跳一格」的语义。用户只点了一下,UI 却像没反应
+   (开关被抵消)或阈值连跳两格。同一目标 350ms 内的重复点击直接忽略;
+   换一个目标(另一行、另一个 chip)不受影响。 */
+const TAP_GUARD=new Set(['privacy','set-review','th','notify-toggle']);
+let lastTap={act:'',oid:0,at:0};
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
@@ -386,7 +396,14 @@ document.addEventListener('click',e=>{
   if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','crop-cancel','crop-use','shot-pick','nav-place','remind-open','expect-open'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
   refreshClock();
   const fn=ACTIONS[act];
-  if(fn)fn(t,oid);
+  if(fn){
+    if(TAP_GUARD.has(act)){
+      const now=Date.now();
+      if(act===lastTap.act&&oid===lastTap.oid&&now-lastTap.at<350)return;
+      lastTap={act,oid,at:now};
+    }
+    fn(t,oid);
+  }
 });
 ['f-date','f-time'].forEach(id=>$('#'+id).addEventListener('change',updateConflict));
 ['f-date','f-time'].forEach(id=>$('#'+id).addEventListener('input',updateConflict));

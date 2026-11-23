@@ -202,3 +202,17 @@ test('里程碑未来节点不置 disabled:前置守卫的提示必须点得到'
   assert.doesNotMatch(m[0], /disabled aria-disabled/, '未来节点不能置 disabled(守卫提示会永远点不到)');
   assert.match(m[0], /aria-disabled="true"/, '仍应保留 aria-disabled 表达「还没到这一步」');
 });
+
+test('关闭弹层必须锁掉指针事件:340ms 滑动动画期间保存按钮仍可命中,连点会重复建单', () => {
+  // .sheet 的关闭过渡是 transform .34s + visibility 0s linear .34s —— visibility
+  // 延迟 340ms 才翻 hidden,这期间 sheet 仍然可见、仍然可点。保存预约/保存账号
+  // 不锁指针事件的话,快速第二次点击会再建一笔订单/一个账号。
+  // #mask 关闭时就是立即翻 pointer-events:none,sheet 与它同口径。
+  const sheets = readApp('sheets.js');
+  const close = sheets.match(/export function closeSheets\(\)\{[\s\S]*?\n\}/);
+  assert.ok(close, '找不到 closeSheets(函数结构可能变了)');
+  assert.match(close[0], /pointerEvents\s*=\s*'none'/, 'closeSheets 应把 sheet 的指针事件关掉');
+  const show = sheets.match(/export function showSheet\([\s\S]*?\n\}/);
+  assert.ok(show, '找不到 showSheet(函数结构可能变了)');
+  assert.match(show[0], /pointerEvents\s*=\s*''/, 'showSheet 必须恢复指针事件,否则新弹层点不动');
+});

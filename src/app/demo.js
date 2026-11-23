@@ -1,7 +1,11 @@
 /* ================= 独立演示数据 ================= */
 import {dOff} from './util.js';
 
-/* ================= 独立演示数据 ================= */
+/* 收款方式只属于流水(payments),订单模型里没有这个字段 —— 挂在订单上,
+   持久化往返(snapshot→SQLite→读回)会被静默丢掉,种子与 schema 不同构。
+   生成种子流水时按这张表取,订单本身保持干净。 */
+const FINAL_METHOD={14:'银行卡',15:'抖音商单',16:'支付宝'};
+
 export function demoSeed(){
   const O=[
     {id:1, store:'麓野日料·万象城店', cat:'餐饮', contact:'王店长 138****2043', price:1600, deposit:500, settleVia:'private',
@@ -46,13 +50,13 @@ export function demoSeed(){
      appt:dOff(-41,'16:00'), shotAt:dOff(-41,'16:30'), submittedAt:dOff(-40,'12:00'), shortAt:dOff(-38,'15:00'), longAt:dOff(-36,'10:40'),
      depositPaidAt:null, finalPaidAt:null, remindAt:null, note:'全款尾款待结;多次微信未回,约了周五电话',
      remindLog:[{at:dOff(-12,'10:10'),note:'微信未回'},{at:dOff(-5,'20:40'),note:'电话约了周五再谈'}]},
-    {id:14, store:'老门东火锅·旗舰店', cat:'餐饮', contact:'刘总 133****2280', price:1600, deposit:500, settleVia:'private', finalMethod:'银行卡',
+    {id:14, store:'老门东火锅·旗舰店', cat:'餐饮', contact:'刘总 133****2280', price:1600, deposit:500, settleVia:'private',
      appt:dOff(-6,'17:30'), shotAt:dOff(-6,'18:10'), submittedAt:dOff(-5,'11:00'), shortAt:dOff(-4,'14:00'), longAt:dOff(-3,'16:20'),
      depositPaidAt:dOff(-7,'10:30'), finalPaidAt:dOff(-2,'15:20'), remindAt:null, note:'尾款对公转账'},
-    {id:15, store:'喜邻超市·社区店', cat:'零售', contact:'范店 158****3366', price:900, deposit:300, settleVia:'douyin', finalMethod:'抖音商单',
+    {id:15, store:'喜邻超市·社区店', cat:'零售', contact:'范店 158****3366', price:900, deposit:300, settleVia:'douyin',
      appt:dOff(-12,'10:00'), shotAt:dOff(-12,'10:35'), submittedAt:dOff(-11,'14:00'), shortAt:dOff(-10,'15:00'), longAt:dOff(-9,'11:00'),
      depositPaidAt:dOff(-13,'16:00'), finalPaidAt:dOff(-8,'10:00'), remindAt:null, note:''},
-    {id:16, store:'麦仓面包·奥体店', cat:'烘焙', contact:'Kiki 182****7745', price:800, deposit:200, settleVia:'private', finalMethod:'支付宝',
+    {id:16, store:'麦仓面包·奥体店', cat:'烘焙', contact:'Kiki 182****7745', price:800, deposit:200, settleVia:'private',
      appt:dOff(-25,'09:30'), shotAt:dOff(-25,'10:10'), submittedAt:dOff(-24,'10:00'), shortAt:dOff(-22,'14:30'), longAt:dOff(-21,'10:00'),
      depositPaidAt:dOff(-26,'15:00'), finalPaidAt:dOff(-18,'11:30'), remindAt:null, note:''},
     {id:17, store:'橘朵花艺工作室', cat:'零售', contact:'小橘 177****9012', price:1100, deposit:300, settleVia:'private',
@@ -62,7 +66,7 @@ export function demoSeed(){
   const P=[];
   O.forEach(o=>{
     if(o.depositPaidAt&&o.deposit>0) P.push({oid:o.id,kind:'定金',amount:o.deposit,at:o.depositPaidAt,method:o.depMethod||'微信'});
-    if(o.finalPaidAt) P.push({oid:o.id,kind:'尾款',amount:o.price-o.deposit,at:o.finalPaidAt,method:o.finalMethod||(o.settleVia==='douyin'?'抖音商单':'微信')});
+    if(o.finalPaidAt) P.push({oid:o.id,kind:'尾款',amount:o.price-o.deposit,at:o.finalPaidAt,method:FINAL_METHOD[o.id]||(o.settleVia==='douyin'?'抖音商单':'微信')});
   });
   return {orders:O, payments:P, threshold:15};
 }
