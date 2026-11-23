@@ -163,3 +163,18 @@ test('入口完整:每个 src/app 模块从 main.js 可达', () => {
     `这些模块从 main.js 不可达:${orphans.join(', ')}——` +
     '无导出被引用且无副作用引入时,esbuild 会 tree-shake 掉它(P0 的 actions.js 事件委托就是这样丢的)');
 });
+
+/* ---------- 规则 6:线束与组合根的注册一致性(第六轮 review 附-4 建议) ---------- */
+
+test('harness 与 main.js 的 register* 调用集合一致', () => {
+  // harness-entry.mjs 复刻了一份组合根:main.js 未来新增 register* 时,
+  // 线束若缺注册,测试会在「组合根未注入」的假象下静默通过 —— 这里静态钉住两边集合。
+  const mainSrc = fs.readFileSync(path.join(APP, 'main.js'), 'utf8');
+  const harnessSrc = fs.readFileSync(path.join(ROOT, 'tests', 'harness-entry.mjs'), 'utf8');
+  const regs = src => new Set([...src.matchAll(/register([A-Z]\w*)\(/g)].map(m => 'register' + m[1]));
+  const a = regs(mainSrc), b = regs(harnessSrc);
+  const onlyMain = [...a].filter(x => !b.has(x));
+  const onlyHarness = [...b].filter(x => !a.has(x));
+  assert.deepEqual([...onlyMain, ...onlyHarness], [],
+    `注册集合不一致:仅 main.js 有 [${onlyMain}]、仅 harness 有 [${onlyHarness}]——两边必须同步注册`);
+});
