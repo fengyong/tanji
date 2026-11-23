@@ -50,4 +50,5 @@
 - dev server: TANJI_DEV=1 /tmp/tanji-server -addr 127.0.0.1:8787 -db-host 127.0.0.1 -db-port 33306（dev_code 走响应）
 
 ## 看门狗日志
+- 2026-11-22 12:05 最终交接确认: 远端 feat/cloud-local-first = f7e846ac(含全部开发/两轮review/交付说明/gitlite工具); 本地引用已与远端一致; CLT 缺失机器用 tools/gitlite 提交推送。
 - 2026-11-22 06:03 首次检查: 进度文件由主会话创建；主任务正在推进测试修复，无需恢复。
