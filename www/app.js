@@ -2360,7 +2360,7 @@ function openEdit(oid) {
     <div class="btn2" id="e-payments"></div>
     <div class="rsub" style="margin-top:6px;line-height:1.5">\u8865\u8BB0\u524D\u8BF7\u5148\u4FDD\u5B58\u4FEE\u6539\uFF1B\u6309\u5DF2\u4FDD\u5B58\u91D1\u989D\u8BB0\u4E00\u7B14\uFF0C\u5E73\u53F0\u5355\u4F7F\u7528\u6296\u97F3\u5546\u5355\uFF0C\u79C1\u6536\u9ED8\u8BA4\u5FAE\u4FE1\u3002\u64A4\u9500\u4EC5\u7528\u4E8E\u7EA0\u6B63\u9519\u8BEF\u6536\u6B3E\uFF0C\u4F1A\u540C\u65F6\u79FB\u9664\u5BF9\u5E94\u6D41\u6C34\u3002</div>`;
   ui.draftProv = o.channel || "\u76F4\u5BA2";
-  ui.draftAccId = o.accountId ?? null;
+  ui.draftAccId = o.accountId ?? (accMulti() ? null : ACCS().length ? ACCS()[0].id : null);
   renderAccPick("e-acc-block", ui.draftAccId);
   renderProvPick("e-prov-block", ui.draftProv);
   renderEditReceipts(o);
@@ -2420,7 +2420,7 @@ function saveEdit() {
   o.channel = chanFromDraft();
   o.partner = $("#e-partner").value.trim();
   o.location = $("#e-location").value.trim();
-  if (accMulti()) o.accountId = ui.draftAccId ?? null;
+  o.accountId = ACCS().length ? accMulti() ? ui.draftAccId ?? null : ACCS()[0].id : null;
   o.deliverMain = needMain2;
   o.deliverSub = needSub2;
   o.reviewResult = $("#e-review").value;
@@ -3003,7 +3003,7 @@ function accountSectionHtml() {
         <button class="mini-btn" style="background:rgba(0,0,0,.06);color:#55555e" data-act="open-account" data-id="${a.id}">\u7F16\u8F91</button></div>
     </div>`;
   }
-  const unassigned = accMulti() ? db.orders.filter((o) => o.accountId == null).length : 0;
+  const unassigned = ACCS().length ? db.orders.filter((o) => o.accountId == null).length : 0;
   if (unassigned) html += `<div class="row" style="align-items:center;gap:10px">
     <div class="rmain"><div class="rsub" style="color:var(--orange)">${unassigned} \u7B14\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7(\u542B\u5386\u53F2\u5355)</div></div>
     <button class="mini-btn" data-act="assign-open">\u6279\u91CF\u6539\u6302</button></div>`;

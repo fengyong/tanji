@@ -163,7 +163,9 @@ export function openEdit(oid){
     <div class="sec-title">收款记录(可撤销 / 补记)</div>
     <div class="btn2" id="e-payments"></div>
     <div class="rsub" style="margin-top:6px;line-height:1.5">补记前请先保存修改；按已保存金额记一笔，平台单使用抖音商单，私收默认微信。撤销仅用于纠正错误收款，会同时移除对应流水。</div>`;
-  ui.draftProv=o.channel||'直客';ui.draftAccId=o.accountId??null;
+  // 多账号时「未指定」的单不被兜底成第一个账号(那是一次静默改挂);
+  // 单账号时预览自动归属的账号,与保存口径一致
+  ui.draftProv=o.channel||'直客';ui.draftAccId=o.accountId??(accMulti()?null:(ACCS().length?ACCS()[0].id:null));
   renderAccPick('e-acc-block',ui.draftAccId);renderProvPick('e-prov-block',ui.draftProv);
   renderEditReceipts(o);ui.editSnapshot=editDraft();
   updateEditConflict();
@@ -198,9 +200,9 @@ export function saveEdit(){
   o.store=store;o.cat=$('#e-cat').value;o.settleVia=settleVia;
   o.channel=chanFromDraft();o.partner=$('#e-partner').value.trim();
   o.location=$('#e-location').value.trim();
-  // 账号归属:多账号按用户选择(含「未指定」=null);单账号时不碰原值 ——
-  // 只改个备注就把「未指定」的历史单静默挂到唯一账号,是编辑期不该有的改挂
-  if(accMulti())o.accountId=ui.draftAccId??null;
+  // 账号归属:多账号按用户选择(含「未指定」=null,不再静默改挂);
+  // 单账号保持既定设计的自动归属(区块不出现、订单归到唯一账号)
+  o.accountId=ACCS().length?(accMulti()?(ui.draftAccId??null):ACCS()[0].id):null;
   o.deliverMain=needMain;o.deliverSub=needSub;o.reviewResult=$('#e-review').value;
   o.appt=appt;o.price=priceCents/100;o.deposit=depositCents/100;
   o.contact=$('#e-contact').value.trim();o.note=$('#e-note').value.trim();

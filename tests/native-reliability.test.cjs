@@ -1273,6 +1273,13 @@ test('编辑「未指定」订单不被静默改挂到第一个账号,也可主�
   a.run('openEdit(1)');pick('');fillEdit();save();
   assert.equal(a.run('ui.draftAccId'),null,'「未指定」项(data-id 为空串)应把草稿清成 null,不能被 +空串 转成 0');
   assert.equal(a.run('db.orders[0].accountId'),null,'保存后应回到未指定');
+  // 单账号:既定设计的自动归属不受影响(表单区块不出现,编辑后归到唯一账号)
+  setState(a,[order({accountId:null})]);
+  a.run("db.accounts=[{id:7,name:'唯一账号',color:3}]");
+  a.run('openEdit(1)');
+  assert.equal(a.run('ui.draftAccId'),7,'单账号时草稿预览自动归属的账号');
+  fillEdit();save();
+  assert.equal(a.run('db.orders[0].accountId'),7,'单账号编辑后自动归属(既定设计,不回归成静默改挂问题)');
 });
 
 test('平台单改回私收后预计到账日必须清掉;复制订单也不继承到账日',()=>{

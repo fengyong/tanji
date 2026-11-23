@@ -4,7 +4,7 @@ import {LEGAL_BASE,APP_STORE_URL,isNative} from '../env.js';
 import {db,Store} from '../storage.js';
 import {ui} from '../ui.js';
 import {owedOf,workOf,METHOD_CLS,accMatch} from '../derived.js';
-import {ACCS,accMulti,accAvatarHTML,accColor} from '../accounts.js';
+import {ACCS,accAvatarHTML,accColor} from '../accounts.js';
 import {statsFor,headBtns} from '../stats.js';
 import {accChipbarHTML} from '../accounts.js';
 /* 隐私模式:本文件全部金额渲染经此包装(P0 修复:双参化后调用点必须带 ui.privacy) */
@@ -29,7 +29,9 @@ function accountSectionHtml(){
         <button class="mini-btn" style="background:rgba(0,0,0,.06);color:#55555e" data-act="open-account" data-id="${a.id}">编辑</button></div>
     </div>`;
   }
-  const unassigned=accMulti()?db.orders.filter(o=>o.accountId==null).length:0;
+  // 有未指定订单就该给改挂入口,不要求多账号:删到只剩一个账号时,
+  // 历史「未指定」单同样需要批量归位(accMulti 门槛会让它们永远挂着)
+  const unassigned=ACCS().length?db.orders.filter(o=>o.accountId==null).length:0;
   if(unassigned)html+=`<div class="row" style="align-items:center;gap:10px">
     <div class="rmain"><div class="rsub" style="color:var(--orange)">${unassigned} 笔订单未指定账号(含历史单)</div></div>
     <button class="mini-btn" data-act="assign-open">批量改挂</button></div>`;
