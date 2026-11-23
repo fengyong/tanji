@@ -2,7 +2,7 @@
   "$schema": "tanji-web-sync-lock/v1",
   "mainRef": "main",
   "mainCommit": "d74ffd4b9cd62516a1a1bd22f3ae9c9da46fcb39",
-  "updatedAt": "2026-11-22",
+  "updatedAt": "2026-11-23",
   "files": {
     "index.html": {
       "main": "3d4f454769af69ccf2d68622ed9504c5072015ad",
@@ -12,7 +12,7 @@
     },
     "storage.js": {
       "main": "7d40eafe0b5d8f118fb6b697e9bf74b4bc299301",
-      "native": "932f9b4b7de9c3e0b740feee6054f50ae7835bd4",
+      "native": "996660e94a2353ef01c2e09bb333ecedd214dfb8",
       "nativePath": "src/app/storage.js",
       "note": "双副本存储与迁移"
     },
