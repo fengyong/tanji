@@ -132,7 +132,9 @@ test('依赖方向:只允许白名单内的跨层边', () => {
 /* ---------- 规则 4:禁区关键字 ---------- */
 
 test('禁区:视图/业务/动作层不得出现平台与存储关键字', () => {
-  const CHECK = ['views/', 'detail.js', 'order-forms.js', 'order-actions.js', 'accounts.js', 'stats.js', 'sheets.js', 'share-image.js'];
+  // 口径声明:import 图正则只认单引号相对路径(当前代码风格下无遗漏);
+  // 改风格(双引号/裸模块名)时必须同步放宽,否则本文件整体失效。
+  const CHECK = ['views/', 'detail.js', 'order-forms.js', 'order-actions.js', 'accounts.js', 'stats.js', 'sheets.js', 'share-image.js', 'export.js', 'notify.js', 'actions.js', 'main.js'];
   for (const rel of CHECK) {
     const files = rel.endsWith('/') ? jsFiles(path.join(APP, rel)) : [path.join(APP, rel)];
     for (const file of files) {

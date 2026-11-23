@@ -1,11 +1,13 @@
 /* ================= 状态操作 + 催收跟进/平台预计到账 + 到店定位回写(P0 §3) ================= */
-import {$,esc,fmtMoney,fmtD,fmtDT,nowStr,validDateTime,dOff} from './util.js';
+import {$,esc,fmtMoney as fmtMoneyBase,fmtD,fmtDT,nowStr,validDateTime,dOff} from './util.js';
 import {db,save} from './storage.js';
 import {Notify} from './notify.js';
 import {ui,renderAll} from './ui.js';
 import {byId,paymentSpec,orderMoney,hasReceipt,METHODS,remindLogOf,lastRemind,unFin,deliveredAll} from './derived.js';
 import {toast,showSheet,closeSheets} from './sheets.js';
 import {MILE_LABEL,rerenderDetail,openDetail} from './detail.js';
+/* 隐私模式:本文件全部金额渲染经此包装(P0 修复:双参化后调用点必须带 ui.privacy) */
+const fmtMoney=n=>fmtMoneyBase(n,ui.privacy);
 
 /* ================= 状态操作 ================= */
 /* 里程碑前置依赖:时间线只能向前走,不允许跳过中间节点直接标记,

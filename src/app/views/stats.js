@@ -1,5 +1,5 @@
 /* ================= 渲染:统计(P0 §3) ================= */
-import {$,esc,toISO,now,fmtD,fmtMoney} from '../util.js';
+import {$,esc,toISO,now,fmtD,fmtMoney as fmtMoneyBase} from '../util.js';
 import {LEGAL_BASE,APP_STORE_URL,isNative} from '../env.js';
 import {db,Store} from '../storage.js';
 import {ui} from '../ui.js';
@@ -7,6 +7,8 @@ import {owedOf,workOf,METHOD_CLS,accMatch} from '../derived.js';
 import {ACCS,accMulti,accAvatarHTML,accColor} from '../accounts.js';
 import {statsFor,headBtns} from '../stats.js';
 import {accChipbarHTML} from '../accounts.js';
+/* 隐私模式:本文件全部金额渲染经此包装(P0 修复:双参化后调用点必须带 ui.privacy) */
+const fmtMoney=n=>fmtMoneyBase(n,ui.privacy);
 
 /* ================= 渲染:统计 ================= */
 function accountSectionHtml(){

@@ -164,12 +164,32 @@ function resolveMainRef(explicit) {
   return null;
 }
 
-/** 校验 www/cap-plugins.js 是否等于 src/cap-plugins.js 的构建产物 */
+/** 校验入库构建产物是否等于其源码的 esbuild 产物(cap-plugins.js / app.js 同款护栏) */
 function checkBuiltPlugin() {
-  const src = path.join(ROOT, 'src', 'cap-plugins.js');
-  const built = path.join(ROOT, 'www', 'cap-plugins.js');
+  return checkBuiltArtifact({
+    src: path.join(ROOT, 'src', 'cap-plugins.js'),
+    built: path.join(ROOT, 'www', 'cap-plugins.js'),
+    format: 'iife',
+    minify: true,
+    rebuildHint: 'npm run build:plugins',
+  });
+}
+
+/** P0 拆层后:www/app.js 是 src/app/ 的构建产物,与 cap-plugins.js 同风险(改了源码忘构建、手改产物) */
+function checkBuiltApp() {
+  return checkBuiltArtifact({
+    src: path.join(ROOT, 'src', 'app', 'main.js'),
+    built: path.join(ROOT, 'www', 'app.js'),
+    format: 'esm',
+    minify: false,
+    mtimeSources: [path.join(ROOT, 'src', 'app')],
+    rebuildHint: 'npm run build:app',
+  });
+}
+
+function checkBuiltArtifact({ src, built, format, minify, mtimeSources, rebuildHint }) {
   if (!fs.existsSync(src)) return { ok: true, skipped: true };
-  if (!fs.existsSync(built)) return { ok: false, message: '缺少 www/cap-plugins.js' };
+  if (!fs.existsSync(built)) return { ok: false, message: `缺少 ${path.relative(ROOT, built)}` };
 
   let esbuild;
   try {
@@ -179,14 +199,14 @@ function checkBuiltPlugin() {
   }
 
   const os = require('node:os');
-  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tanji-build-')), 'cap-plugins.js');
+  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tanji-build-')), path.basename(built));
   try {
     esbuild.buildSync({
-      entryPoints: [path.join(ROOT, 'src', 'cap-plugins.js')],
+      entryPoints: [src],
       bundle: true,
-      format: 'iife',
+      format,
       outfile: tmp,
-      minify: true,
+      minify,
       logLevel: 'silent',
     });
 
@@ -196,8 +216,8 @@ function checkBuiltPlugin() {
     return {
       ok: false,
       message:
-        'www/cap-plugins.js 与 src/cap-plugins.js 的构建产物不一致 —— ' +
-        '请执行 `npm run build:plugins` 后重新提交',
+        `${path.relative(ROOT, built)} 与 ${path.relative(ROOT, src)} 的构建产物不一致 —— ` +
+        `请执行 \`${rebuildHint}\` 后重新提交`,
     };
   } catch (e) {
     return { ok: true, skipped: true, message: `esbuild 执行失败，跳过比对：${e.message}` };
@@ -289,6 +309,8 @@ function main() {
 
     const plugin = checkBuiltPlugin();
     if (!plugin.ok) problems.push(plugin.message);
+    const appBundle = checkBuiltApp();
+    if (!appBundle.ok) problems.push(appBundle.message);
 
     if (problems.length) {
       console.error('✗ main / native 存在未登记的漂移：\n');

@@ -1,10 +1,12 @@
 /* ================= 渲染:行程(P0 §3) ================= */
-import {$,esc,pad,dOff,TODAY,dowOf,fmtMoney,fmtHM,fmtD} from '../util.js';
+import {$,esc,pad,dOff,TODAY,dowOf,fmtMoney as fmtMoneyBase,fmtHM,fmtD} from '../util.js';
 import {db} from '../storage.js';
 import {ui} from '../ui.js';
 import {workChip,payChip,owedOf,unDep,upcoming7,accOrderIds,accMatch} from '../derived.js';
 import {accBar,accTint,accChipbarHTML,dayBadge} from '../accounts.js';
 import {headBtns} from '../stats.js';
+/* 隐私模式:本文件全部金额渲染经此包装(P0 修复:双参化后调用点必须带 ui.privacy) */
+const fmtMoney=n=>fmtMoneyBase(n,ui.privacy);
 
 /* ================= 渲染:行程 ================= */
 export function orderRowTrip(o){

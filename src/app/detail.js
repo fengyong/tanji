@@ -1,10 +1,12 @@
 /* ================= 详情弹层(P0 §3,含 rerenderDetail) ================= */
-import {$,esc,fmtMoney,fmtD,fmtHM,fmtDT} from './util.js';
+import {$,esc,fmtMoney as fmtMoneyBase,fmtD,fmtHM,fmtDT} from './util.js';
 import {db} from './storage.js';
 import {ui} from './ui.js';
 import {byId,overdueDays,orderMoney,moneyCents,unDep,unFin,isOver,payOf,remindLogOf,expectOverdue,snoozed,owedOf,workChip,payChip,deliverLate,REVIEW_LABEL,gpsText,needMain,needSub,deliveredAll} from './derived.js';
 import {accMulti,accTagHTML,accById} from './accounts.js';
 import {showSheet} from './sheets.js';
+/* 隐私模式:本文件全部金额渲染经此包装(P0 修复:双参化后调用点必须带 ui.privacy) */
+const fmtMoney=n=>fmtMoneyBase(n,ui.privacy);
 
 /* ================= 详情弹层 ================= */
 export const MILE_LABEL={shotAt:'拍摄',submittedAt:'提审',shortAt:'副片发出',longAt:'正片发出',publishedAt:'发布'};

@@ -1,5 +1,5 @@
 /* ================= 渲染:订单(P0 §3) ================= */
-import {$,esc,fmtD,fmtHM,fmtMoney} from '../util.js';
+import {$,esc,fmtD,fmtHM,fmtMoney as fmtMoneyBase} from '../util.js';
 import {db} from '../storage.js';
 import {ui} from '../ui.js';
 import {workChip,payChip,isOver,overdueDays,snoozed,owedOf,accMatch} from '../derived.js';
@@ -7,6 +7,8 @@ import {accBar,accTint,accOrderTag,accChipbarHTML} from '../accounts.js';
 import {priceCell,stepBtn} from '../detail.js';
 import {headBtns} from '../stats.js';
 import {workOf} from '../derived.js';
+/* 隐私模式:本文件全部金额渲染经此包装(P0 修复:双参化后调用点必须带 ui.privacy) */
+const fmtMoney=n=>fmtMoneyBase(n,ui.privacy);
 
 /* ================= 渲染:订单 ================= */
 function chipMatch(o){

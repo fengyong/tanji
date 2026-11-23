@@ -1784,6 +1784,7 @@ async function exportCheckpoint() {
 }
 
 // src/app/detail.js
+var fmtMoney2 = (n) => fmtMoney(n, ui.privacy);
 var MILE_LABEL = { shotAt: "\u62CD\u6444", submittedAt: "\u63D0\u5BA1", shortAt: "\u526F\u7247\u53D1\u51FA", longAt: "\u6B63\u7247\u53D1\u51FA", publishedAt: "\u53D1\u5E03" };
 var MILE_COLOR = {
   shotAt: { c: "#E8663C", soft: "#FCEFE8" },
@@ -1804,7 +1805,7 @@ function mileStep(oid, key, label, time, done, nowFlag) {
     <div class="mlab">${esc(label)}</div><div class="mtime">${done ? esc(fmtDT(time)) : nowFlag ? "\u70B9\u51FB\u6807\u8BB0" : ""}</div></button>`;
 }
 function priceCell(o) {
-  const money = fmtMoney(o.price);
+  const money = fmtMoney2(o.price);
   return o.photoThumb ? `<div class="rprice shot" style="background-image:url('${o.photoThumb}')"><span>${money}</span></div>` : `<div class="rprice">${money}</div>`;
 }
 function detailActions(o) {
@@ -1850,8 +1851,8 @@ function openDetail(id) {
   const progress = lastDone < 0 ? 0 : (lastDone + 0.5) / visibleSteps.length * 72;
   const received = db.payments.filter((p) => p.oid === o.id).reduce((s, p) => s + (moneyCents(p.amount) || 0), 0) / 100;
   const payBtns = [];
-  if (unDep(o) > 0) payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="deposit">\u6536\u5B9A\u91D1 ${esc(fmtMoney(unDep(o)))}</button>`);
-  if (unFin(o) > 0) payBtns.push(`<button class="btn ${isOver(o) ? "primary" : "pay"}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">\u6536\u5C3E\u6B3E<span class="pmoney">${esc(fmtMoney(unFin(o)))}</span></button>`);
+  if (unDep(o) > 0) payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="deposit">\u6536\u5B9A\u91D1 ${esc(fmtMoney2(unDep(o)))}</button>`);
+  if (unFin(o) > 0) payBtns.push(`<button class="btn ${isOver(o) ? "primary" : "pay"}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">\u6536\u5C3E\u6B3E<span class="pmoney">${esc(fmtMoney2(unFin(o)))}</span></button>`);
   if (!payBtns.length) payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">\u6B3E\u9879\u5DF2\u5168\u90E8\u7ED3\u6E05</div>`);
   let snoozeHtml = "";
   if (payOf(o) === "\u5F85\u5C3E\u6B3E") {
@@ -1921,11 +1922,11 @@ function openDetail(id) {
       <div class="ig"><div class="k">\u53D1\u5E03\u65F6\u95F4</div><div class="v">${esc(fmtDT(o.publishedAt))}</div></div>
       <div class="ig"><div class="k">\u670D\u52A1\u5546</div><div class="v">${esc(o.channel || "\u76F4\u5BA2")}</div></div>
       <div class="ig"><div class="k">\u7EC4\u961F</div><div class="v">${esc(o.partner || (o.note && o.note.includes("\u4E0D\u7EC4\u961F") ? "\u4E0D\u7EC4\u961F" : "\u2014"))}</div></div>
-      <div class="ig"><div class="k">\u603B\u4EF7</div><div class="v">${esc(fmtMoney(o.price))}</div></div>
-      <div class="ig"><div class="k">\u5B9A\u91D1 ${o.depositPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.depositPaidAt)) : ""}</div><div class="v">${esc(fmtMoney(o.deposit))}</div></div>
-      <div class="ig"><div class="k">\u5C3E\u6B3E ${o.finalPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.finalPaidAt)) : ""}</div><div class="v">${esc(fmtMoney(money ? money.final / 100 : 0))}</div></div>
-      <div class="ig"><div class="k">\u5DF2\u6536\u5408\u8BA1</div><div class="v" style="color:#239648">${received > 0 ? esc(fmtMoney(received)) : "\u2014"}</div></div>
-      <div class="ig"><div class="k">\u5F53\u524D\u5F85\u6536</div><div class="v" style="${owedOf(o) > 0 ? "color:var(--red)" : "color:#239648"}">${owedOf(o) > 0 ? esc(fmtMoney(owedOf(o))) : "\u5DF2\u7ED3\u6E05"}</div></div>
+      <div class="ig"><div class="k">\u603B\u4EF7</div><div class="v">${esc(fmtMoney2(o.price))}</div></div>
+      <div class="ig"><div class="k">\u5B9A\u91D1 ${o.depositPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.depositPaidAt)) : ""}</div><div class="v">${esc(fmtMoney2(o.deposit))}</div></div>
+      <div class="ig"><div class="k">\u5C3E\u6B3E ${o.finalPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.finalPaidAt)) : ""}</div><div class="v">${esc(fmtMoney2(money ? money.final / 100 : 0))}</div></div>
+      <div class="ig"><div class="k">\u5DF2\u6536\u5408\u8BA1</div><div class="v" style="color:#239648">${received > 0 ? esc(fmtMoney2(received)) : "\u2014"}</div></div>
+      <div class="ig"><div class="k">\u5F53\u524D\u5F85\u6536</div><div class="v" style="${owedOf(o) > 0 ? "color:var(--red)" : "color:#239648"}">${owedOf(o) > 0 ? esc(fmtMoney2(owedOf(o))) : "\u5DF2\u7ED3\u6E05"}</div></div>
       <div class="ig"><div class="k">\u7ED3\u7B97\u65B9\u5F0F</div><div class="v">${o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u79C1\u6536"}</div></div>
     </div>
     ${o.note ? `<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">${esc(o.note)}</div></div>` : ""}
@@ -1937,6 +1938,7 @@ function rerenderDetail() {
 }
 
 // src/app/order-actions.js
+var fmtMoney3 = (n) => fmtMoney(n, ui.privacy);
 var MILE_PRE = { shotAt: null, submittedAt: "shotAt", shortAt: "submittedAt", longAt: "submittedAt", publishedAt: "submittedAt" };
 var MILE_ORDER = ["shotAt", "submittedAt", "shortAt", "longAt", "publishedAt"];
 function mark(id, key, label) {
@@ -1981,7 +1983,7 @@ function pay(id, kind, method = "\u5FAE\u4FE1") {
   renderAll();
   rerenderDetail();
   Notify.syncDaily();
-  toast(`\u5DF2\u6536${spec.label} ${fmtMoney(amount)} \xB7 ${method}`, { label: "\u64A4\u9500", run: () => undoPay(id, kind, t) });
+  toast(`\u5DF2\u6536${spec.label} ${fmtMoney3(amount)} \xB7 ${method}`, { label: "\u64A4\u9500", run: () => undoPay(id, kind, t) });
   return true;
 }
 function undoPay(id, kind, at) {
@@ -2023,14 +2025,14 @@ function openPay(oid, kind, keepMethod) {
   $("#pay-body").innerHTML = `
     <div style="text-align:center;padding:6px 0 2px">
       <div style="font-size:14px;font-weight:700">${esc(o.store)}</div>
-      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${esc(fmtMoney(amt))}</div>
+      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${esc(fmtMoney3(amt))}</div>
       <div style="font-size:12px;color:var(--sub)">${spec.label} \xB7 ${o.settleVia === "douyin" ? "\u7EA6\u5B9A\u6296\u97F3\u5546\u5355\u7ED3\u7B97" : "\u79C1\u6536\u6B3E\u9879"} \xB7 \u4EC5\u4F5C\u5165\u8D26\u8BB0\u5F55</div>
     </div>
     <div class="sec-title" style="justify-content:center">\u6536\u6B3E\u65B9\u5F0F(\u8BB0\u5F55\u7528)</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
       ${METHODS.map((m2) => `<button class="mchip ${ui.payCtx.method === m2 ? "on" : ""}" data-act="pay-method" data-m="${esc(m2)}">${esc(m2)}</button>`).join("")}
     </div>
-    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">\u786E\u8BA4\u6536\u6B3E ${esc(fmtMoney(amt))}</button></div>`;
+    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">\u786E\u8BA4\u6536\u6B3E ${esc(fmtMoney3(amt))}</button></div>`;
   showSheet("sheet-pay");
 }
 var REMIND_QUICK = ["\u8BF4\u8FD9\u5468\u7ED9", "\u8BF4\u6708\u5E95\u7EDF\u4E00\u7ED3", "\u8D22\u52A1\u8D70\u6D41\u7A0B", "\u6CA1\u56DE\u590D/\u4E0D\u63A5", "\u5DF2\u8F6C\u5BF9\u516C", "\u8BF4\u62CD\u5B8C\u518D\u7ED3"];
@@ -2074,7 +2076,7 @@ function openExpect(oid) {
     return;
   }
   ui.expectOid = oid;
-  $("#expect-sub").textContent = `\u300C${o.store}\u300D\u6296\u97F3\u5546\u5355,\u5C3E\u6B3E ${fmtMoney(unFin(o))} \u7531\u5E73\u53F0\u7ED3\u7B97`;
+  $("#expect-sub").textContent = `\u300C${o.store}\u300D\u6296\u97F3\u5546\u5355,\u5C3E\u6B3E ${fmtMoney3(unFin(o))} \u7531\u5E73\u53F0\u7ED3\u7B97`;
   $("#expect-date").value = o.expectPayAt ? o.expectPayAt.slice(0, 10) : "";
   showSheet("sheet-expect");
 }
@@ -2541,6 +2543,7 @@ function headBtns(share) {
 }
 
 // src/app/views/orders.js
+var fmtMoney4 = (n) => fmtMoney(n, ui.privacy);
 function chipMatch(o) {
   const w = workOf(o);
   switch (ui.chip) {
@@ -2578,7 +2581,7 @@ function renderOrders() {
         <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}${isOver(o) ? `<span class="chip c-red">\u6B20 ${overdueDays(o)} \u5929</span>` : ""}${snoozed(o) ? '<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>' : ""}${stepBtn(o)}</div>
       </div>
       <div class="rside">${priceCell(o)}
-        <div class="rsub" style="${owedOf(o) > 0 ? "color:var(--red);font-weight:700" : ""}">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div>
+        <div class="rsub" style="${owedOf(o) > 0 ? "color:var(--red);font-weight:700" : ""}">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney4(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div>
       </div>
     </div>`).join("") : `<div class="empty"><div class="e-ic">\u{1F50D}</div>\u6CA1\u6709\u7B26\u5408\u6761\u4EF6\u7684\u8BA2\u5355</div>`;
   $("#v-orders").innerHTML = `
@@ -2604,6 +2607,7 @@ function renderOrders() {
 }
 
 // src/app/views/pay.js
+var fmtMoney5 = (n) => fmtMoney(n, ui.privacy);
 function renderPay() {
   const rows0 = db.orders.filter(accMatch).filter((o) => owedOf(o) > 0);
   const unDepSum = rows0.reduce((s, o) => s + unDep(o), 0);
@@ -2625,8 +2629,8 @@ function renderPay() {
     const chip = isDep ? '<span class="chip c-gray">\u5F85\u5B9A\u91D1</span>' : isDy ? `<span class="chip ${late > 0 ? "c-red" : "c-blue"}">\u5E73\u53F0\u7ED3\u7B97${o.expectPayAt ? ` \xB7 ${fmtD(o.expectPayAt)}${late > 0 ? " \u5DF2\u8D85\u671F" : ""}` : ""}</span>` : isOver(o) ? sn ? `<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192 \xB7 ${fmtD(o.remindAt)}\u518D\u50AC</span>` : `<span class="chip c-red">\u903E\u671F \xB7 \u6B20 ${d} \u5929</span>` : `<span class="chip ${d > 7 ? "c-orange" : "c-gray"}">${o.shotAt ? "\u6B20\u6B3E " + d + " \u5929" : "\u672A\u62CD\u6444 \xB7 \u5C1A\u672A\u8D77\u7B97\u8D26\u671F"}</span>`;
     return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain"><div class="rname">${esc(o.store)}</div>
-        <div class="rsub">${due.sub} ${fmtMoney(due.amt)}</div>
-        <div class="chiprow">${accOrderTag(o)}${chip}${!isDep && unDep(o) > 0 ? `<span class="chip c-gray">\u53E6\u5F85\u5B9A\u91D1 ${fmtMoney(unDep(o))}</span>` : ""}</div>
+        <div class="rsub">${due.sub} ${fmtMoney5(due.amt)}</div>
+        <div class="chiprow">${accOrderTag(o)}${chip}${!isDep && unDep(o) > 0 ? `<span class="chip c-gray">\u53E6\u5F85\u5B9A\u91D1 ${fmtMoney5(unDep(o))}</span>` : ""}</div>
       </div>
       <button class="mini-btn green" data-act="open-pay" data-oid="${o.id}" data-kind="${due.kind}">${due.btn}</button>
     </div>`;
@@ -2634,7 +2638,7 @@ function renderPay() {
   const flow = [...db.payments].filter((p) => accOrderIds().has(p.oid)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((p) => {
     const po = db.orders.find((x) => x.id === p.oid);
     return `<div class="row${accBar(po)}" style="${accTint(po)}">
-      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney(p.amount)} \xB7 ${esc(storeOf(p.oid))}</div>
+      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney5(p.amount)} \xB7 ${esc(storeOf(p.oid))}</div>
         <div class="rsub">${esc(p.kind)} \xB7 ${fmtD(p.at)} ${fmtHM(p.at)}${accMulti() ? ` \xB7 ${accTagHTML(po ? accById(po.accountId) : null)}` : ""}</div></div>
       <span class="chip ${METHOD_CLS[p.method] || "c-gray"}">${esc(p.method)}</span>
     </div>`;
@@ -2645,12 +2649,12 @@ function renderPay() {
     ${accChipbarHTML()}
     <div class="card" style="padding:16px;margin-bottom:12px">
       <div style="font-size:12px;color:var(--sub)">\u5F85\u6536\u6B3E\u603B\u989D</div>
-      <div style="font-size:32px;font-weight:800;letter-spacing:.3px;margin:4px 0 2px">${fmtMoney(unDepSum + unFinSum)}</div>
+      <div style="font-size:32px;font-weight:800;letter-spacing:.3px;margin:4px 0 2px">${fmtMoney5(unDepSum + unFinSum)}</div>
       <div class="chiprow">
-        <span class="chip c-orange">\u5C3E\u6B3E\xB7\u79C1\u6536 ${fmtMoney(unFinSum - dySum)}</span>
-        ${dySum > 0 ? `<span class="chip c-blue">\u6296\u97F3\u5546\u5355 ${fmtMoney(dySum)}</span>` : ""}
-        <span class="chip c-gray">\u5B9A\u91D1 ${fmtMoney(unDepSum)}</span>
-        ${over.length ? `<span class="chip c-red">\u903E\u671F ${over.length} \u7B14 \xB7 ${fmtMoney(overSum)}</span>` : '<span class="chip c-green">\u65E0\u903E\u671F</span>'}
+        <span class="chip c-orange">\u5C3E\u6B3E\xB7\u79C1\u6536 ${fmtMoney5(unFinSum - dySum)}</span>
+        ${dySum > 0 ? `<span class="chip c-blue">\u6296\u97F3\u5546\u5355 ${fmtMoney5(dySum)}</span>` : ""}
+        <span class="chip c-gray">\u5B9A\u91D1 ${fmtMoney5(unDepSum)}</span>
+        ${over.length ? `<span class="chip c-red">\u903E\u671F ${over.length} \u7B14 \xB7 ${fmtMoney5(overSum)}</span>` : '<span class="chip c-green">\u65E0\u903E\u671F</span>'}
         ${overAll.length > over.length ? `<span class="chip c-gray">${overAll.length - over.length} \u7B14\u5DF2\u8BBE\u63D0\u9192</span>` : ""}
       </div>
     </div>
@@ -2664,6 +2668,7 @@ function renderPay() {
 }
 
 // src/app/views/stats.js
+var fmtMoney6 = (n) => fmtMoney(n, ui.privacy);
 function accountSectionHtml() {
   const accs = ACCS();
   if (!accs.length) return `<div class="menu-row" data-act="open-account">
@@ -2705,7 +2710,7 @@ function renderStats() {
   }
   const daily = days.map((d) => st.paid.filter((p) => p.at.slice(0, 10) === d).reduce((s, p) => s + Math.round(p.amount * 100), 0) / 100);
   const mx = Math.max(...daily, 1);
-  const bars = daily.map((v, i) => `<div class="bar ${v ? "" : "zero"}" title="${days[i]} \u5B9E\u6536 ${fmtMoney(v)}"><i style="height:${Math.max(3, Math.round(v / mx * 100))}%"></i></div>`).join("");
+  const bars = daily.map((v, i) => `<div class="bar ${v ? "" : "zero"}" title="${days[i]} \u5B9E\u6536 ${fmtMoney6(v)}"><i style="height:${Math.max(3, Math.round(v / mx * 100))}%"></i></div>`).join("");
   const totOwed = db.orders.filter(accMatch).reduce((s, o) => s + owedOf(o), 0);
   const sending = db.orders.filter(accMatch).filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf(o))).length;
   const segP = [["7", "\u8FD17\u5929"], ["30", "\u8FD130\u5929"], ["M", "\u672C\u6708"]].map(([k, l]) => `<button class="${ui.period === k ? "on" : ""}" data-act="period" data-period="${k}">${l}</button>`).join("");
@@ -2719,7 +2724,7 @@ function renderStats() {
     <div class="row" style="padding:9px 0">
       <span class="chip ${METHOD_CLS[m] || "c-gray"}" style="width:70px;justify-content:center">${esc(m)}</span>
       <div style="flex:1;height:8px;background:#F0F0F4;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(4, Math.round(v / mxm * 100))}%;background:var(--brand);border-radius:4px"></i></div>
-      <div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13.5px">${fmtMoney(v)}</div></div>
+      <div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13.5px">${fmtMoney6(v)}</div></div>
     </div>`).join("") : '<div class="empty" style="padding:18px 0">\u8BE5\u533A\u95F4\u6682\u65E0\u6536\u6B3E</div>';
   $("#v-stats").innerHTML = `
     <div class="htop-row"><div><div class="eyebrow">\u5B9E\u65F6\u7EDF\u8BA1 \xB7 \u6253\u5F00\u5373\u5237\u65B0</div><h1 class="big">\u7EDF\u8BA1</h1></div>
@@ -2727,15 +2732,15 @@ function renderStats() {
     ${accChipbarHTML()}
     <div class="seg" style="margin-bottom:14px">${segP}</div>
     <div class="mini-grid">
-      <div class="mini"><div class="mv">${fmtMoney(st.dealSum)}</div><div class="ml">\u6210\u4EA4\u989D \xB7 ${st.deals.length} \u5355</div></div>
-      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(st.paidSum)}</div><div class="ml">\u5B9E\u6536\u91D1\u989D \xB7 ${st.paid.length} \u7B14</div></div>
+      <div class="mini"><div class="mv">${fmtMoney6(st.dealSum)}</div><div class="ml">\u6210\u4EA4\u989D \xB7 ${st.deals.length} \u5355</div></div>
+      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney6(st.paidSum)}</div><div class="ml">\u5B9E\u6536\u91D1\u989D \xB7 ${st.paid.length} \u7B14</div></div>
       <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} \u5355</div><div class="ml">\u5DF2\u4EA4\u4ED8\u5B8C\u7ED3</div></div>
-      <div class="mini"><div class="mv">${fmtMoney(avg)}</div><div class="ml">\u5BA2\u5355\u4EF7</div></div>
+      <div class="mini"><div class="mv">${fmtMoney6(avg)}</div><div class="ml">\u5BA2\u5355\u4EF7</div></div>
     </div>
     <div class="card" style="margin-top:14px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
         <span style="font-size:14px;font-weight:800">\u6BCF\u65E5\u5B9E\u6536</span>
-        <span style="font-size:11.5px;color:var(--sub)">${ui.period === "M" ? "\u672C\u6708" : "\u8FD1" + ui.period + "\u5929"}\u5408\u8BA1 <b style="color:#239648;font-size:13px">${fmtMoney(st.paidSum)}</b></span>
+        <span style="font-size:11.5px;color:var(--sub)">${ui.period === "M" ? "\u672C\u6708" : "\u8FD1" + ui.period + "\u5929"}\u5408\u8BA1 <b style="color:#239648;font-size:13px">${fmtMoney6(st.paidSum)}</b></span>
       </div>
       <div class="bars">${bars}</div>
       <div class="bar-x"><span>${fmtD(days[0])}</span><span>${fmtD(days[days.length - 1])}</span></div>
@@ -2749,7 +2754,7 @@ function renderStats() {
     </div>
     <div class="card rows" style="margin-top:14px">
       <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">\u5F53\u524D\u5F85\u6536\u6B3E</div><div class="rsub">\u542B\u5B9A\u91D1\u4E0E\u5C3E\u6B3E</div></div>
-        <div class="rside"><div class="rprice" style="color:var(--red)">${fmtMoney(totOwed)}</div></div></div>
+        <div class="rside"><div class="rprice" style="color:var(--red)">${fmtMoney6(totOwed)}</div></div></div>
       <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">\u5F85\u53D1\u7247\u8BA2\u5355</div><div class="rsub">\u540E\u671F\u4E2D / \u53D1\u7247\u4E2D</div></div>
         <div class="rside"><div class="rprice" style="color:var(--orange)">${sending} \u5355</div></div></div>
     </div>
@@ -2828,13 +2833,14 @@ function renderStats() {
 }
 
 // src/app/views/trip.js
+var fmtMoney7 = (n) => fmtMoney(n, ui.privacy);
 function orderRowTrip(o) {
-  const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney(unDep(o))}</span>` : "";
+  const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney7(unDep(o))}</span>` : "";
   return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
     <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
     <div class="rmain"><div class="rname">${esc(o.store)}</div>
       <div class="chiprow">${workChip(o)}${depChip || payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}</div></div>
-    <div class="rside"><div class="rprice">${fmtMoney(o.price)}</div><div class="rsub">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div></div>
+    <div class="rside"><div class="rprice">${fmtMoney7(o.price)}</div><div class="rsub">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney7(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div></div>
   </div>`;
 }
 function renderTrip() {
@@ -2884,7 +2890,7 @@ function renderTrip() {
   }
   if (!up) up = `<div class="empty">${m}\u6708\u6682\u65E0\u6863\u671F \xB7 \u70B9\u53F3\u4E0A\u89D2\u300C\u9884\u7EA6\u300D\u65B0\u589E</div>`;
   const week = upcoming7(), weekCount = week.reduce((s, d) => s + d.count, 0), weekSum = week.reduce((s, d) => s + d.sum, 0);
-  const weekHtml = `<div class="sec-title" style="margin-top:14px;margin-bottom:6px"><span>\u672A\u6765 7 \u5929${weekCount ? ` \xB7 ${weekCount} \u5355` : " \xB7 \u6682\u65E0\u6863\u671F"}</span>${weekSum ? `<span style="font-weight:600">${esc(fmtMoney(weekSum))}</span>` : ""}</div>
+  const weekHtml = `<div class="sec-title" style="margin-top:14px;margin-bottom:6px"><span>\u672A\u6765 7 \u5929${weekCount ? ` \xB7 ${weekCount} \u5355` : " \xB7 \u6682\u65E0\u6863\u671F"}</span>${weekSum ? `<span style="font-weight:600">${esc(fmtMoney7(weekSum))}</span>` : ""}</div>
     <div class="n7">${week.map((d, i) => {
     const wd = i === 0 ? "\u4ECA\u5929" : i === 1 ? "\u660E\u5929" : `\u5468${dowOf(d.day)}`;
     return `<button class="n7d ${d.day === ui.selDay ? "on" : ""}" data-act="day" data-day="${d.day}">
@@ -2902,7 +2908,7 @@ function renderTrip() {
     ${accChipbarHTML()}
     <div class="mgrid">
       <div class="mhead">
-        <div class="mtitle">${y}\u5E74${m}\u6708<span class="msum">${mOrders.length} \u4E2A\u6863\u671F \xB7 \u6210\u4EA4 ${fmtMoney(mSum)} \xB7 \u5DF2\u6536 ${fmtMoney(mPaidSum)}${mBadges}</span></div>
+        <div class="mtitle">${y}\u5E74${m}\u6708<span class="msum">${mOrders.length} \u4E2A\u6863\u671F \xB7 \u6210\u4EA4 ${fmtMoney7(mSum)} \xB7 \u5DF2\u6536 ${fmtMoney7(mPaidSum)}${mBadges}</span></div>
         <div class="mnav">
           <button data-act="mnav" data-d="-1">\u2039</button>
           <button data-act="mtoday" class="mtod">\u4ECA\u5929</button>
@@ -3342,6 +3348,7 @@ document.addEventListener("click", (e) => {
 ["f-date", "f-time"].forEach((id) => $("#" + id).addEventListener("input", updateConflict));
 
 // src/app/views/home.js
+var fmtMoney8 = (n) => fmtMoney(n, ui.privacy);
 function renderHome() {
   const flt = db.orders.filter(accMatch);
   const overAll = flt.filter(isOver);
@@ -3357,7 +3364,7 @@ function renderHome() {
   if (over.length) {
     alertCard = `<div class="alert-card" data-act="goto-collect">
       <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg>
-      <div class="alert-main"><div class="alert-t">${over.length} \u7B14\u5C3E\u6B3E\u903E\u671F \xB7 \u5F85\u50AC\u6536 ${fmtMoney(overSum)}</div>
+      <div class="alert-main"><div class="alert-t">${over.length} \u7B14\u5C3E\u6B3E\u903E\u671F \xB7 \u5F85\u50AC\u6536 ${fmtMoney8(overSum)}</div>
       <div class="alert-s">\u6700\u957F\u5DF2\u6B20 ${maxOver} \u5929${overAll.length > over.length ? ` \xB7 \u53E6\u6709 ${overAll.length - over.length} \u7B14\u5DF2\u8BBE\u63D0\u9192` : ""} \xB7 \u70B9\u51FB\u8FDB\u5165\u50AC\u6536\u6E05\u5355</div></div>
       <svg class="ic" style="opacity:.9" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg>
     </div>`;
@@ -3372,11 +3379,11 @@ function renderHome() {
   } else {
     alertCard = `<div class="alert-card calm">
       <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-      <div class="alert-main"><div class="alert-t">\u6536\u6B3E\u72B6\u6001\u5065\u5EB7</div><div class="alert-s">\u6682\u65E0\u903E\u671F\u5C3E\u6B3E,\u5171\u5F85\u6536 ${fmtMoney(totOwed)}</div></div>
+      <div class="alert-main"><div class="alert-t">\u6536\u6B3E\u72B6\u6001\u5065\u5EB7</div><div class="alert-s">\u6682\u65E0\u903E\u671F\u5C3E\u6B3E,\u5171\u5F85\u6536 ${fmtMoney8(totOwed)}</div></div>
     </div>`;
   }
   const todayRows = todays.length ? todays.map((o) => {
-    const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney(unDep(o))}</span>` : "";
+    const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney8(unDep(o))}</span>` : "";
     const punch = o.shotAt ? "" : `<button class="mini-btn" style="padding:6px 10px;font-size:12px" data-act="mark-shot" data-oid="${esc(o.id)}">\u6253\u5361</button>`;
     return `<div class="row${accBar(o)}" style="${accTint(o)}${o.shotAt ? ";opacity:.66" : ""}" data-act="open" data-oid="${o.id}">
       <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">\u9884\u7EA6</div></div>
@@ -3395,7 +3402,7 @@ function renderHome() {
     ].filter(Boolean).map((t) => `<span class="chip c-orange">${t}</span>`).join("");
     const late = deliverLate(o) ? `<span class="chip c-red">\u8D8524h</span>` : "";
     return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
-      <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">\u62CD\u6444\u4E8E ${fmtD(o.shotAt)} \xB7 ${fmtMoney(o.price)}</div>
+      <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">\u62CD\u6444\u4E8E ${fmtD(o.shotAt)} \xB7 ${fmtMoney8(o.price)}</div>
         <div class="chiprow">${accOrderTag(o)}${late}${miss}</div></div>
       ${stepBtn(o, "padding:8px 12px") || '<svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>'}
     </div>`;
@@ -3420,9 +3427,9 @@ function renderHome() {
     <div class="card rows">${sendRows}</div>
     <div class="sec-title">\u672C\u6708\u901F\u89C8 <span class="more" data-act="tab" data-tab="stats">\u7EDF\u8BA1 \u203A</span></div>
     <div class="mini-grid">
-      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney(m.paidSum)}</div><div class="ml">\u672C\u6708\u5B9E\u6536 \xB7 ${m.paid.length} \u7B14</div></div>
-      <div class="mini"><div class="mv">${fmtMoney(m.dealSum)}</div><div class="ml">\u672C\u6708\u6210\u4EA4 \xB7 ${m.deals.length} \u5355</div></div>
-      <div class="mini"><div class="mv" style="color:var(--red)">${fmtMoney(totOwed)}</div><div class="ml">\u5F53\u524D\u5F85\u6536\u6B3E</div></div>
+      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney8(m.paidSum)}</div><div class="ml">\u672C\u6708\u5B9E\u6536 \xB7 ${m.paid.length} \u7B14</div></div>
+      <div class="mini"><div class="mv">${fmtMoney8(m.dealSum)}</div><div class="ml">\u672C\u6708\u6210\u4EA4 \xB7 ${m.deals.length} \u5355</div></div>
+      <div class="mini"><div class="mv" style="color:var(--red)">${fmtMoney8(totOwed)}</div><div class="ml">\u5F53\u524D\u5F85\u6536\u6B3E</div></div>
       <div class="mini"><div class="mv" style="color:var(--orange)">${sending.length}</div><div class="ml">\u5F85\u53D1\u7247\u8BA2\u5355</div></div>
     </div>`;
 }

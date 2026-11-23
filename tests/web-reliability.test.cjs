@@ -333,3 +333,21 @@ test('storePhase:失去多 Tab 写锁是 locked-out 终态,且必然 blocked(不
   assert.equal(a.run('storePhase()'),'locked-out');
   assert.equal(a.run('Store.blocked'),true,'lockedOut 必须蕴含 blocked(写锁丢了写入必须停)');
 });
+
+/* ---------- 隐私模式:渲染级遮蔽(2026-11-23,第六轮 review 发现的回归) ---------- */
+
+test('隐私模式遮蔽全部渲染金额,关闭后恢复',()=>{
+  const a=app();setState(a);
+  const views=['#v-home','#v-trip','#v-orders','#v-pay','#v-stats'];
+  a.run('ui.privacy=false;renderAll()');
+  const withMoney=views.filter(sel=>/¥[\d,]/.test(a.element(sel).innerHTML));
+  assert.ok(withMoney.length>=3,`关闭隐私时应有金额渲染,实际只有 ${withMoney}`);
+  a.run('ui.privacy=true;renderAll()');
+  for(const sel of views){
+    const html=a.element(sel).innerHTML;
+    assert.ok(!/¥[\d,]/.test(html),`隐私模式下 ${sel} 仍渲染真实金额`);
+  }
+  assert.ok(a.element('#v-home').innerHTML.includes('✱✱✱'),'隐私模式下应出现遮蔽记号');
+  a.run('ui.privacy=false;renderAll()');
+  assert.ok(/¥[\d,]/.test(a.element('#v-home').innerHTML),'关闭隐私后应恢复真实金额');
+});
