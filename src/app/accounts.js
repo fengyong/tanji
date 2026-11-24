@@ -46,7 +46,8 @@ export function accChipbarHTML(){
     const a=id!=null?accById(id):null;
     const c=a?accColor(a):null;
     const style=a?(on?`background:${c.ink};color:#fff;font-weight:700`:`color:${c.ink};background:${c.bg};font-weight:600`):(on?'background:var(--ink);color:#fff':'');
-    return `<span class="chip acc-chip${on?' on':''}" data-act="acc-filter" data-id="${id==null?'':id}" style="${style}">${label}</span>`;
+    // 昵称来自输入或备份,导入校验只查「非空文本」:拼进 innerHTML 前在这里统一按文本转义。
+    return `<span class="chip acc-chip${on?' on':''}" data-act="acc-filter" data-id="${id==null?'':id}" style="${style}">${esc(label)}</span>`;
   };
   let html=chip('全部',null);
   for(const a of ACCS())html+=chip(a.name,a.id);

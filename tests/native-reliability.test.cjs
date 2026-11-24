@@ -1146,6 +1146,16 @@ test('账号头像必须是严格的图片 dataURL:能拼出 HTML 属性的字�
   assert.equal(a.json(withAvatar('')+'.accounts[0].avatar'),'');
 });
 
+test('账号筛选昵称必须按文本转义,不能把备份中的 HTML 拼进五个视图',()=>{
+  const a=app();
+  const payload='<img src=x onerror="window.__accountXss=1">';
+  a.run(`__replaceDb({orders:[${JSON.stringify(order({accountId:1}))}],payments:[],threshold:15,accounts:[{id:1,name:${JSON.stringify(payload)},color:0},{id:2,name:'乙',color:1}]})`);
+  const html=a.run('accChipbarHTML()');
+  assert.ok(!html.includes('<img src=x'),'账号昵称被原样拼进 HTML,事件属性可执行');
+  assert.ok(html.includes('&lt;img src=x onerror=&quot;window.__accountXss=1&quot;&gt;'),'昵称应作为纯文本显示');
+  assert.ok(html.includes('>乙</span>'),'正常昵称照常作为文本显示');
+});
+
 /* ---------- 第八轮深度 review:导入失败不能留下「半个替换」 ---------- */
 
 test('导入时 SQLite 写失败:镜像副本必须退回替换前数据,重启后不能变成「导入的数据」',async()=>{
