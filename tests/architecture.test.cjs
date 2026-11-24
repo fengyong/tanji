@@ -181,6 +181,20 @@ test('harness 与 main.js 的 register* 调用集合一致', () => {
     `注册集合不一致:仅 main.js 有 [${onlyMain}]、仅 harness 有 [${onlyHarness}]——两边必须同步注册`);
 });
 
+/* ---------- CI 入口:测试必须经过依赖安装与 harness 构建 ---------- */
+
+test('CI 两个回归 job 都先安装依赖,再运行完整 npm test', () => {
+  const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+  assert.doesNotMatch(workflow, /run:\s*node --test tests\//, 'CI 不能绕过 npm test 的 harness 构建步骤');
+  for (const job of ['web', 'native']) {
+    const match = workflow.match(new RegExp(`\\n  ${job}:[\\s\\S]*?(?=\\n  [a-z]+:|$)`));
+    assert.ok(match, `CI 缺少 ${job} job`);
+    assert.match(match[0], /run:\s*npm ci(?:\s|$)/, `${job} job 必须先安装依赖`);
+    assert.match(match[0], /run:\s*npm test\b/, `${job} job 必须运行完整 npm test`);
+    assert.ok(match[0].indexOf('npm ci') < match[0].indexOf('npm test'), `${job} job 必须先安装依赖再测试`);
+  }
+});
+
 /* ---------- 规则 7:PWA 缓存策略(第七轮 review P1) ---------- */
 
 test('sw.js:app.js 在 ASSETS 且必须 network-first', () => {

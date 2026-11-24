@@ -18,8 +18,11 @@ jobs:
         with:
           node-version: '22'
 
+      - name: 安装依赖
+        run: npm ci --no-audit --no-fund
+
       - name: 单元回归
-        run: node --test tests/
+        run: npm test
 
       - name: 浏览器端到端冒烟
         env:
@@ -52,7 +55,7 @@ jobs:
           git diff --exit-code www/cap-plugins.js
 
       - name: 原生路径回归
-        run: node --test tests/
+        run: npm test
 
       - name: 浏览器端到端冒烟
         env:
