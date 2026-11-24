@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探记 TanJi Native · 产品流程优化建议</title>
+<style>
+  :root{
+    --bg:#f4f5f7;--paper:#fff;--ink:#17202a;--sub:#68737d;--line:#e3e7eb;
+    --brand:#e85d2a;--brand-soft:#fff0e9;--blue:#2864c7;--blue-soft:#edf3ff;
+    --green:#18794e;--green-soft:#eaf7f0;--amber:#9a6200;--amber-soft:#fff6df;
+    --red:#b42318;--red-soft:#fff0ef;--purple:#6f42c1;--purple-soft:#f3efff;
+    --shadow:0 12px 36px rgba(23,32,42,.07);--radius:18px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.65}
+  a{color:inherit}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(244,245,247,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .topbar .wrap{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:64px}
+  .brand{font-weight:800;letter-spacing:.02em;white-space:nowrap}
+  .brand span{color:var(--brand)}
+  nav{display:flex;gap:20px;overflow:auto;scrollbar-width:none}
+  nav a{font-size:13px;text-decoration:none;color:var(--sub);white-space:nowrap}
+  nav a:hover{color:var(--brand)}
+  .print-btn{border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:8px 12px;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+  .hero{padding:64px 0 34px}
+  .eyebrow{font-size:12px;font-weight:800;color:var(--brand);letter-spacing:.16em;text-transform:uppercase}
+  h1{font-size:clamp(34px,5vw,58px);line-height:1.12;letter-spacing:-.04em;margin:12px 0 18px;max-width:900px}
+  h1 em{font-style:normal;color:var(--brand)}
+  .lead{font-size:18px;color:#3d4852;max-width:850px;margin:0}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:5px 11px;font-size:12px;color:var(--sub)}
+  .pill strong{color:var(--ink)}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:26px 0 8px}
+  .summary-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+  .summary-card .num{font-size:13px;font-weight:800;color:var(--brand)}
+  .summary-card h3{font-size:16px;margin:8px 0 6px}
+  .summary-card p{font-size:13px;color:var(--sub);margin:0}
+  section{padding:34px 0;scroll-margin-top:82px}
+  .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:20px}
+  .section-head h2{font-size:27px;line-height:1.2;letter-spacing:-.02em;margin:4px 0 0}
+  .section-head p{font-size:13px;color:var(--sub);max-width:540px;margin:0}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
+  .two-col{display:grid;grid-template-columns:1.08fr .92fr;gap:18px}
+  .three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .mini-title{font-size:13px;font-weight:800;color:var(--sub);letter-spacing:.06em;margin-bottom:10px}
+  .big-statement{font-size:22px;line-height:1.45;font-weight:750;margin:0}
+  .muted{color:var(--sub)}
+  .small{font-size:12px}
+  .list{margin:10px 0 0;padding-left:20px}
+  .list li{margin:7px 0}
+  .map-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .map-card{border:1px solid var(--line);border-radius:14px;padding:16px;background:#fbfcfd;min-width:0}
+  .map-card .idx{font-size:11px;font-weight:800;color:var(--brand)}
+  .map-card h3{font-size:16px;margin:5px 0 8px}
+  .map-card p{font-size:12px;color:var(--sub);margin:0 0 10px}
+  .map-card strong{font-size:12px}
+  .cross-cut{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+  .cross-cut span{background:var(--blue-soft);color:var(--blue);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:650}
+  .flow{display:grid;gap:14px}
+  .lane{display:flex;align-items:stretch;gap:8px;overflow:auto;padding:4px 2px 8px}
+  .lane-label{flex:0 0 70px;display:flex;align-items:center;font-size:12px;font-weight:800;color:var(--sub)}
+  .step{flex:1 0 118px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfcfd;position:relative}
+  .step:not(:last-child)::after{content:"›";position:absolute;right:-9px;top:50%;transform:translateY(-50%);color:#aab2ba;font-size:20px;z-index:2}
+  .step b{display:block;font-size:13px}
+  .step span{display:block;font-size:11px;color:var(--sub);margin-top:3px}
+  .step.alert{border-color:#f2b8b2;background:var(--red-soft)}
+  .step.good{border-color:#b9dfca;background:var(--green-soft)}
+  .callout{border-left:4px solid var(--brand);background:var(--brand-soft);padding:14px 16px;border-radius:0 12px 12px 0;font-size:14px}
+  .callout b{color:var(--brand)}
+  .findings{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .finding{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+  .finding-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .finding h3{font-size:19px;line-height:1.35;margin:10px 0 8px}
+  .badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}
+  .p0{background:var(--red-soft);color:var(--red)}
+  .p1{background:var(--amber-soft);color:var(--amber)}
+  .p2{background:var(--blue-soft);color:var(--blue)}
+  .evidence{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.6;color:#59636c;background:#f6f7f9;border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin:10px 0 14px;overflow-wrap:anywhere}
+  .finding dl{margin:0;display:grid;grid-template-columns:64px 1fr;gap:7px 12px;font-size:13px}
+  .finding dt{font-weight:800;color:var(--sub)}
+  .finding dd{margin:0}
+  .accept{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:12px;color:var(--green)}
+  .quick-wins{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+  .quick{border:1px solid var(--line);border-radius:14px;padding:16px;background:#fbfcfd}
+  .quick b{display:block;font-size:14px;margin-bottom:6px}
+  .quick p{font-size:12px;color:var(--sub);margin:0}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;color:var(--sub);font-weight:800;background:#fafbfc}
+  tr:last-child td{border-bottom:none}
+  .phase{font-weight:800;white-space:nowrap}
+  .phase.now{color:var(--red)}
+  .phase.next{color:var(--amber)}
+  .phase.later{color:var(--blue)}
+  .decision-list{display:grid;gap:12px}
+  .decision{display:grid;grid-template-columns:28px 1fr;gap:12px;border:1px solid var(--line);border-radius:14px;padding:16px;background:#fbfcfd}
+  .box{width:20px;height:20px;border:2px solid #aab2ba;border-radius:5px;margin-top:2px}
+  .decision h3{font-size:15px;margin:0 0 5px}
+  .decision p{font-size:13px;color:var(--sub);margin:0}
+  .recommend{color:var(--green);font-weight:700}
+  .metric-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px}
+  .metric-card{border:1px solid var(--line);border-radius:14px;padding:18px;background:#fbfcfd}
+  .metric-card h3{font-size:15px;margin:0 0 8px}
+  .metric-card p,.metric-card li{font-size:12px;color:var(--sub)}
+  .metric-card ul{margin:8px 0 0;padding-left:18px}
+  .guard{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .guard div{border:1px solid var(--line);border-radius:14px;padding:16px;background:#fbfcfd}
+  .guard b{font-size:14px}
+  .guard p{font-size:12px;color:var(--sub);margin:5px 0 0}
+  .note{font-size:12px;color:var(--sub);border-top:1px solid var(--line);margin-top:18px;padding-top:14px}
+  footer{padding:30px 0 50px;color:var(--sub);font-size:12px}
+  .source-list{columns:2;column-gap:28px;padding-left:18px}
+  .source-list li{break-inside:avoid;margin:5px 0}
+  @media(max-width:980px){
+    .summary{grid-template-columns:repeat(2,1fr)}
+    .map-grid{grid-template-columns:repeat(3,1fr)}
+    .two-col,.metric-grid{grid-template-columns:1fr}
+    nav{display:none}
+  }
+  @media(max-width:720px){
+    .wrap{padding:0 16px}
+    .hero{padding-top:42px}
+    .lead{font-size:16px}
+    .summary,.findings,.quick-wins,.guard{grid-template-columns:1fr}
+    .map-grid{grid-template-columns:1fr 1fr}
+    .section-head{display:block}
+    .section-head p{margin-top:8px}
+    .panel{padding:18px}
+    .source-list{columns:1}
+    table{display:block;overflow-x:auto;white-space:nowrap}
+  }
+  @media print{
+    body{background:#fff}
+    .topbar{display:none}
+    .wrap{max-width:none;padding:0}
+    .hero{padding-top:0}
+    section{break-inside:avoid;padding:22px 0}
+    .panel,.finding,.summary-card,.metric-card,.quick,.guard div{box-shadow:none}
+    a{text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">探记 <span>TanJi Native</span></div>
+    <nav aria-label="报告目录">
+      <a href="#essence">产品本质</a>
+      <a href="#map">功能地图</a>
+      <a href="#flow">当前流程</a>
+      <a href="#findings">优化建议</a>
+      <a href="#roadmap">优先级</a>
+      <a href="#decisions">待确认</a>
+      <a href="#metrics">度量</a>
+    </nav>
+    <button class="print-btn" type="button" onclick="window.print()">打印 / 导出 PDF</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero" id="top">
+    <div class="eyebrow">Product Flow Review · 2026-11-24</div>
+    <h1>不是缺功能，<br>而是要把<em>开始、推进、收尾</em>连起来。</h1>
+    <p class="lead">从产品经理视角审视探记 Native 当前实现：它已经具备探店达人所需的行程、交付与收款记录能力；下一阶段最值得优化的，是首次使用不迷路、待办不遗漏、异常可恢复、结果可确认。</p>
+    <div class="meta">
+      <span class="pill">代码基线 <strong>native-app @ a8fe0d7</strong></span>
+      <span class="pill">产品版本 <strong>v0.6</strong></span>
+      <span class="pill">评审范围 <strong>当前已实现流程</strong></span>
+      <span class="pill">交付性质 <strong>仅建议，未改代码</strong></span>
+    </div>
+    <div class="summary">
+      <article class="summary-card"><div class="num">P0 · 3 项</div><h3>先保证“做对”</h3><p>数据进对地方、任务不漏记、备份不外泄未承诺的内容。</p></article>
+      <article class="summary-card"><div class="num">P1 · 4 项</div><h3>再保证“做得顺”</h3><p>到店直达、送审返工、备份健康、快速建单。</p></article>
+      <article class="summary-card"><div class="num">P2 · 1 项</div><h3>然后保证“记得准”</h3><p>补记收款时允许选择真实到账日期。</p></article>
+      <article class="summary-card"><div class="num">1 个北极星</div><h3>每周按时闭环订单数</h3><p>同时完成发布与收款确认，而不是只记录了多少单。</p></article>
+    </div>
+  </section>
+
+  <section id="essence">
+    <div class="section-head">
+      <div><div class="eyebrow">01 · Product Essence</div><h2>产品本质与用户任务</h2></div>
+      <p>以下判断基于当前源码、现有产品文档与本地页面实跑；未包含真实用户访谈或行为数据，属于待验证的产品假设。</p>
+    </div>
+    <div class="two-col">
+      <article class="panel">
+        <div class="mini-title">一句话定位</div>
+        <p class="big-statement">探记是探店达人的“本地经营工作台”：把分散在聊天记录、相册和备忘录里的档期、交付与回款，收束成一条可追踪的订单闭环。</p>
+        <div class="cross-cut">
+          <span>单人多账号</span><span>纯本地存储</span><span>工作 × 资金双轨</span><span>离线优先</span><span>买断制工具</span>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="mini-title">用户真正要完成的三件事</div>
+        <ol class="list">
+          <li><strong>今天去哪、先拍哪单：</strong>快速看档期、冲突、地点，到店后少切页面。</li>
+          <li><strong>这单走到哪、下一步做什么：</strong>拍摄、提审、出片、发布都有明确动作。</li>
+          <li><strong>这单钱到了没、何时该跟进：</strong>定金、尾款、平台到账与催收不遗漏。</li>
+        </ol>
+      </article>
+    </div>
+  </section>
+
+  <section id="map">
+    <div class="section-head">
+      <div><div class="eyebrow">02 · Current Product Map</div><h2>当前功能地图</h2></div>
+      <p>五个底部 Tab 分别对应“行动、排期、找回、资金、复盘”，主链路完整，但部分任务依赖用户自己记得切换页面。</p>
+    </div>
+    <div class="map-grid">
+      <article class="map-card"><div class="idx">HOME</div><h3>首页</h3><p>今日拍摄、待发片、逾期提醒、本月速览。</p><strong>核心任务：现在先做什么</strong></article>
+      <article class="map-card"><div class="idx">TRIP</div><h3>行程</h3><p>月历、未来 7 天、单日列表、行程分享图。</p><strong>核心任务：何时去哪</strong></article>
+      <article class="map-card"><div class="idx">ORDERS</div><h3>订单</h3><p>搜索筛选、双轨状态、编辑复制、行内推进。</p><strong>核心任务：找回并推进订单</strong></article>
+      <article class="map-card"><div class="idx">PAY</div><h3>收款</h3><p>定金尾款、逾期分桶、平台预计到账、催收痕迹。</p><strong>核心任务：钱到了没</strong></article>
+      <article class="map-card"><div class="idx">STATS</div><h3>统计</h3><p>成交实收、渠道构成、账号管理、导入导出。</p><strong>核心任务：复盘与数据安全</strong></article>
+    </div>
+    <div class="cross-cut">
+      <span>多账号归属与筛选</span><span>GPS 与地图导航</span><span>门口照与拍摄打卡</span><span>24h 出片提醒</span><span>本地催收通知</span><span>隐私模式</span><span>JSON / CSV / SQLite 导出</span>
+    </div>
+  </section>
+
+  <section id="flow">
+    <div class="section-head">
+      <div><div class="eyebrow">03 · Current Flow</div><h2>当前主链路与断点</h2></div>
+      <p>工作线与资金线已经并行，这是产品最有价值的设计；问题在于两条线的“完成”定义还没有完全对齐。</p>
+    </div>
+    <div class="panel">
+      <div class="flow">
+        <div class="lane">
+          <div class="lane-label">工作线</div>
+          <div class="step"><b>预约</b><span>建单 / 冲突提醒</span></div>
+          <div class="step"><b>拍摄</b><span>打卡 / 门口照 / GPS</span></div>
+          <div class="step"><b>提审</b><span>记录送审动作</span></div>
+          <div class="step"><b>正片 / 副片</b><span>按配置出片</span></div>
+          <div class="step alert"><b>发布</b><span>已实现，但容易被待办遗漏</span></div>
+        </div>
+        <div class="lane">
+          <div class="lane-label">资金线</div>
+          <div class="step"><b>定金</b><span>待收 / 已收</span></div>
+          <div class="step"><b>尾款</b><span>私收 / 平台结算</span></div>
+          <div class="step"><b>到账确认</b><span>渠道仅作记录</span></div>
+          <div class="step"><b>催收 / 备忘</b><span>1 / 3 / 7 天</span></div>
+          <div class="step good"><b>对账</b><span>流水 / 统计 / 导出</span></div>
+        </div>
+      </div>
+      <div class="callout" style="margin-top:16px"><b>关键断点：</b>当前代码在“正片 / 副片出齐”时就把工作状态判为「已交付」，并不要求「发布」。因此一笔已经出片、尚未发布的订单，会从首页待发片队列消失，并进入「已完结」统计口径。</div>
+      <p class="note">另一条异常支线是「送审不合格」：当前只记录 pass / fail 标签，不会自动生成“修改后重提”的下一步，也不阻止继续发片与发布。</p>
+    </div>
+  </section>
+
+  <section id="findings">
+    <div class="section-head">
+      <div><div class="eyebrow">04 · Recommendations</div><h2>八项产品流程优化建议</h2></div>
+      <p>优先级按“数据正确性 → 任务遗漏风险 → 操作效率 → 记录精度”排序；改动面是产品范围判断，不是开发工时承诺。</p>
+    </div>
+    <div class="findings">
+      <article class="finding">
+        <div class="finding-head"><span class="badge p0">P0 · 正确性</span><span class="small muted">改动面：小—中</span></div>
+        <h3>01 首次使用先选模式，“开始记录”默认进入工作数据</h3>
+        <div class="evidence">src/app/storage.js:6, 265-295 · src/app/actions.js:367-369 · src/app/main.js:78</div>
+        <dl>
+          <dt>现状</dt><dd>全新环境没有工作数据时默认加载演示数据；工作 / 演示切换入口在统计页数据管理深处。</dd>
+          <dt>风险</dt><dd>用户可能把真实预约建在演示里，或以为演示订单就是自己的业务数据；账号配置入口也不易发现。</dd>
+          <dt>建议</dt><dd>首次打开提供「开始记录 / 先看演示」二选一。开始记录进入空白工作数据；演示模式保留明显标识。模式切换提升到顶层入口。</dd>
+        </dl>
+        <div class="accept"><strong>验收：</strong>新装用户不主动选演示就看不到示例订单；可在 60 秒内完成首个预约；任何页面都能识别当前处于工作还是演示模式。</div>
+      </article>
+
+      <article class="finding">
+        <div class="finding-head"><span class="badge p0">P0 · 状态闭环</span><span class="small muted">改动面：中</span></div>
+        <h3>02 把“已出片”和“已发布”拆开，未发布必须留在待办</h3>
+        <div class="evidence">www/logic.js:76-82 · src/app/views/home.js:22, 62-76 · src/app/views/stats.js:74, 95</div>
+        <dl>
+          <dt>现状</dt><dd>出齐正 / 副片即返回「已交付」；首页待发片与统计待发片只统计「后期中 / 发片中」。</dd>
+          <dt>风险</dt><dd>已出片未发布的订单从首页消失，却被算入完结，用户容易忘记发布。</dd>
+          <dt>建议</dt><dd>先做低风险口径修正：交付状态改称「已出片」；新增「待发布」任务口径；首页、订单筛选、统计同时展示。「完结」必须要求已发布。</dd>
+        </dl>
+        <div class="accept"><strong>验收：</strong>构造一笔正副片已出、publishedAt 为空的订单，它必须出现在首页待办和待发布计数中；标记发布后才从待办消失并进入完结统计。</div>
+      </article>
+
+      <article class="finding">
+        <div class="finding-head"><span class="badge p0">P0 · 隐私信任</span><span class="small muted">改动面：小—中</span></div>
+        <h3>03 统一门口照的备份政策，先兑现当前权限承诺</h3>
+        <div class="evidence">ios/App/App/Info.plist:26 · src/app/storage.js:26, 147-150, 357 · src/app/order-forms.js:91</div>
+        <dl>
+          <dt>现状</dt><dd>相机权限说明承诺“照片不包含在导出备份中”；但 JSON 备份原样克隆 orders，订单校验也保留 photoThumb。</dd>
+          <dt>风险</dt><dd>用户基于权限文案同意拍摄，却可能在分享 JSON 时一并交出店铺门口照片；换机说明也没有明确哪些媒体会随备份迁移。</dd>
+          <dt>建议</dt><dd><span class="recommend">推荐 JSON 默认不包含门口照。</span>同步修正导出摘要、导入说明与权限文案，并核查账号头像等其他媒体字段；若未来改为包含，必须显式披露并提供开关。</dd>
+        </dl>
+        <div class="accept"><strong>验收：</strong>有门口照的订单导出后，JSON 中不存在该照片的图像数据；导入后订单正常恢复但不出现照片；权限、导出、导入三处文案完全一致。</div>
+      </article>
+
+      <article class="finding">
+        <div class="finding-head"><span class="badge p1">P1 · 场景效率</span><span class="small muted">改动面：小</span></div>
+        <h3>04 把导航与打卡放回行程场景，减少“进详情再出来”</h3>
+        <div class="evidence">src/app/views/trip.js:12-22 · src/app/views/home.js:49-59 · src/app/detail.js:162-163</div>
+        <dl>
+          <dt>现状</dt><dd>首页今日行有「打卡」，行程行没有；导航只在详情页地点行。</dd>
+          <dt>风险</dt><dd>用户按行程页执行任务时，要额外打开详情才能导航或补打卡，到店场景下操作链路过长。</dd>
+          <dt>建议</dt><dd>行程 / 今日列表直接提供「导航」；当日未拍订单提供「打卡」。保留详情页完整入口，列表只放高频动作。</dd>
+        </dl>
+        <div class="accept"><strong>验收：</strong>从行程页选中一单后，不进入详情即可导航；当日订单可一键打卡并记录时间 / GPS；非当日订单不出现误导性打卡按钮。</div>
+      </article>
+
+      <article class="finding">
+        <div class="finding-head"><span class="badge p1">P1 · 异常闭环</span><span class="small muted">改动面：中</span></div>
+        <h3>05 送审不合格后生成“修改并重提”，不要只留一个红色标签</h3>
+        <div class="evidence">src/app/detail.js:149-153 · src/app/order-actions.js:15-25 · src/app/actions.js:208-214</div>
+        <dl>
+          <dt>现状</dt><dd>送审结果可标记合格 / 不合格，但工作流下一步与发布守卫不读取该结果。</dd>
+          <dt>风险</dt><dd>不合格订单仍可能直接发片、发布；返工原因和重提动作没有形成闭环。</dd>
+          <dt>建议</dt><dd>标记不合格后显示「待修改 / 重提」任务，保留本次失败记录；主按钮变为「重新提审」。发布采用软门槛：需合格，或用户明确选择例外并填写原因。</dd>
+        </dl>
+        <div class="accept"><strong>验收：</strong>不合格订单出现在待办；重提前保留失败痕迹；未合格且未确认例外时不能发布；例外发布可追溯原因。</div>
+      </article>
+
+      <article class="finding">
+        <div class="finding-head"><span class="badge p1">P1 · 数据信任</span><span class="small muted">改动面：中</span></div>
+        <h3>06 建立“备份健康”提示，把定期导出从口号变成可见状态</h3>
+        <div class="evidence">src/app/views/stats.js:100-146 · src/app/export.js:54-68 · src/app/storage.js:317-357</div>
+        <dl>
+          <dt>现状</dt><dd>数据仅存本机，JSON 导出完全手动；页面只提示“请定期导出”，没有上次备份时间与备份后变更量。</dd>
+          <dt>风险</dt><dd>用户无法判断备份是否过期；换机时也可能误把 .db 当成推荐迁移格式。</dd>
+          <dt>建议</dt><dd>统计页显示「上次 JSON 备份 / 此后新增或修改 N 单 / 一键备份」。JSON 明确为换机恢复主路径，.db 定位为归档与技术查看。可提供每周一次应用内温和提醒。</dd>
+        </dl>
+        <div class="accept"><strong>验收：</strong>用户能一眼回答“上次备份是什么时候、现在有多少变更没进备份”；备份成功后状态更新；导入预览明确替换范围与恢复方式。</div>
+      </article>
+
+      <article class="finding">
+        <div class="finding-head"><span class="badge p1">P1 · 高频效率</span><span class="small muted">改动面：中</span></div>
+        <h3>07 新建预约改为“快速必填 + 高级展开”，先保存再补全</h3>
+        <div class="evidence">www/index.html:581-612 · src/app/order-forms.js:38-80</div>
+        <dl>
+          <dt>现状</dt><dd>一个弹层包含商家、地点、账号、类型、结算、服务商、组队、出片要求、时间、价格、定金、联系方式、备注等大量字段。</dd>
+          <dt>风险</dt><dd>高频建单像填表；用户在忙时容易拖延记录，或因滚动找不到字段而放弃。</dd>
+          <dt>建议</dt><dd>首屏只保留商家、预约时间、总价、出片要求；账号多选与结算方式按需要出现。地点、服务商、组队、联系方式、备注放入「补充信息」，保存后可继续编辑。</dd>
+        </dl>
+        <div class="accept"><strong>验收：</strong>常规预约只填 3—4 个核心字段即可保存；冲突提醒仍然触发；多账号订单归属不丢；补充信息不会因为快速保存被清空。</div>
+      </article>
+
+      <article class="finding">
+        <div class="finding-head"><span class="badge p2">P2 · 财务精度</span><span class="small muted">改动面：小—中</span></div>
+        <h3>08 补记收款允许选择真实到账日期，不再一律记成“现在”</h3>
+        <div class="evidence">src/app/order-actions.js:28-39, 68-89 · src/app/order-forms.js:120-131</div>
+        <dl>
+          <dt>现状</dt><dd>收款与“补记已收”都调用同一逻辑，到账时间固定取当前时刻。</dd>
+          <dt>风险</dt><dd>隔天补记会把收入记到错误日期，影响每日实收、月度统计和经营复盘。</dd>
+          <dt>建议</dt><dd>收款弹层默认今天，但允许修改实际到账日期；补记场景默认要求确认日期。金额保持定金 / 尾款现有口径，不在本轮扩展复杂分账。</dd>
+        </dl>
+        <div class="accept"><strong>验收：</strong>补记一笔昨天到账的尾款，流水与每日统计都落在昨天；撤销仍能精确回滚对应流水。</div>
+      </article>
+    </div>
+
+    <div class="quick-wins">
+      <article class="quick"><b>文案快修：催收备忘</b><p>详情页仍写“打开 App 时查看”，原生实际已有本地通知，应统一为“到点本地提醒”。</p></article>
+      <article class="quick"><b>文案快修：数据库导出</b><p>.db 说明不要暗示直接跨设备迁移；明确“JSON 用于恢复，.db 用于归档 / 技术查看”。</p></article>
+      <article class="quick"><b>口径快修：待发片计数</b><p>把“待发布”纳入首页与统计待办，避免用户只看到正 / 副片未出的订单。</p></article>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="section-head">
+      <div><div class="eyebrow">05 · Prioritization</div><h2>建议实施顺序</h2></div>
+      <p>先修正会造成“数据进错地方、任务被误判完成”的问题，再做高频场景提效，最后扩展记录精度。</p>
+    </div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>阶段</th><th>范围</th><th>产品目标</th><th>进入下一阶段的条件</th></tr></thead>
+        <tbody>
+          <tr><td class="phase now">第一阶段 · P0</td><td>首次模式选择、发布闭环、门口照备份政策</td><td>新用户不迷路；未发布订单不消失；备份不违背隐私承诺</td><td>三项验收用例全部通过，旧数据口径与媒体备份边界无歧义</td></tr>
+          <tr><td class="phase next">第二阶段 · P1</td><td>行程导航 / 打卡、送审返工、备份健康、快速建单</td><td>减少高频切换；让异常与数据风险可见</td><td>5 位目标用户完成任务测试，无关键迷路点</td></tr>
+          <tr><td class="phase later">第三阶段 · P2</td><td>收款日期、产品度量基础</td><td>提升财务记录精度，用数据验证后续迭代</td><td>确认指标口径与隐私边界后再扩展</td></tr>
+        </tbody>
+      </table>
+      <div class="callout" style="margin-top:18px"><b>推荐的最小可确认版本：</b> 先只做 P0 三项 + 三条文案 / 计数快修。它不需要重构主架构，却能解决首次使用、任务遗漏和备份隐私承诺三个最基础的问题。</div>
+    </div>
+  </section>
+
+  <section id="decisions">
+    <div class="section-head">
+      <div><div class="eyebrow">06 · Decisions Needed</div><h2>需要你拍板的六个产品决策</h2></div>
+      <p>这些不是技术选型，而是产品口径。确认后才有必要进入开发方案设计。</p>
+    </div>
+    <div class="panel decision-list">
+      <div class="decision"><div class="box" aria-hidden="true"></div><div><h3>D1 首次打开是否默认进入工作数据？</h3><p><span class="recommend">推荐：是。</span>演示改为主动选择；真实记录与示例数据从第一次打开就分开。</p></div></div>
+      <div class="decision"><div class="box" aria-hidden="true"></div><div><h3>D2 “订单完结”是否必须包含发布？</h3><p><span class="recommend">推荐：是。</span>「已出片」只代表素材交付，「已发布」才代表工作线闭环；两者分别统计。</p></div></div>
+      <div class="decision"><div class="box" aria-hidden="true"></div><div><h3>D3 送审不合格采用硬拦截还是软门槛？</h3><p><span class="recommend">推荐：软门槛。</span>默认要求合格后发布，但保留“例外发布 + 原因”，避免真实业务被工具卡死。</p></div></div>
+      <div class="decision"><div class="box" aria-hidden="true"></div><div><h3>D4 备份提醒是否默认开启？</h3><p><span class="recommend">推荐：先做应用内状态提示，每周温和提醒。</span>不默认增加系统通知，避免与催收、出片提醒争夺注意力。</p></div></div>
+      <div class="decision"><div class="box" aria-hidden="true"></div><div><h3>D5 下一轮开发范围如何收敛？</h3><p><span class="recommend">推荐：P0 + 快修。</span>先验证状态口径与首次使用，再决定是否投入 P1 的场景改造。</p></div></div>
+      <div class="decision"><div class="box" aria-hidden="true"></div><div><h3>D6 门口照是否进入 JSON 备份？</h3><p><span class="recommend">推荐：默认不进入。</span>与当前相机权限承诺一致；账号头像等其他媒体也需要逐项确认，不能沿用模糊的“照片不备份”表述。</p></div></div>
+    </div>
+  </section>
+
+  <section id="metrics">
+    <div class="section-head">
+      <div><div class="eyebrow">07 · Success Metrics</div><h2>用什么判断优化有效</h2></div>
+      <p>当前应用只有经营统计，没有产品行为埋点。以下是建议建立的度量口径，不代表现在已经能读取。</p>
+    </div>
+    <div class="metric-grid">
+      <article class="metric-card"><div class="mini-title">北极星指标</div><h3>每周按时闭环订单数</h3><p>定义：当周内完成发布，并在约定节点完成收款确认的订单数。它同时反映交付效率与资金闭环，比“新增订单数”更接近用户价值。</p></article>
+      <article class="metric-card"><div class="mini-title">驱动指标</div><ul><li>首次会话完成首个预约的比例</li><li>拍摄到提审、提审到发布的中位时长</li><li>超 24h 未出片与待发布订单数</li><li>逾期尾款按时跟进比例</li><li>7 天内有有效 JSON 备份的用户比例</li></ul></article>
+      <article class="metric-card"><div class="mini-title">护栏指标</div><ul><li>数据丢失 / 误覆盖事件 = 0</li><li>工作与演示数据混淆事件 = 0</li><li>错误或重复提醒事件 = 0</li><li>隐私模式泄露金额事件 = 0</li><li>备份包含未披露媒体事件 = 0</li><li>恢复备份失败且不可回退事件 = 0</li></ul></article>
+    </div>
+    <p class="note">落地方式建议：先用 5 位真实探店达人做任务测试与访谈，记录耗时、迷路点和放弃原因；确认真实需求后，再考虑本地匿名事件统计。纯本地隐私承诺下，不应未经同意引入服务端行为追踪。</p>
+  </section>
+
+  <section id="scope">
+    <div class="section-head">
+      <div><div class="eyebrow">08 · Scope Guardrails</div><h2>本轮不建议做的事</h2></div>
+      <p>不是否定长期价值，而是避免在主流程口径尚未稳定时扩大复杂度。</p>
+    </div>
+    <div class="guard">
+      <div><b>暂不做云同步与强制账号体系</b><p>会改变当前纯本地、买断制产品的信任基础，并引入持续服务成本。</p></div>
+      <div><b>暂不做抖音 / 银行自动对账</b><p>依赖外部平台接口与授权，稳定性和合规成本高；先把人工确认日期做准。</p></div>
+      <div><b>暂不做批量状态操作</b><p>当前“待发布、待返工”口径尚未统一，批量推进容易放大误操作。</p></div>
+      <div><b>暂不做视觉大改版</b><p>现有问题主要是任务可见性与状态语义，不是配色和装饰；先修流程收益更高。</p></div>
+    </div>
+  </section>
+
+  <section id="sources">
+    <div class="section-head">
+      <div><div class="eyebrow">Appendix · Evidence</div><h2>主要源码证据</h2></div>
+      <p>行号对应当前工作区 a8fe0d7 基线；后续代码变化后需要重新核对。</p>
+    </div>
+    <div class="panel">
+      <ul class="source-list small">
+        <li>src/app/storage.js:6, 265-295 — 默认演示与工作 / 演示数据加载</li>
+        <li>src/app/storage.js:26, 147-150, 357 — JSON 克隆与门口照保留</li>
+        <li>ios/App/App/Info.plist:26 — 相机权限承诺门口照不进入备份</li>
+        <li>src/app/actions.js:367-369 — 模式切换入口</li>
+        <li>www/logic.js:76-82 — 四态工作状态与“已交付”判定</li>
+        <li>src/app/views/home.js:22, 62-76 — 首页待发片队列</li>
+        <li>src/app/views/stats.js:74, 95 — 已交付与待发片统计</li>
+        <li>src/app/views/trip.js:12-22 — 行程行当前动作</li>
+        <li>src/app/detail.js:149-163 — 送审结果与导航入口</li>
+        <li>src/app/order-actions.js:15-25 — 里程碑前置守卫</li>
+        <li>src/app/views/stats.js:100-146 — 数据管理入口</li>
+        <li>src/app/export.js:54-68 — JSON 备份与 .db 用途说明</li>
+        <li>src/app/order-actions.js:28-39, 68-89 — 收款时间与补记路径</li>
+        <li>www/index.html:581-612 — 新建预约表单字段</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div>探记 TanJi Native · 产品流程优化建议 · 2026-11-24</div>
+  <div>本报告为产品评审稿，不包含代码变更、开发排期或上线承诺。所有建议需经你确认后再进入实现方案。</div>
+</footer>
+</body>
+</html>
