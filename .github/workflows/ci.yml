@@ -76,7 +76,8 @@ jobs:
       - name: 隐私清单存在且能被解析
         run: |
           test -f ios/App/App/PrivacyInfo.xcprivacy
-          plutil -lint ios/App/App/PrivacyInfo.xcprivacy
+          # ubuntu runner 没有 plutil：用自带的 python3 解析 plist（macOS 本机也能跑同一条命令）
+          python3 -c 'import plistlib,sys; plistlib.load(open(sys.argv[1],"rb"))' ios/App/App/PrivacyInfo.xcprivacy
 
       - name: 隐私清单已登记进 Xcode 工程
         run: |
