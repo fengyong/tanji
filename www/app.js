@@ -813,13 +813,25 @@ function accountCopyText(account) {
 }
 var NATIVE_DB = "tanji";
 var ORD_COLS = ["id", "store", "category", "contact", "price", "deposit", "appt_at", "shot_at", "submitted_at", "short_sent_at", "long_sent_at", "deposit_paid_at", "final_paid_at", "settle_via", "remind_at", "channel", "partner", "location", "gps_place", "deliver_main", "deliver_sub", "review_result", "published_at", "account_id", "note", "remind_log", "expect_pay_at", "created_at", "updated_at"];
+var nativeOpening = null;
 async function nativeOpen() {
   if (Store.conn) return Store.conn;
-  const sqlite = new CAP.SQLiteConnection(CAP.CapacitorSQLite);
-  const conn = await sqlite.createConnection(NATIVE_DB, false, "no-encryption", 1, false);
-  await conn.open();
-  await conn.executeSet([
-    { statement: `CREATE TABLE IF NOT EXISTS orders(
+  if (nativeOpening) return nativeOpening;
+  nativeOpening = (async () => {
+    const sqlite = new CAP.SQLiteConnection(CAP.CapacitorSQLite);
+    let conn;
+    try {
+      conn = await sqlite.createConnection(NATIVE_DB, false, "no-encryption", 1, false);
+    } catch (error) {
+      if (!/already exists/i.test(String(error?.message || error))) throw error;
+      console.warn("[TanJi] SQLite \u5B58\u5728\u9875\u9762\u91CD\u8F7D\u524D\u7684\u6B8B\u7559\u8FDE\u63A5\uFF0C\u5173\u95ED\u540E\u91CD\u5EFA", error);
+      await sqlite.closeConnection(NATIVE_DB, false);
+      conn = await sqlite.createConnection(NATIVE_DB, false, "no-encryption", 1, false);
+    }
+    try {
+      await conn.open();
+      await conn.executeSet([
+        { statement: `CREATE TABLE IF NOT EXISTS orders(
   mode TEXT NOT NULL,
   id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
   price REAL NOT NULL, deposit REAL DEFAULT 0,
@@ -831,35 +843,50 @@ async function nativeOpen() {
   account_id INTEGER,
   note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT,
   PRIMARY KEY(mode,id))`, values: [] },
-    { statement: `CREATE TABLE IF NOT EXISTS payments(
+        { statement: `CREATE TABLE IF NOT EXISTS payments(
   mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`, values: [] },
-    { statement: `CREATE TABLE IF NOT EXISTS accounts(
+        { statement: `CREATE TABLE IF NOT EXISTS accounts(
   mode TEXT NOT NULL,
   id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
   color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
   PRIMARY KEY(mode,id))`, values: [] },
-    { statement: `CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`, values: [] }
-  ], true);
-  for (const stmt of [
-    "ALTER TABLE orders ADD COLUMN location TEXT",
-    "ALTER TABLE orders ADD COLUMN gps_place TEXT",
-    "ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1",
-    // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
-    "ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1",
-    `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
-    "ALTER TABLE orders ADD COLUMN published_at TEXT",
-    "ALTER TABLE orders ADD COLUMN account_id INTEGER",
-    "ALTER TABLE orders ADD COLUMN remind_log TEXT",
-    "ALTER TABLE orders ADD COLUMN expect_pay_at TEXT"
-  ]) {
-    try {
-      await conn.execute(stmt, false);
-    } catch (e) {
+        { statement: `CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`, values: [] }
+      ], true);
+      for (const stmt of [
+        "ALTER TABLE orders ADD COLUMN location TEXT",
+        "ALTER TABLE orders ADD COLUMN gps_place TEXT",
+        "ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1",
+        // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
+        "ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1",
+        `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
+        "ALTER TABLE orders ADD COLUMN published_at TEXT",
+        "ALTER TABLE orders ADD COLUMN account_id INTEGER",
+        "ALTER TABLE orders ADD COLUMN remind_log TEXT",
+        "ALTER TABLE orders ADD COLUMN expect_pay_at TEXT"
+      ]) {
+        try {
+          await conn.execute(stmt, false);
+        } catch (e) {
+          if (!/duplicate column name/i.test(String(e?.message || e))) throw e;
+        }
+      }
+    } catch (error) {
+      try {
+        await sqlite.closeConnection(NATIVE_DB, false);
+      } catch (cleanupError) {
+        console.error("[TanJi] SQLite \u5931\u8D25\u8FDE\u63A5\u6E05\u7406\u5931\u8D25", cleanupError);
+      }
+      throw error;
     }
+    Store.conn = conn;
+    return conn;
+  })();
+  try {
+    return await nativeOpening;
+  } finally {
+    nativeOpening = null;
   }
-  Store.conn = conn;
-  return conn;
 }
 async function nativePersistSnapshot(payload) {
   try {

@@ -35,6 +35,10 @@ function newDevice(options={}){
     cancelled:[],
     scheduled:[],
     written:[],
+    connections:new Map(),
+    createCount:0,
+    openCount:0,
+    closeCount:0,
   };
 }
 
@@ -45,11 +49,23 @@ function makeCap(device){
   class SQLiteConnection{
     constructor(plugin){this.plugin=plugin}
     async createConnection(name){
+      if(device.connections.has(name))throw new Error(`Connection ${name} already exists`);
       const db=device.db;
       const conn={
         db,
-        async open(){},
+        closed:false,
+        async open(){
+          if(this.closed)throw new Error('connection is closed');
+          device.openCount++;
+          if(device.options.failNextOpen){device.options.failNextOpen=false;throw new Error('open failed')}
+        },
+        async close(){
+          this.closed=true;
+          if(device.connections.get(name)===conn)device.connections.delete(name);
+        },
         async execute(sql){
+          if(this.closed)throw new Error('connection is closed');
+          if(device.options.failNextAlter){device.options.failNextAlter=false;throw new Error('database is locked')}
           if(singleStatementExecute){
             // 只取第一条语句，模拟 sqlite3_prepare_v2 的行为
             const first=String(sql).split(';').map(s=>s.trim()).find(Boolean);
@@ -59,6 +75,8 @@ function makeCap(device){
           }
         },
         async executeSet(set){
+          if(this.closed)throw new Error('connection is closed');
+          if(device.options.failNextInit){device.options.failNextInit=false;throw new Error('init failed')}
           if(device.options.failWrites)throw new Error('disk is full');
           // 复刻 iOS 端的真实契约：每一项都必须同时含 statement 与 values 两个键，
           // 缺 values 会被整批 reject(OS-PLUG-SQLITE executeSet: Must provide a set
@@ -78,10 +96,18 @@ function makeCap(device){
           }
         },
         async query(sql,values){
+          if(this.closed)throw new Error('connection is closed');
           return {values:db.prepare(sql).all(...(values||[]))};
         },
       };
+      device.createCount++;
+      device.connections.set(name,conn);
       return conn;
+    }
+    async closeConnection(name){
+      const conn=device.connections.get(name);
+      if(conn)await conn.close();
+      device.closeCount++;
     }
   }
 
@@ -181,6 +207,59 @@ test('原生持久化：写入后可重新读回',async()=>{
   assert.equal(await a.run('loadState()'),true);
   assert.equal(a.run('db.orders.length'),1);
   assert.equal(a.run('db.orders[0].store'),'测试店');
+});
+
+test('原生连接：WebContent 重载后关闭残留连接并重新打开',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  setState(a);
+  assert.equal(await a.run('save()'),true);
+  const b=app(device);
+  assert.equal(await b.run('loadState()'),true);
+  assert.equal(b.run('Store.blocked'),false,'重载后不应进入写入保护');
+  assert.equal(b.run('db.orders[0].store'),'测试店');
+  assert.equal(device.createCount,2);
+  assert.equal(device.closeCount,1);
+});
+
+test('原生连接：并发 nativeOpen 只创建和打开一次',async()=>{
+  const device=newDevice();
+  const a=app(device);
+  const conns=await a.run('Promise.all([nativeOpen(),nativeOpen(),nativeOpen()])');
+  assert.equal(conns[0],conns[1]);
+  assert.equal(conns[1],conns[2]);
+  assert.equal(device.createCount,1);
+  assert.equal(device.openCount,1);
+});
+
+test('原生连接：open 失败后清理残留，重试可以恢复',async()=>{
+  const device=newDevice({failNextOpen:true});
+  const a=app(device);
+  await assert.rejects(()=>a.run('nativeOpen()'),/open failed/);
+  assert.equal(device.connections.size,0,'失败连接必须从原生连接表移除');
+  assert.equal(device.closeCount,1);
+  assert.ok(await a.run('nativeOpen()'));
+  assert.equal(device.createCount,2);
+});
+
+test('原生连接：建表失败后清理残留，重试可以恢复',async()=>{
+  const device=newDevice({failNextInit:true});
+  const a=app(device);
+  await assert.rejects(()=>a.run('nativeOpen()'),/init failed/);
+  assert.equal(device.connections.size,0,'初始化失败也必须移除连接');
+  assert.equal(device.closeCount,1);
+  await a.run('nativeOpen()');
+  assert.equal(device.createCount,2);
+});
+
+test('原生连接：ALTER 的非重复列错误必须抛出并清理连接',async()=>{
+  const device=newDevice({failNextAlter:true});
+  const a=app(device);
+  await assert.rejects(()=>a.run('nativeOpen()'),/database is locked/);
+  assert.equal(device.connections.size,0,'迁移失败不能缓存坏连接');
+  assert.equal(device.closeCount,1);
+  await a.run('nativeOpen()');
+  assert.equal(device.createCount,2);
 });
 
 test('原生持久化：orders/payments/settings 三张表都建出来了',async()=>{
