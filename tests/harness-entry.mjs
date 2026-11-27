@@ -6,6 +6,7 @@ import * as storageNS from '../src/app/storage.js';
 import * as utilNS from '../src/app/util.js';
 import * as envNS from '../src/app/env.js';
 import * as uiNS from '../src/app/ui.js';
+import * as nativeTabsNS from '../src/app/native-tabs.js';
 import * as derivedNS from '../src/app/derived.js';
 import * as demoNS from '../src/app/demo.js';
 import * as accountsNS from '../src/app/accounts.js';
@@ -25,12 +26,13 @@ import * as tripNS from '../src/app/views/trip.js';
 import * as ordersNS from '../src/app/views/orders.js';
 import * as payNS from '../src/app/views/pay.js';
 import * as statsViewNS from '../src/app/views/stats.js';
+import * as settingsViewNS from '../src/app/views/settings.js';
 const { renderHome } = homeNS, { renderTrip } = tripNS, { renderOrders } = ordersNS,
-  { renderPay } = payNS, { renderStats } = statsViewNS;
+  { renderPay } = payNS, { renderStats } = statsViewNS, { renderSettings } = settingsViewNS;
 
-Object.assign(globalThis, storageNS, utilNS, envNS, uiNS, derivedNS, demoNS, accountsNS,
+Object.assign(globalThis, storageNS, utilNS, envNS, uiNS, nativeTabsNS, derivedNS, demoNS, accountsNS,
   orderFormsNS, orderActionsNS, detailNS, sheetsNS, exportNS, sqliteNS, statsNS, shareNS, notifyNS, avatarCropNS,
-  homeNS, tripNS, ordersNS, payNS, statsViewNS);
+  homeNS, tripNS, ordersNS, payNS, statsViewNS, settingsViewNS);
 
 /* export let 是模块 live binding,Object.assign 只拷当前值,之后读到的是死副本。
    db 会被 loadState 整体重赋值;now/TODAY 被 tickClock 前拨;lastDailySyncDay 被
@@ -67,10 +69,11 @@ globalThis.__replaceDb = state => {
 };
 
 // 组合根职责(与 src/app/main.js 相同,但不含启动序列)
-uiNS.registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats });
+uiNS.registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats, settings: renderSettings });
 uiNS.registerDetailRerender(detailNS.rerenderDetail);
 uiNS.registerBadgeCounter(() => storageNS.db.orders.filter(derivedNS.accMatch).filter(o => derivedNS.isOver(o) && !derivedNS.snoozed(o)).length);
 uiNS.registerDailySync(() => notifyNS.Notify.syncDaily());
+uiNS.registerNativeSync(nativeTabsNS.syncNativeTabs);
 
 /* P1-T1:storage 的 UI 刷新/字节构建走注入;buildSqliteBytes 的全局 set 转发给
    当前实现,保住旧测试「buildSqliteBytes=stub」的猴子补丁语义 */

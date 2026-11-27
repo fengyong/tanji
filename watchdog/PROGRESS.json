@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "project": "tanji-native-hg",
+  "objective": "独立发展的探记 HG：复用现有 SQLite/JSON 存储内核，重做产品结构、UI、交互与原生体验。",
+  "updatedAt": "2026-11-27T23:23:08+08:00",
+  "phase": "validation",
+  "status": "in_progress",
+  "completed": [
+    "已确认现有存储、原生壳、UI 架构与测试边界",
+    "已创建独立工作副本 tanji-native-hg",
+    "已建立 watchdog 持久化目录",
+    "已完成暖纸 + 青墨 + 珊瑚行动色的产品重设计与独立 HG 身份",
+    "已完成首页驾驶舱、行程、订单、收款、统计五视图与单轨道详情工作台",
+    "已完成表单、收款、提醒、账号、隐私、导入导出与撤销交互重构",
+    "已保留 SQLite 表、settings JSON 快照、tanji_v3_* 键与 JSON 备份格式",
+    "已补齐 AA 对比度、44px 主触控热区、键盘操作、减少动效、安全区与窄屏/横屏适配",
+    "已替换 PWA、iOS App Icon 与 Splash 品牌资产",
+    "npm test：186/186 通过，含 HG 漂移锁绕过护栏、原生桥接、设置路由、存储与原生壳回归",
+    "npm run test:smoke：320x568、390x844、1280x900 通过，控制台零错误",
+    "npm run check：HG 分支默认仅校验 www/app.js、www/cap-plugins.js 与源码一致",
+    "视觉复审：390x844、320x568、844x390、1280x900 无横向溢出",
+    "npm run build:ios：最终 iPhone 模拟器构建成功",
+    "独立设置页已完成：统计页仅保留业务指标，账号、数据、提醒、模式、危险操作与关于进入齿轮设置页",
+    "原生 Liquid Glass 底栏已完成：单一 WebView、五 Tab、收款角标、命令 ACK、安全区高度同步",
+    "弹层与键盘避让已完成：sheet 关闭 360ms 后恢复；键盘仅在实际遮挡底栏时隐藏",
+    "iPhone 18 Pro / iOS 27.2 专用模拟器 XCUITest 3/3 通过：Tab/设置路由、弹层避让、键盘避让",
+    "最终模拟器 SQLite 重启后保留：orders 17、payments 18、accounts 0、settings 1",
+    "Release 1.0 (1) 已安装并启动到用户 iPhone 15 Pro；设备元数据与真机截图已核实",
+    "用户已真机查看效果，并明确认可原生质感",
+    "安装脚本默认 Bundle ID 已校准为 com.tanji.hg，签名说明不再把付费团队误写为统一 7 天",
+    "README、AGENTS、装机指南、Git 指南与发布清单已校准到 HG 独立分支",
+    "CI 已覆盖 tanji-native-hg；HG 使用 --artifact-only，不执行 main/native 漂移锁",
+    "最终验证完成：186/186、三种视口 smoke、产物校验、iPhone 模拟器构建全部通过"
+  ],
+  "inProgress": "最终验证已完成；待创建 HG 提交并推送 tanji-native-hg 新分支",
+  "next": [
+    "创建 HG 提交，确认远端无同名分支后普通推送并核对本地/远端 hash",
+    "用户继续真机验收：相机/相册、定位、通知、SQLite 持久化、JSON 导入导出与离线",
+    "真机验收通过后再决定是否发布；当前未上架"
+  ],
+  "commands": {
+    "unit": "npm test",
+    "buildApp": "npm run build:app",
+    "smoke": "npm run test:smoke",
+    "check": "npm run check",
+    "ios": "npm run build:ios",
+    "watchdog": "./scripts/watchdog.sh",
+    "resume": "./scripts/watchdog.sh resume"
+  },
+  "decisions": [
+    {
+      "id": "D-001",
+      "decision": "保留现有 SQLite 表、settings JSON 快照与备份格式；新 App 使用独立 bundle ID，不假装共享 iOS 沙盒。",
+      "reason": "底层零迁移改造，同时明确旧数据通过 JSON 一键导入。"
+    },
+    {
+      "id": "D-002",
+      "decision": "不采用 CSS 换皮；替换 UI 壳、视图、详情、弹层和动作表现层，保留领域规则与持久化可靠性。",
+      "reason": "现有 JS 与 CSS/固定 DOM 深度耦合，换皮无法解决交互与信息层级。"
+    },
+    {
+      "id": "D-003",
+      "decision": "红色只用于逾期与风险，普通待收使用琥珀色，品牌珊瑚色用于主行动；提高小字对比度并保留暖纸质感。",
+      "reason": "资金状态必须一眼分级，不能让所有金额都像警报。"
+    },
+    {
+      "id": "D-004",
+      "decision": "窄屏铺满视口，横屏使用紧凑机身；日历格宽受七列限制时优先保证 44px 高度与整行可点。",
+      "reason": "避免 320px 屏幕出现横向溢出，同时不牺牲日历信息密度。"
+    },
+    {
+      "id": "D-005",
+      "decision": "统计页保留业务指标与账号筛选，齿轮进入独立设置页；账号管理、数据、提醒和关于全部移入。",
+      "reason": "这些动作低频且与日常业务无关，独立收纳可恢复统计页的决策密度。"
+    },
+    {
+      "id": "D-006",
+      "decision": "保留单一 Capacitor WebView，以 UIKit 容器叠加系统原生玻璃底栏，不为每个 Tab 创建独立 Bridge。",
+      "reason": "获得系统 Liquid Glass 与 VoiceOver 体验，同时避免多个 JS Realm 竞争 SQLite 和本地副本。"
+    },
+    {
+      "id": "D-007",
+      "decision": "键盘避让由原生键盘帧通知判断，仅在键盘实际覆盖底栏时隐藏；不使用整个 WebView 的无障碍隐藏。",
+      "reason": "iOS 27 模拟器上 willShow 不可靠，且弹层 DOM 也在 WebView 内，整棵隐藏会移除弹层无障碍节点。"
+    },
+    {
+      "id": "D-008",
+      "decision": "HG 是独立发展副本；分支默认与 CI --artifact-only 模式只校验 www 构建产物与源码一致。",
+      "reason": "原 TanJi 的跨版本同步锁不适用于已重做 UI 与交互的 HG，不能把有意独立演进误判为漏同步。"
+    }
+  ],
+  "blockers": [],
+  "resumeInstructions": [
+    "先运行 ./scripts/watchdog.sh resume",
+    "阅读 phase、inProgress、next、blockers 和 decisions",
+    "Web、186 项回归、浏览器 smoke、产物校验、iOS 构建、3 条原生 UI 测试与模拟器 SQLite 重启均已通过，不要重复开发",
+    "下一步完成提交推送，再由用户做真机验收与发布决策；每个阶段结束调用 ./scripts/watchdog.sh beat，更新 PROGRESS.json"
+  ]
+}

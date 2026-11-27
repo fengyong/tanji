@@ -2,7 +2,7 @@
 import {$,now,TODAY,tickClock} from './util.js';
 import {db,Store,setStorageStatus} from './storage.js';
 
-export const ui={tab:'home',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1},accFilter:null,editAccountId:null,draftAvatar:null,draftColor:0,draftProv:'',draftAccId:null,draftAccIds:[],assignAcc:null,remindOid:null,expectOid:null};
+export const ui={tab:'home',settingsOpen:false,chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1},accFilter:null,editAccountId:null,draftAvatar:null,draftColor:0,draftProv:'',draftAccId:null,draftAccIds:[],assignAcc:null,remindOid:null,expectOid:null};
 
 /* 每日 09:00 催收汇总是一条 repeats:true 的重复通知,body 在排程那一刻就冻结了。
    订单跨过催收阈值是「时间推移」而不是「数据变化」,没有任何数据事件会触发重排 ——
@@ -31,22 +31,41 @@ export function registerRenderers(renderers){Object.assign(RENDERERS,renderers)}
 /* ================= Tab 路由 ================= */
 export function showTab(t){
   refreshClock();
+  ui.settingsOpen=false;
   ui.tab=t;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('#v-'+t).classList.add('active');
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  document.querySelectorAll('.tab').forEach(b=>{const on=b.dataset.tab===t;b.classList.toggle('active',on);b.setAttribute('aria-selected',String(on))});
+  syncNativeState();
 }
+export function openSettings(){
+  refreshClock();
+  ui.settingsOpen=true;
+  RENDERERS.settings();
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $('#v-settings').classList.add('active');
+  document.querySelectorAll('.tab').forEach(b=>{const on=b.dataset.tab==='stats';b.classList.toggle('active',on);b.setAttribute('aria-selected',String(on))});
+  $('#v-settings').scrollTop=0;
+  syncNativeState();
+}
+export function closeSettings(){showTab('stats')}
 /* P1-T2-B:逾期角标的口径依赖 derived(isOver/snoozed),而 derived 需 import 本模块 —
    角标改组合根注入,保持 ui 不依赖 derived,环从根上不成。 */
 let badgeCounter=null;
 export function registerBadgeCounter(fn){badgeCounter=fn}
+let nativeStateSync=null;
+export function registerNativeSync(fn){nativeStateSync=fn}
+export function syncNativeState(){
+  if(nativeStateSync)nativeStateSync({tab:ui.tab,badge:badgeCounter?badgeCounter():0});
+}
 
 export function renderAll(){
   refreshClock();setStorageStatus(Store.status);
-  RENDERERS.home();RENDERERS.trip();RENDERERS.orders();RENDERERS.pay();RENDERERS.stats();
+  RENDERERS.home();RENDERERS.trip();RENDERERS.orders();RENDERERS.pay();RENDERERS.stats();RENDERERS.settings();
   // 角标跟随当前账号筛选:拆账号查看时,数字必须只数当前账号的逾期单
   const n=badgeCounter?badgeCounter():0;
   const b=$('#pay-bdg');b.style.display=n?'flex':'none';b.textContent=n;
+  syncNativeState();
 }
 
 /* §5 规则 2:详情重绘同样由 main.js 注入 */

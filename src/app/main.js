@@ -1,7 +1,8 @@
 /* ================= 启动(P0 §3:组合根) ================= */
 import {isNative} from './env.js';
 import {$,TODAY} from './util.js';
-import {ui,renderAll,showTab,refreshVisible,registerRenderers,registerDetailRerender,registerBadgeCounter,registerDailySync,markDailySynced} from './ui.js';
+import {ui,renderAll,showTab,refreshVisible,registerRenderers,registerDetailRerender,registerBadgeCounter,registerDailySync,markDailySynced,registerNativeSync} from './ui.js';
+import {initNativeTabs,syncNativeTabs} from './native-tabs.js';
 import {Store,save,loadState,persistFull,acquireWriter,storageKey,setStorageStatus,nativeOpen,backupDocument,db as liveDb} from './storage.js';
 import {Notify} from './notify.js';
 import {isOver,snoozed,overdueDays,accMatch} from './derived.js';
@@ -19,6 +20,7 @@ import {renderTrip,initTripGestures} from './views/trip.js';
 import {renderOrders} from './views/orders.js';
 import {renderPay} from './views/pay.js';
 import {renderStats} from './views/stats.js';
+import {renderSettings} from './views/settings.js';
 
 /* P0 偏差 #1–#3(见 DEVIATIONS.md):storage.js / ui.js / derived.js 的函数体是
    逐字节搬运,仍按经典脚本时代的全局晚绑定调用下列符号;§3/§5 又禁止它们
@@ -32,7 +34,7 @@ Object.defineProperty(globalThis,'__TANJI__',{value:{
 },configurable:true});
 
 /* §5 规则 1/2:五个渲染器与详情重绘由组合根注入 */
-registerRenderers({home:renderHome,trip:renderTrip,orders:renderOrders,pay:renderPay,stats:renderStats});
+registerRenderers({home:renderHome,trip:renderTrip,orders:renderOrders,pay:renderPay,stats:renderStats,settings:renderSettings});
 registerDetailRerender(rerenderDetail);
 /* P1-T1:storage 的 UI 刷新与 SQLite 字节构建经注入回调,不再走 globalThis */
 import {registerStorageHooks,registerBytesBuilder} from './storage.js';
@@ -41,6 +43,8 @@ registerStorageHooks({renderAll,showTab,toast,closeSheets,notify:Notify,resetFil
 registerBadgeCounter(()=>liveDb.orders.filter(accMatch).filter(o=>isOver(o)&&!snoozed(o)).length);
 registerDailySync(()=>Notify.syncDaily());
 registerBytesBuilder(buildSqliteBytes);
+initNativeTabs(showTab);
+registerNativeSync(syncNativeTabs);
 
 /* ================= 启动 ================= */
 // 在首次数据加载前切换原生排版:安全区由 CSS env() 提供,假状态栏不再进入原生画面。
@@ -87,5 +91,6 @@ $('#f-date').value=TODAY;
   initSheetGestures();
   initTripGestures();
   if(!had&&!Store.blocked)await save();
+  syncNativeTabs({ready:true});
   initSqlite().then(s=>{if(s){Store.sqlite3=s;if(!Store.blocked&&!Store.busy)persistFull()}else if(!isNative)toast('SQLite 引擎未能加载，JSON 保存和备份仍可用')});
 })();

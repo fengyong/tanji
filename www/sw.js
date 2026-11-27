@@ -1,4 +1,4 @@
-const VERSION='tanji-v0.5.1';
+const VERSION='tanji-hg-v0.1.1';
 const ASSETS=['./','./index.html','./app.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png','./vendor/sqlite3.mjs','./vendor/sqlite3.wasm','./privacy.html','./support.html'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));

@@ -1,7 +1,8 @@
 # App Store 上架清单(买断付费 · 纯本地版)
 
-> 对应策略:主分支 `main` 继续做本地 HTML(PWA)版本,`native-app` 分支做 iOS 原生 App,
+> 对应策略:主分支 `main` 继续做原 TanJi HTML(PWA)版本,`tanji-native-hg` 分支做探记 HG iOS App,
 > 在 App Store 上**买断付费**上架;线下推广由达人本人完成;靠 App Store 做版本更新。
+> `native-app` 是原 TanJi iOS 历史线,不是 HG 当前分支。
 >
 > 本清单基于 2026 年 11 月的官方规则与插件源码核对整理,上架前请以 App Store Connect
 > 当日要求为准。
@@ -33,24 +34,20 @@ App 内不需要任何购买逻辑。这意味着:**服务器、云开发、备�
 
 ## 二、真正的三个工作量(不是服务器,不是支付)
 
-### 1. 分支同步机制 ⚠️ 最高优先级
+### 1. HG 分支独立演进与构建产物校验
 
-`native-app/www/` 与 `main` 根目录的 web 资源同源,但**已不再逐字节一致**:
-纯资产(sw.js / manifest / privacy.html / support.html / icons / vendor)保持同步,
-index.html 与 storage.js 上叠了原生适配层,且 native 侧还有 v0.5(v0.6 多账号)的专属功能改动,
-两侧内容指纹由锁文件分别登记,**不再要求相同**——这是有意的,不是漏同步。
+HG 从 `native-app@534e88b` 建立基线,但已重做 UI、交互与原生底栏,**不再跟随 main → native 漂移锁**。
+`scripts/web-sync.lock.json` 只属于原 TanJi `native-app` 历史线;HG 不执行 `npm run sync:web`,
+也不通过 `npm run check:update` 把独立改动重新锁回旧 App。
 
-同步方向是 **main → native**(main 是唯一真源)。需要:
+HG 发布门禁:
 
-- [x] 加 `npm run sync:web`(2026-11-22,`scripts/sync-web-assets.cjs`):纯资产(sw.js/manifest/privacy.html/support.html/icons/vendor)从 main 自动拷贝;
-      index.html/storage.js 因织入原生适配层**不做盲拷**——main 侧有新改动时列出 diff 摘要并中止,人工合并后再跑一次。
-      基线锁 `scripts/web-sync.lock.json` 已建立(当前 main @ `93cfa31`,native 侧指纹在 v0.5/v0.6 后已重登记)。
-      注意:`sync:web` 成功后脚本会**自动**刷新锁基线,漂移登记仍是 `npm run check:update`。
-- [x] 加 CI 校验(2026-11-22,`.github/workflows/ci.yml`):push 到 `native-app` 或 PR 目标为 `native-app` 时,
-      跑 `npm run check` 同款漂移校验 + 原生回归 + 隐私清单合规;`main` 分支跑单元回归 + 浏览器端到端冒烟
-- [ ] `sw.js` 的 `VERSION` 在发布前必须 bump(否则老用户拿不到新版本)
-
-不做这件事,native 的 `www/` 会慢慢和 Web 版分叉,最终 App Store 版本出现"只有原生版有的 bug"。
+- [x] `npm test` 186 项回归
+- [x] `npm run test:smoke` 三种视口 + 控制台零错误
+- [x] `npm run check` 校验 `www/app.js`、`www/cap-plugins.js` 与源码一致
+- [x] CI 在 `tanji-native-hg` push / PR 时跑 Web、Native 回归与隐私清单,跳过 main/native 漂移锁
+- [ ] 发布前重新跑全套验证与真机业务验收
+- [ ] 如 PWA 渠道仍要更新,单独在 `main` 分支 bump `sw.js` 的 `VERSION`;HG 原生端不注册 Service Worker
 
 ### 2. App Store 合规(2026 年比想象的严)
 
@@ -66,8 +63,8 @@ index.html 与 storage.js 上叠了原生适配层,且 native 侧还有 v0.5(v0.
 | **银行与税务信息** | 付费 App 必须填完整 | 不填会阻塞销售 |
 | **图标** | 1024×1024 PNG,**不允许 alpha 通道**,不预切圆角 | |
 | **截图** | 必须提供 6.9 英寸 iPhone | 6.5 英寸可选 |
-| **Bundle ID** | 必须与 App Store Connect 注册的完全一致 | 当前是 `com.tanji.app` |
-| **签名** | `CODE_SIGN_STYLE = Automatic`,需在 Xcode 选 Team | 上架需付费账号证书 |
+| **Bundle ID** | 必须与 App Store Connect 注册的完全一致 | 当前是 `com.tanji.hg` |
+| **签名** | `CODE_SIGN_STYLE = Automatic`,需在 Xcode 选 Team | 上架需付费开发者账号 |
 
 自查工具:构建后 `Product → Privacy Report`,会列出每个 SDK 是否带隐私清单。
 
@@ -83,7 +80,7 @@ index.html 与 storage.js 上叠了原生适配层,且 native 侧还有 v0.5(v0.
 ### 3. 发布流程
 
 - [ ] App Store Connect 建 App 记录(仅 iOS,或 iOS + iPadOS)
-- [ ] Bundle ID `com.tanji.app` 在开发者后台注册
+- [ ] Bundle ID `com.tanji.hg` 在开发者后台注册
 - [ ] 填隐私政策、支持页、营养标签、定价、年龄分级
 - [ ] `xcodebuild archive` → 上传 → 等待审核(通常 1–3 天)
 - [ ] 提审备注里写清:纯本地、数据不出设备、无账号、无数字内容消费
@@ -109,7 +106,7 @@ index.html 与 storage.js 上叠了原生适配层,且 native 侧还有 v0.5(v0.
 
 ## 四、两条渠道并存是合理的
 
-| | PWA(main) | App Store(native-app) |
+| | PWA(main) | App Store(tanji-native-hg) |
 |---|---|---|
 | 价格 | 免费 | 买断 ¥38–68 |
 | 分发 | 链接 / 二维码 | App Store 链接 / 短链 |
@@ -124,7 +121,7 @@ index.html 与 storage.js 上叠了原生适配层,且 native 侧还有 v0.5(v0.
 ### 4.1 两条渠道的衔接已经接上(2026-11-22)
 
 策略定死为:**PWA 免费体验 → 付费 iOS App**;付费版后续按使用者意见迭代功能。
-两端的「统计 → 关于」里都有同一个转化入口:
+HG 的「统计 → 齿轮设置 → 关于与支持」里保留同一个转化入口:
 
 ```js
 // index.html(两个分支同一份代码)
@@ -140,7 +137,7 @@ const APP_STORE_URL='';   // 上架后填 https://apps.apple.com/app/id<数字>
 
 ### 4.2 付费版的反馈闭环
 
-- 入口:App 内「统计 → 关于 → 支持与常见问题」里有联系邮箱(线上 privacy/support 页同一入口);
+- 入口:App 内「统计 → 齿轮设置 → 关于与支持 → 支持与常见问题」里有联系邮箱(线上 privacy/support 页同一入口);
 - 收集:付费用户的功能建议与 bug 反馈走邮箱 → 汇总进研发笔记;
 - 迭代:新功能随下一个版本发到 App Store,**用户点一下即可收到推送更新**
   (这正是原生版相对 PWA 的核心优势,PWA 要手动 bump `sw.js` VERSION 才有新版本);
@@ -154,8 +151,8 @@ const APP_STORE_URL='';   // 上架后填 https://apps.apple.com/app/id<数字>
 2. ~~**同步脚本 + CI 校验**~~ ✅ 2026-11-22 完成:`npm run sync:web` / `npm run check` + `.github/workflows/ci.yml`
 3. ~~**隐私清单 + 隐私政策页 + 支持页**~~ ✅ 2026-11-22 全部就位
    （⏳ 剩余:替换联系邮箱占位符 + 部署站点让线上 URL 可访问）
-4. **开发者账号**($99/年)→ 选主体 → 签 Paid Apps Agreement → 填银行与税务
-5. **真机验收**:选 Team 签名 → 跑一遍下单/收款/导出/通知 → 截 App Store 截图
+4. **开发者账号**:当前已有付费 Team;上架前确认主体、签 Paid Apps Agreement、填银行与税务
+5. **真机验收**:Release 1.0 (1) 已安装启动;待用户完成权限、下单/收款/导出/通知/重启与日常使用验收,再截 App Store 截图
 6. **买断付费上架**,PWA 保持免费
 7. AI 功能 → v2(需要时再加服务端 + AI 授权弹窗)
 

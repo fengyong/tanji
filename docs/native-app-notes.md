@@ -1,7 +1,12 @@
-# 探记 TanJi · iOS 原生版研发笔记(native-app 分支)
+# 探记 TanJi · iOS 原生版研发笔记(native-app 历史线)
 
-> 本文档记录本地 App 版的技术路线决策、搭建步骤、环境问题与实测清单。持续更新。
-> 分支:`native-app`(当前开发分支 `fix/native-persistence-review`,独立 git worktree:`/Users/ola/drax-toolbox/tanji-native`)。Base:Web v0.2,现已同步到 v0.4 并叠加 v0.5/v0.6。
+> **2026-11-27 更新：本文是原 TanJi `native-app` 的历史研发记录，不是探记 HG 的当前配置。**
+> HG 当前分支为 `tanji-native-hg`，Bundle ID 为 `com.tanji.hg`，版本 `1.0 (1)`；
+> 当前状态、命令与真机验收以 [`../README.md`](../README.md)、[`../AGENTS.md`](../AGENTS.md)
+> 和 [`device-install.md`](device-install.md) 为准。下文旧分支、旧 Bundle ID、免费签名与过期日期均保留为历史事实。
+>
+> 本文档记录本地 App 版的技术路线决策、搭建步骤、环境问题与实测清单。
+> 历史分支:`native-app`。Base:Web v0.2,曾同步到 v0.4 并叠加 v0.5/v0.6。
 
 ## 一、路线决策(阶段 1 结论)
 
@@ -466,7 +471,7 @@ DEVELOPMENT_TEAM=你的TeamID DEVICE_UDID=手机UDID npm run install:ios:device
 
 ## 真机点验与体验修正(2026-11-22 晚)
 
-真机环境:iPhone 15 Pro / iOS 27.2.1 / `com.olatanji.app` / 免费个人团队签名(`DEVELOPMENT_TEAM=YC9UFHH73D`)。
+真机环境:iPhone 15 Pro / iOS 27.2.1 / `com.olatanji.app` / 免费个人团队签名(Team ID 已从仓库移除)。
 主链路跑通后按实际手感改了三处,**都是"模拟器验不出来、一上手就露馅"的类型**。
 
 ### 1. 网页手感 → 原生手感

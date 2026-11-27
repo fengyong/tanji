@@ -3,6 +3,7 @@ import {$} from './util.js';
 import {ui} from './ui.js';
 import {renderAvatarPreview} from './accounts.js';
 import {toast} from './sheets.js';
+import {setNativeCropOpen} from './native-tabs.js';
 
 /* ---------- 取景数学(纯函数,不碰 DOM;坐标一律是画布的 CSS 像素) ----------
  * view = {scale,x,y}:原图左上角画在 (x,y),宽高各乘 scale。
@@ -83,10 +84,12 @@ function openCrop(img){
   session={img,crop,box,dpr,preview:previewBitmap(img),pointers:new Map(),pan:null,pinch:null,tap:null,raf:0};
   session.view=initialView(img,crop);
   draw();
+  setNativeCropOpen(true);
 }
 export function closeCrop(){
   if(!session)return;
   session=null;$('#avatar-crop').hidden=true;
+  setNativeCropOpen(false);
 }
 export async function useCrop(){
   const s=session;if(!s)return;

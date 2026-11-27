@@ -25,6 +25,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync, spawnSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const APP = path.join(ROOT, 'src', 'app');
@@ -93,9 +94,9 @@ test('依赖方向:只允许白名单内的跨层边', () => {
   // 层序:低 ← 高(高层可以 import 低层);同层业务模块之间不许互引(views 例外,见白名单)
   const LAYER = {
     env: 0, util: 1, demo: 2, storage: 3, 'sqlite-bytes': 4,
-    ui: 4, derived: 5,
+    ui: 4, 'native-tabs': 4, derived: 5,
     sheets: 6, accounts: 6, stats: 6, notify: 6,
-    'views/home': 7, 'views/trip': 7, 'views/orders': 7, 'views/pay': 7, 'views/stats': 7,
+    'views/home': 7, 'views/trip': 7, 'views/orders': 7, 'views/pay': 7, 'views/stats': 7, 'views/settings': 7,
     'order-forms': 7, 'order-actions': 7, detail: 7, 'share-image': 7, export: 7, 'avatar-crop': 7,
     actions: 8, main: 9,
   };
@@ -193,6 +194,23 @@ test('CI 两个回归 job 都先安装依赖,再运行完整 npm test', () => {
     assert.match(match[0], /run:\s*npm test\b/, `${job} job 必须运行完整 npm test`);
     assert.ok(match[0].indexOf('npm ci') < match[0].indexOf('npm test'), `${job} job 必须先安装依赖再测试`);
   }
+  assert.match(workflow, /branches:\s*\[main, native-app, tanji-native-hg\]/);
+  assert.match(workflow, /HG 构建产物校验[\s\S]*?check-web-sync\.cjs --artifact-only/);
+  assert.match(workflow, /main \/ native 漂移校验[\s\S]*?check-web-sync\.cjs --main-ref origin\/main/);
+});
+
+test('HG 产物校验显式绕过漂移锁,且禁止更新旧锁文件', () => {
+  const script = path.join(ROOT, 'scripts', 'check-web-sync.cjs');
+  const output = execFileSync(process.execPath, [script, '--artifact-only'], { cwd: ROOT, encoding: 'utf8' });
+  assert.match(output, /www 构建产物与源码一致/);
+  assert.match(output, /跳过 main \/ native 跨版本漂移校验/);
+
+  const result = spawnSync(process.execPath, [script, '--artifact-only', '--update'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /HG 独立分支不更新 main \/ native 漂移锁/);
 });
 
 /* ---------- 规则 7:PWA 缓存策略(第七轮 review P1) ---------- */

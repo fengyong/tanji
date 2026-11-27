@@ -614,9 +614,9 @@ function setStorageStatus(message) {
     banner.querySelector("span").textContent = message;
   }
 }
-function snapshot(state = db, mode = Store.mode) {
+function snapshot(state2 = db, mode = Store.mode) {
   Store.revision = Math.max(Date.now(), Store.revision + 1);
-  return { ...cloneState(state), v: 3, revision: Store.revision, savedAt: (/* @__PURE__ */ new Date()).toISOString(), mode };
+  return { ...cloneState(state2), v: 3, revision: Store.revision, savedAt: (/* @__PURE__ */ new Date()).toISOString(), mode };
 }
 function persistSnapshot(payload) {
   if (isNative) {
@@ -695,9 +695,9 @@ async function loadState() {
   const [work, demo, indexedMode] = await Promise.all([readSnapshot("work"), readSnapshot("demo"), idb.get("tanji_v3_mode")]);
   const localMode = localRead("tanji_v3_mode");
   const selected = [localMode.value, indexedMode.value].filter((v) => v && ["work", "demo"].includes(v.mode)).sort((a, b) => b.revision - a.revision)[0];
-  let mode = selected?.mode || (work.value || work.uncertain ? "work" : "demo"), state = mode === "work" ? work : demo;
+  let mode = selected?.mode || (work.value || work.uncertain ? "work" : "demo"), state2 = mode === "work" ? work : demo;
   Store.mode = mode;
-  if (!state.value && mode === "work" && state.uncertain) return blockLoad();
+  if (!state2.value && mode === "work" && state2.uncertain) return blockLoad();
   if (!work.value && !demo.value) {
     const legacyLocal = localRead("tanji_v2"), legacyOld = localRead("tanstore_v1"), legacyIndexed = await idb.get("json");
     const sources = [legacyLocal, legacyOld, legacyIndexed];
@@ -717,16 +717,16 @@ async function loadState() {
     if (sources.some((s) => !s.ok || s.value !== null) || work.uncertain || demo.uncertain) return blockLoad();
   }
   Store.mode = mode;
-  if (state.value) {
-    db = validateState(state.value);
-    Store.revision = Math.max(Store.revision, state.value.revision);
-    Store.backup = state.value.previous;
-  } else if (state.uncertain) return blockLoad();
+  if (state2.value) {
+    db = validateState(state2.value);
+    Store.revision = Math.max(Store.revision, state2.value.revision);
+    Store.backup = state2.value.previous;
+  } else if (state2.uncertain) return blockLoad();
   else db = mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
   Store.ready = true;
-  Store.blocked = Store.blocked || state.uncertain;
-  setStorageStatus(state.uncertain ? "\u90E8\u5206\u672C\u673A\u526F\u672C\u4E0D\u53EF\u8BFB\uFF0C\u5F53\u524D\u4EC5\u4F9B\u67E5\u770B\uFF1B\u5DF2\u6682\u505C\u5199\u5165\uFF0C\u8BF7\u5148\u5BFC\u51FA\u5907\u4EFD\u5E76\u91CD\u8BD5\u8BFB\u53D6\u3002" : "");
-  return !!state.value;
+  Store.blocked = Store.blocked || state2.uncertain;
+  setStorageStatus(state2.uncertain ? "\u90E8\u5206\u672C\u673A\u526F\u672C\u4E0D\u53EF\u8BFB\uFF0C\u5F53\u524D\u4EC5\u4F9B\u67E5\u770B\uFF1B\u5DF2\u6682\u505C\u5199\u5165\uFF0C\u8BF7\u5148\u5BFC\u51FA\u5907\u4EFD\u5E76\u91CD\u8BD5\u8BFB\u53D6\u3002" : "");
+  return !!state2.value;
 }
 function blockLoad() {
   Store.blocked = true;
@@ -763,10 +763,10 @@ async function switchMode(mode) {
     Store.busy = false;
   }
 }
-async function replaceData(state) {
+async function replaceData(state2) {
   if (Store.busy || Store.blocked) return false;
-  const validated = validateState(state);
-  if (!state || state.notifyEnabled === void 0) validated.notifyEnabled = db.notifyEnabled !== false;
+  const validated = validateState(state2);
+  if (!state2 || state2.notifyEnabled === void 0) validated.notifyEnabled = db.notifyEnabled !== false;
   Store.busy = true;
   try {
     await Store.queue;
@@ -801,8 +801,8 @@ async function replaceData(state) {
     Store.busy = false;
   }
 }
-function backupDocument(state = db) {
-  return { app: "\u63A2\u8BB0 TanJi", version: "0.6", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), threshold: state.threshold, notifyEnabled: state.notifyEnabled !== false, accounts: cloneState(state.accounts || []), providers: cloneState(state.providers || []), orders: cloneState(state.orders), payments: cloneState(state.payments) };
+function backupDocument(state2 = db) {
+  return { app: "\u63A2\u8BB0 TanJi", version: "0.6", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), threshold: state2.threshold, notifyEnabled: state2.notifyEnabled !== false, accounts: cloneState(state2.accounts || []), providers: cloneState(state2.providers || []), orders: cloneState(state2.orders), payments: cloneState(state2.payments) };
 }
 function accountCopyText(account) {
   const lines = [];
@@ -813,25 +813,13 @@ function accountCopyText(account) {
 }
 var NATIVE_DB = "tanji";
 var ORD_COLS = ["id", "store", "category", "contact", "price", "deposit", "appt_at", "shot_at", "submitted_at", "short_sent_at", "long_sent_at", "deposit_paid_at", "final_paid_at", "settle_via", "remind_at", "channel", "partner", "location", "gps_place", "deliver_main", "deliver_sub", "review_result", "published_at", "account_id", "note", "remind_log", "expect_pay_at", "created_at", "updated_at"];
-var nativeOpening = null;
 async function nativeOpen() {
   if (Store.conn) return Store.conn;
-  if (nativeOpening) return nativeOpening;
-  nativeOpening = (async () => {
-    const sqlite = new CAP.SQLiteConnection(CAP.CapacitorSQLite);
-    let conn;
-    try {
-      conn = await sqlite.createConnection(NATIVE_DB, false, "no-encryption", 1, false);
-    } catch (error) {
-      if (!/already exists/i.test(String(error?.message || error))) throw error;
-      console.warn("[TanJi] SQLite \u5B58\u5728\u9875\u9762\u91CD\u8F7D\u524D\u7684\u6B8B\u7559\u8FDE\u63A5\uFF0C\u5173\u95ED\u540E\u91CD\u5EFA", error);
-      await sqlite.closeConnection(NATIVE_DB, false);
-      conn = await sqlite.createConnection(NATIVE_DB, false, "no-encryption", 1, false);
-    }
-    try {
-      await conn.open();
-      await conn.executeSet([
-        { statement: `CREATE TABLE IF NOT EXISTS orders(
+  const sqlite = new CAP.SQLiteConnection(CAP.CapacitorSQLite);
+  const conn = await sqlite.createConnection(NATIVE_DB, false, "no-encryption", 1, false);
+  await conn.open();
+  await conn.executeSet([
+    { statement: `CREATE TABLE IF NOT EXISTS orders(
   mode TEXT NOT NULL,
   id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
   price REAL NOT NULL, deposit REAL DEFAULT 0,
@@ -843,50 +831,35 @@ async function nativeOpen() {
   account_id INTEGER,
   note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT,
   PRIMARY KEY(mode,id))`, values: [] },
-        { statement: `CREATE TABLE IF NOT EXISTS payments(
+    { statement: `CREATE TABLE IF NOT EXISTS payments(
   mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`, values: [] },
-        { statement: `CREATE TABLE IF NOT EXISTS accounts(
+    { statement: `CREATE TABLE IF NOT EXISTS accounts(
   mode TEXT NOT NULL,
   id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
   color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
   PRIMARY KEY(mode,id))`, values: [] },
-        { statement: `CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`, values: [] }
-      ], true);
-      for (const stmt of [
-        "ALTER TABLE orders ADD COLUMN location TEXT",
-        "ALTER TABLE orders ADD COLUMN gps_place TEXT",
-        "ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1",
-        // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
-        "ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1",
-        `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
-        "ALTER TABLE orders ADD COLUMN published_at TEXT",
-        "ALTER TABLE orders ADD COLUMN account_id INTEGER",
-        "ALTER TABLE orders ADD COLUMN remind_log TEXT",
-        "ALTER TABLE orders ADD COLUMN expect_pay_at TEXT"
-      ]) {
-        try {
-          await conn.execute(stmt, false);
-        } catch (e) {
-          if (!/duplicate column name/i.test(String(e?.message || e))) throw e;
-        }
-      }
-    } catch (error) {
-      try {
-        await sqlite.closeConnection(NATIVE_DB, false);
-      } catch (cleanupError) {
-        console.error("[TanJi] SQLite \u5931\u8D25\u8FDE\u63A5\u6E05\u7406\u5931\u8D25", cleanupError);
-      }
-      throw error;
+    { statement: `CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`, values: [] }
+  ], true);
+  for (const stmt of [
+    "ALTER TABLE orders ADD COLUMN location TEXT",
+    "ALTER TABLE orders ADD COLUMN gps_place TEXT",
+    "ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1",
+    // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
+    "ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1",
+    `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
+    "ALTER TABLE orders ADD COLUMN published_at TEXT",
+    "ALTER TABLE orders ADD COLUMN account_id INTEGER",
+    "ALTER TABLE orders ADD COLUMN remind_log TEXT",
+    "ALTER TABLE orders ADD COLUMN expect_pay_at TEXT"
+  ]) {
+    try {
+      await conn.execute(stmt, false);
+    } catch (e) {
     }
-    Store.conn = conn;
-    return conn;
-  })();
-  try {
-    return await nativeOpening;
-  } finally {
-    nativeOpening = null;
   }
+  Store.conn = conn;
+  return conn;
 }
 async function nativePersistSnapshot(payload) {
   try {
@@ -954,7 +927,7 @@ async function nativeReadSnapshot(mode, suffix = "json") {
 }
 
 // src/app/ui.js
-var ui = { tab: "home", chip: "all", bucket: "all", period: "7", selDay: TODAY, q: "", detail: null, payCtx: null, privacy: false, shareUrl: null, shareBlob: null, vMon: { y: now.getFullYear(), m: now.getMonth() + 1 }, accFilter: null, editAccountId: null, draftAvatar: null, draftColor: 0, draftProv: "", draftAccId: null, draftAccIds: [], assignAcc: null, remindOid: null, expectOid: null };
+var ui = { tab: "home", settingsOpen: false, chip: "all", bucket: "all", period: "7", selDay: TODAY, q: "", detail: null, payCtx: null, privacy: false, shareUrl: null, shareBlob: null, vMon: { y: now.getFullYear(), m: now.getMonth() + 1 }, accFilter: null, editAccountId: null, draftAvatar: null, draftColor: 0, draftProv: "", draftAccId: null, draftAccIds: [], assignAcc: null, remindOid: null, expectOid: null };
 var lastDailySyncDay = "";
 var dailySyncFn = null;
 function registerDailySync(fn) {
@@ -978,14 +951,44 @@ function registerRenderers(renderers) {
 }
 function showTab(t) {
   refreshClock();
+  ui.settingsOpen = false;
   ui.tab = t;
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   $("#v-" + t).classList.add("active");
-  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
+  document.querySelectorAll(".tab").forEach((b) => {
+    const on = b.dataset.tab === t;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  syncNativeState();
+}
+function openSettings() {
+  refreshClock();
+  ui.settingsOpen = true;
+  RENDERERS.settings();
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  $("#v-settings").classList.add("active");
+  document.querySelectorAll(".tab").forEach((b) => {
+    const on = b.dataset.tab === "stats";
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  $("#v-settings").scrollTop = 0;
+  syncNativeState();
+}
+function closeSettings() {
+  showTab("stats");
 }
 var badgeCounter = null;
 function registerBadgeCounter(fn) {
   badgeCounter = fn;
+}
+var nativeStateSync = null;
+function registerNativeSync(fn) {
+  nativeStateSync = fn;
+}
+function syncNativeState() {
+  if (nativeStateSync) nativeStateSync({ tab: ui.tab, badge: badgeCounter ? badgeCounter() : 0 });
 }
 function renderAll() {
   refreshClock();
@@ -995,10 +998,12 @@ function renderAll() {
   RENDERERS.orders();
   RENDERERS.pay();
   RENDERERS.stats();
+  RENDERERS.settings();
   const n = badgeCounter ? badgeCounter() : 0;
   const b = $("#pay-bdg");
   b.style.display = n ? "flex" : "none";
   b.textContent = n;
+  syncNativeState();
 }
 var detailRerender = null;
 function registerDetailRerender(fn) {
@@ -1014,6 +1019,72 @@ function refreshVisible() {
 }
 function markDailySynced(day = TODAY) {
   lastDailySyncDay = day;
+}
+
+// src/app/native-tabs.js
+var TAB_IDS = /* @__PURE__ */ new Set(["home", "trip", "orders", "pay", "stats"]);
+var plugin = null;
+var initialized = false;
+var sheetOpen = false;
+var cropOpen = false;
+var sheetTimer = null;
+var lastPayload = "";
+var state = { ready: false, tab: "home", badge: 0, overlay: "none", appliedCommandId: null };
+function applyBottomInset(value) {
+  const height = Math.max(0, Number(value) || 0);
+  document.documentElement.style.setProperty("--native-tab-height", `${height}px`);
+}
+function sendState() {
+  if (!plugin) return;
+  const payload = JSON.stringify(state);
+  if (payload === lastPayload) return;
+  lastPayload = payload;
+  plugin.setState({ ...state }).then((result) => {
+    if (result) applyBottomInset(result.bottomInset);
+  }).catch((error) => console.warn("[TanJi] \u539F\u751F\u5E95\u680F\u72B6\u6001\u540C\u6B65\u5931\u8D25", error));
+}
+function syncNativeTabs(update = {}) {
+  if (!plugin) return;
+  Object.assign(state, update);
+  sendState();
+}
+function syncOverlay() {
+  syncNativeTabs({ overlay: cropOpen ? "crop" : sheetOpen ? "sheet" : "none" });
+}
+function setNativeSheetOpen(open) {
+  if (!plugin) return;
+  sheetOpen = open;
+  clearTimeout(sheetTimer);
+  if (open) {
+    syncOverlay();
+    return;
+  }
+  sheetTimer = setTimeout(() => {
+    sheetTimer = null;
+    syncOverlay();
+  }, 360);
+}
+function setNativeCropOpen(open) {
+  if (!plugin) return;
+  cropOpen = open;
+  syncOverlay();
+}
+function initNativeTabs(showTab2) {
+  if (initialized || !isNative || !CAP?.Capacitor?.registerPlugin) return;
+  initialized = true;
+  plugin = CAP.Capacitor.registerPlugin("NativeTabs");
+  window.addEventListener("tanjiNativeLayout", (event) => applyBottomInset(event.bottomInset));
+  window.addEventListener("tanjiNativeTab", (event) => {
+    if (!TAB_IDS.has(event.tab)) return;
+    state.appliedCommandId = event.commandId ?? null;
+    showTab2(event.tab);
+    const heading = document.querySelector("#v-" + event.tab + " h1");
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+  });
+  syncNativeTabs();
 }
 
 // src/app/derived.js
@@ -1102,7 +1173,12 @@ function showSheet(id) {
   document.querySelectorAll(".sheet").forEach((s) => s.classList.remove("show"));
   const target = $("#" + id);
   target.style.pointerEvents = "";
+  target.setAttribute("role", "dialog");
+  target.setAttribute("aria-modal", "true");
+  target.tabIndex = -1;
   target.classList.add("show");
+  target.focus({ preventScroll: true });
+  setNativeSheetOpen(true);
 }
 function closeSheets() {
   $("#mask").classList.remove("show");
@@ -1118,6 +1194,7 @@ function closeSheets() {
   ui.remindOid = null;
   ui.expectOid = null;
   Store.pending = null;
+  setNativeSheetOpen(false);
 }
 function initSheetGestures() {
   const FORM_SHEETS = "#sheet-new,#sheet-edit,#sheet-account,#sheet-import,#sheet-remind,#sheet-expect";
@@ -1339,7 +1416,7 @@ var Notify = {
 };
 
 // src/app/sqlite-bytes.js
-function buildSqliteBytes(state = db) {
+function buildSqliteBytes(state2 = db) {
   if (!Store.sqlite3) return null;
   try {
     const s = Store.sqlite3;
@@ -1362,7 +1439,7 @@ function buildSqliteBytes(state = db) {
       color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
     const so = d.prepare("INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-    state.orders.forEach((o) => {
+    state2.orders.forEach((o) => {
       so.bind([
         o.id,
         o.store,
@@ -1399,21 +1476,21 @@ function buildSqliteBytes(state = db) {
     });
     so.finalize();
     const sa = d.prepare("INSERT INTO accounts VALUES (?,?,?,?,?,?,?)");
-    (state.accounts || []).forEach((a) => {
+    (state2.accounts || []).forEach((a) => {
       sa.bind([a.id, a.name, a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || null]);
       sa.step();
       sa.reset();
     });
     sa.finalize();
     const sp = d.prepare("INSERT INTO payments (order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?)");
-    state.payments.forEach((p) => {
+    state2.payments.forEach((p) => {
       sp.bind([p.oid, p.kind, p.amount, p.at, p.method, p.note || null]);
       sp.step();
       sp.reset();
     });
     sp.finalize();
     const ss = d.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)");
-    ss.bind(["collect_threshold_days", String(state.threshold)]);
+    ss.bind(["collect_threshold_days", String(state2.threshold)]);
     ss.step();
     ss.reset();
     ss.bind(["app_version", "0.6"]);
@@ -1482,7 +1559,7 @@ function accChipbarHTML() {
     const a = id != null ? accById(id) : null;
     const c = a ? accColor(a) : null;
     const style = a ? on ? `background:${c.ink};color:#fff;font-weight:700` : `color:${c.ink};background:${c.bg};font-weight:600` : on ? "background:var(--ink);color:#fff" : "";
-    return `<span class="chip acc-chip${on ? " on" : ""}" data-act="acc-filter" data-id="${id == null ? "" : id}" style="${style}">${esc(label)}</span>`;
+    return `<span class="chip acc-chip${on ? " on" : ""}" role="button" tabindex="0" aria-pressed="${on}" data-act="acc-filter" data-id="${id == null ? "" : id}" style="${style}">${esc(label)}</span>`;
   };
   let html = chip("\u5168\u90E8", null);
   for (const a of ACCS()) html += chip(a.name, a.id);
@@ -1513,12 +1590,15 @@ function renderProvPick(elId, val) {
   const el = $("#" + elId);
   if (!el) return;
   el.innerHTML = `<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">\u670D\u52A1\u5546 <span class="rsub" style="font-weight:400;margin-left:4px">\u9884\u8BBE\u70B9\u9009,\u6216\u76F4\u63A5\u8F93\u5165</span></div>
-    <div class="chiprow" style="margin:8px 0 0">${providerList().map((p) => `<span class="chip prov-chip ${val === p ? "on" : "c-gray"}" data-act="prov-pick" data-v="${esc(p)}">${esc(p)}</span>`).join("")}</div>
+    <div class="chiprow" style="margin:8px 0 0">${providerList().map((p) => `<span class="chip prov-chip ${val === p ? "on" : "c-gray"}" role="button" tabindex="0" aria-pressed="${val === p}" data-act="prov-pick" data-v="${esc(p)}">${esc(p)}</span>`).join("")}</div>
     <div class="frow" style="border-bottom:none;padding:9px 0 0"><input id="${elId}-input" placeholder="\u8F93\u5165\u81EA\u5B9A\u4E49\u670D\u52A1\u5546\u2026\u4FDD\u5B58\u540E\u81EA\u52A8\u8BB0\u5165\u9884\u8BBE" value="${esc(val && !providerList().includes(val) ? val : "")}" style="text-align:left;font-size:14px"></div></div>`;
   const input = el.querySelector("input");
   input.addEventListener("input", () => {
     ui.draftProv = input.value.trim();
-    el.querySelectorAll(".prov-chip").forEach((c) => c.classList.remove("on"));
+    el.querySelectorAll(".prov-chip").forEach((c) => {
+      c.classList.remove("on");
+      c.setAttribute("aria-pressed", "false");
+    });
   });
 }
 function chanFromDraft() {
@@ -1549,7 +1629,7 @@ function renderPal() {
   const idx = ui.draftColor % 8, cur = ACC_COLORS[idx];
   $("#a-pal").innerHTML = ACC_COLORS.map((c, i) => `<button type="button" class="sw ${i === idx ? "sel" : ""}" data-act="pal-pick" data-i="${i}" aria-label="${c.name}" title="${c.name}" style="background:${c.ink}"></button>`).join("");
   const label = $("#a-pal-name");
-  if (label) label.innerHTML = `\u5F53\u524D\u6807\u8BC6\u8272:<b>${cur.name}</b> \xB7 \u5217\u8868\u5E95\u8272\u4E0E\u884C\u5185\u5C0F\u6807\u540C\u6B65\u8DDF\u968F`;
+  if (label) label.innerHTML = `\u5F53\u524D\u6807\u8BC6\u8272\uFF1A<b>${cur.name}</b> \xB7 \u5217\u8868\u8272\u6761\u4E0E\u884C\u5185\u5C0F\u6807\u540C\u6B65\u8DDF\u968F`;
 }
 function saveAccount() {
   const name = $("#a-name").value.trim();
@@ -1682,11 +1762,13 @@ function openCrop(img) {
   session = { img, crop, box, dpr, preview: previewBitmap(img), pointers: /* @__PURE__ */ new Map(), pan: null, pinch: null, tap: null, raf: 0 };
   session.view = initialView(img, crop);
   draw();
+  setNativeCropOpen(true);
 }
 function closeCrop() {
   if (!session) return;
   session = null;
   $("#avatar-crop").hidden = true;
+  setNativeCropOpen(false);
 }
 async function useCrop() {
   const s = session;
@@ -1791,15 +1873,15 @@ function initAvatarInput() {
 var fmtMoney2 = (n) => fmtMoney(n, ui.privacy);
 var MILE_LABEL = { shotAt: "\u62CD\u6444", submittedAt: "\u63D0\u5BA1", shortAt: "\u526F\u7247\u53D1\u51FA", longAt: "\u6B63\u7247\u53D1\u51FA", publishedAt: "\u53D1\u5E03" };
 var MILE_COLOR = {
-  shotAt: { c: "#E8663C", soft: "#FCEFE8" },
-  submittedAt: { c: "#3B7DD8", soft: "#EDF3FC" },
-  shortAt: { c: "#8B6BC4", soft: "#F3EEFA" },
-  longAt: { c: "#2FA05F", soft: "#EAF6EE" },
-  publishedAt: { c: "#5C6B7A", soft: "#EDEFF2" }
+  shotAt: { c: "var(--brand-ink)", soft: "var(--brand-soft)" },
+  submittedAt: { c: "var(--blue)", soft: "var(--blue-soft)" },
+  shortAt: { c: "var(--purple)", soft: "var(--purple-soft)" },
+  longAt: { c: "var(--green)", soft: "var(--green-soft)" },
+  publishedAt: { c: "var(--ink-2)", soft: "#E8EDE8" }
 };
 var MILE_BIG = /* @__PURE__ */ new Set(["shortAt", "longAt"]);
 function mileStep(oid, key, label, time, done, nowFlag) {
-  const tone = MILE_COLOR[key] || { c: "var(--brand)", soft: "var(--brand-soft)" };
+  const tone = MILE_COLOR[key] || { c: "var(--brand-ink)", soft: "var(--brand-soft)" };
   const big = MILE_BIG.has(key) ? "big" : "";
   const target = byId(oid);
   const photo = key === "shotAt" && done && target && target.photoThumb ? `<img src="${target.photoThumb}" alt="">` : done ? "\u2713" : nowFlag ? "\xB7" : "";
@@ -1813,8 +1895,8 @@ function priceCell(o) {
   return o.photoThumb ? `<div class="rprice shot" style="background-image:url('${o.photoThumb}')"><span>${money}</span></div>` : `<div class="rprice">${money}</div>`;
 }
 function detailActions(o) {
-  if (!o.shotAt) return `<button class="btn primary" data-act="mark-shot" data-oid="${esc(o.id)}">\u6807\u8BB0\u5DF2\u62CD\u6444(\u8BB0\u5F55\u5B9E\u9645\u62CD\u6444\u65F6\u95F4)</button>`;
-  if (!o.submittedAt) return `<button class="btn primary" data-act="mark-submit" data-oid="${esc(o.id)}">\u6807\u8BB0\u5DF2\u63D0\u5BA1</button>`;
+  if (!o.shotAt) return `<button class="btn primary" data-act="mark-shot" data-oid="${esc(o.id)}">\u5230\u5E97\u4E86\uFF0C\u6807\u8BB0\u5DF2\u62CD\u6444</button>`;
+  if (!o.submittedAt) return `<button class="btn primary" data-act="mark-submit" data-oid="${esc(o.id)}">\u5DF2\u9009\u5B8C\uFF0C\u6807\u8BB0\u63D0\u5BA1</button>`;
   const btns = [];
   if (needSub(o)) btns.push(`<button class="btn ${o.shortAt ? "ghost" : "tint"}" data-act="mark-short" data-oid="${esc(o.id)}" ${o.shortAt ? "disabled" : ""}>${o.shortAt ? "\u526F\u7247\u5DF2\u53D1" : "\u6807\u8BB0\u53D1\u526F\u7247"}</button>`);
   if (needMain(o)) btns.push(`<button class="btn ${o.longAt ? "ghost" : "tint"}" data-act="mark-long" data-oid="${esc(o.id)}" ${o.longAt ? "disabled" : ""}>${o.longAt ? "\u6B63\u7247\u5DF2\u53D1" : "\u6807\u8BB0\u53D1\u6B63\u7247"}</button>`);
@@ -1833,6 +1915,9 @@ function stepBtn(o, extra = "") {
   const step = nextStep(o);
   if (!step) return "";
   return `<button class="mini-btn" style="${extra}" data-act="${step.act}" data-oid="${esc(o.id)}"${step.key ? ` data-key="${step.key}"` : ""}>${step.label}</button>`;
+}
+function detailSection(title, content, more = "") {
+  return `<div class="detail-section"><div class="detail-section-title"><h3>${title}</h3>${more}</div>${content}</div>`;
 }
 function openDetail(id) {
   const o = byId(id);
@@ -1854,88 +1939,70 @@ function openDetail(id) {
   });
   const progress = lastDone < 0 ? 0 : (lastDone + 0.5) / visibleSteps.length * 72;
   const received = db.payments.filter((p) => p.oid === o.id).reduce((s, p) => s + (moneyCents(p.amount) || 0), 0) / 100;
+  const lateDays = expectOverdue(o);
   const payBtns = [];
   if (unDep(o) > 0) payBtns.push(`<button class="btn tint-blue" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="deposit">\u6536\u5B9A\u91D1 ${esc(fmtMoney2(unDep(o)))}</button>`);
   if (unFin(o) > 0) payBtns.push(`<button class="btn ${isOver(o) ? "primary" : "pay"}" data-act="open-pay" data-oid="${esc(o.id)}" data-kind="final">\u6536\u5C3E\u6B3E<span class="pmoney">${esc(fmtMoney2(unFin(o)))}</span></button>`);
-  if (!payBtns.length) payBtns.push(`<div style="text-align:center;color:#239648;font-weight:800;font-size:14px;padding:6px 0">\u6B3E\u9879\u5DF2\u5168\u90E8\u7ED3\u6E05</div>`);
+  if (!payBtns.length) payBtns.push(`<div style="text-align:center;color:var(--green);font-weight:800;font-size:14px;padding:6px 0">\u6B3E\u9879\u5DF2\u5168\u90E8\u7ED3\u6E05</div>`);
   let snoozeHtml = "";
   if (payOf(o) === "\u5F85\u5C3E\u6B3E") {
     const log = remindLogOf(o), last = log[log.length - 1], recent = log.slice(-4).reverse();
-    snoozeHtml = `<div class="sec-title" style="margin-top:16px">\u50AC\u6536\u8DDF\u8FDB<span class="more" data-act="remind-open" data-oid="${esc(o.id)}">\u518D\u50AC\u4E00\u6B21 \u203A</span></div>
-      <div class="card" style="background:#F8F8FA;box-shadow:none;padding:12px 13px">
-        <div class="rsub" style="margin:0${recent.length ? " 0 8px" : ""};line-height:1.5">${log.length ? `\u5DF2\u50AC ${log.length >= 50 ? "50+" : log.length} \u6B21 \xB7 \u6700\u8FD1 ${esc(fmtDT(last.at))}` : "\u8FD8\u6CA1\u50AC\u8FC7;\u7B2C\u4E00\u6B21\u8DDF\u8FDB\u4E5F\u8BB0\u4E00\u7B14,\u5BF9\u65B9\u600E\u4E48\u7B54\u4E0B\u6B21\u4E0D\u7528\u91CD\u65B0\u95EE"}</div>
+    snoozeHtml = detailSection(
+      "\u50AC\u6536\u8DDF\u8FDB",
+      `<div class="card">
+        <div class="rsub" style="margin:0${recent.length ? " 0 8px" : ""};line-height:1.5;white-space:normal">${log.length ? `\u5DF2\u50AC ${log.length >= 50 ? "50+" : log.length} \u6B21 \xB7 \u6700\u8FD1 ${esc(fmtDT(last.at))}` : "\u8FD8\u6CA1\u50AC\u8FC7\uFF1B\u7B2C\u4E00\u6B21\u8DDF\u8FDB\u4E5F\u8BB0\u4E00\u7B14\uFF0C\u5BF9\u65B9\u600E\u4E48\u7B54\u4E0B\u6B21\u4E0D\u7528\u91CD\u65B0\u95EE"}</div>
         ${recent.map((entry) => `<div class="rline"><span class="rt">${esc(fmtD(entry.at))} ${esc(fmtHM(entry.at))}</span><span class="rn">${entry.note ? esc(entry.note) : "\u5DF2\u50AC"}</span></div>`).join("")}
         ${log.length > recent.length ? `<div class="rsub" style="margin-top:6px">\u53E6\u6709 ${log.length - recent.length} \u6B21\u66F4\u65E9\u7684\u8DDF\u8FDB</div>` : ""}
       </div>
-      <div class="sec-title" style="margin-top:14px">\u50AC\u6536\u5907\u5FD8(\u6253\u5F00 App \u65F6\u67E5\u770B)</div>
-      <div class="btn2">
-        <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="1">1\u5929\u540E\u63D0\u9192</button>
-        <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="3">3\u5929\u540E\u63D0\u9192</button>
-        <button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="7">7\u5929\u540E\u63D0\u9192</button>
-      </div>
-      ${snoozed(o) ? `<div class="rsub" style="text-align:center;margin-top:8px">\u5DF2\u8BBE\u63D0\u9192:${esc(fmtD(o.remindAt))} \u518D\u50AC\u6536 <button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="clear-remind" data-oid="${esc(o.id)}">\u6E05\u9664</button></div>` : ""}`;
+      <div class="rsub" style="margin:11px 2px 7px">\u4E0B\u6B21\u63D0\u9192\uFF08\u4EE5\u6253\u5F00 App \u67E5\u770B\u4E3A\u51C6\uFF09</div>
+      <div class="btn2"><button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="1">1 \u5929\u540E</button><button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="3">3 \u5929\u540E</button><button class="btn ghost" data-act="snooze" data-oid="${esc(o.id)}" data-d="7">7 \u5929\u540E</button></div>
+      ${snoozed(o) ? `<div class="rsub" style="text-align:center;margin-top:9px">\u5DF2\u8BBE\u63D0\u9192\uFF1A${esc(fmtD(o.remindAt))} \u518D\u50AC\u6536 <button class="mini-btn" style="background:rgba(23,53,47,.06);color:var(--sub)" data-act="clear-remind" data-oid="${esc(o.id)}">\u6E05\u9664</button></div>` : ""}`,
+      `<span class="more" role="button" tabindex="0" data-act="remind-open" data-oid="${esc(o.id)}">\u8BB0\u5F55\u8FD9\u6B21\u8DDF\u8FDB \u203A</span>`
+    );
   }
   let expectHtml = "";
-  const lateDays = expectOverdue(o);
   if (o.settleVia === "douyin") {
-    const late = lateDays;
-    expectHtml = `<div class="sec-title" style="margin-top:16px">\u5E73\u53F0\u5230\u8D26</div>
-      <div class="card" style="background:#F8F8FA;box-shadow:none;padding:12px 13px">
-        <div class="rsub" style="margin:0;line-height:1.6">${o.expectPayAt ? `\u9884\u8BA1 ${esc(fmtD(o.expectPayAt))} \u5230\u8D26${late > 0 ? ` \xB7 <b style="color:var(--red)">\u5DF2\u8D85\u671F ${late} \u5929</b>,\u53BB\u5E73\u53F0\u540E\u53F0\u770B\u7ED3\u7B97\u72B6\u6001` : ""}` : '\u8FD8\u6CA1\u586B\u9884\u8BA1\u5230\u8D26\u65E5\u3002\u586B\u4E0A\u4E4B\u540E:\u9996\u9875/\u6536\u6B3E\u9875\u4F1A\u63D0\u793A"\u9884\u8BA1\u54EA\u5929\u5230\u8D26",\u8FC7\u671F\u672A\u5230\u8D26\u6807\u7EA2\u63D0\u9192\u3002'}</div>
-      </div>
-      <div class="btn2" style="margin-top:8px">
-        <button class="btn ghost" data-act="expect-open" data-oid="${esc(o.id)}">${o.expectPayAt ? "\u4FEE\u6539\u9884\u8BA1\u5230\u8D26\u65E5" : "\u8BBE\u7F6E\u9884\u8BA1\u5230\u8D26\u65E5"}</button>
-        ${o.expectPayAt ? `<button class="btn ghost" data-act="expect-clear" data-oid="${esc(o.id)}">\u6E05\u9664</button>` : ""}
-      </div>`;
+    expectHtml = detailSection("\u5E73\u53F0\u5230\u8D26", `<div class="card"><div class="rsub" style="margin:0;line-height:1.6;white-space:normal">${o.expectPayAt ? `\u9884\u8BA1 ${esc(fmtD(o.expectPayAt))} \u5230\u8D26${lateDays > 0 ? ` \xB7 <b style="color:var(--red)">\u5DF2\u8D85\u671F ${lateDays} \u5929</b>\uFF0C\u53BB\u5E73\u53F0\u540E\u53F0\u770B\u7ED3\u7B97\u72B6\u6001` : ""}` : "\u8FD8\u6CA1\u586B\u9884\u8BA1\u5230\u8D26\u65E5\u3002\u586B\u4E0A\u4E4B\u540E\uFF0C\u9996\u9875\u4E0E\u6536\u6B3E\u9875\u4F1A\u63D0\u793A\u300C\u9884\u8BA1\u54EA\u5929\u5230\u8D26\u300D\u3002"}</div></div>
+      <div class="btn2" style="margin-top:8px"><button class="btn ghost" data-act="expect-open" data-oid="${esc(o.id)}">${o.expectPayAt ? "\u4FEE\u6539\u9884\u8BA1\u5230\u8D26\u65E5" : "\u8BBE\u7F6E\u9884\u8BA1\u5230\u8D26\u65E5"}</button>${o.expectPayAt ? `<button class="btn ghost" data-act="expect-clear" data-oid="${esc(o.id)}">\u6E05\u9664</button>` : ""}</div>`);
   }
-  $("#detail-body").innerHTML = `
-    <div class="sheet-head" style="padding-left:0;padding-right:0">
-      <div style="min-width:0">
-        <div class="sheet-title" style="font-size:19px">${esc(o.store)}</div>
-        <div class="hsub" style="margin-top:3px">${esc(o.cat)}${o.contact ? " \xB7 " + esc(o.contact) : ""}</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="sheet-close" data-act="copy-order" data-oid="${esc(o.id)}" title="\u590D\u5236\u8BA2\u5355" aria-label="\u590D\u5236\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button>
-        <button class="sheet-close" data-act="edit-order" data-oid="${esc(o.id)}" title="\u7F16\u8F91" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
-        <button class="sheet-close" data-act="close-sheet"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </div>
-    </div>
-    <div class="chiprow" style="margin:4px 0 2px">${workChip(o)}${payChip(o)}${o.reviewResult ? `<span class="chip ${o.reviewResult === "pass" ? "c-green" : "c-red"}">${REVIEW_LABEL[o.reviewResult]}</span>` : ""}${deliverLate(o) ? `<span class="chip c-red">\u8D8524h\u672A\u51FA\u7247</span>` : ""}${isOver(o) ? `<span class="chip c-red">\u6B20\u6B3E ${esc(od)} \u5929</span>` : ""}${o.settleVia === "douyin" && o.expectPayAt && unFin(o) > 0 ? `<span class="chip ${lateDays > 0 ? "c-red" : "c-blue"}">\u9884\u8BA1 ${esc(fmtD(o.expectPayAt))} \u5230\u8D26${lateDays > 0 ? ` \xB7 \u8D85\u671F ${esc(lateDays)} \u5929` : ""}</span>` : ""}${snoozed(o) ? `<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>` : ""}</div>
-    ${isOver(o) ? `<div class="banner-red"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
-      <span>\u5C3E\u6B3E\u81EA\u62CD\u6444\u65E5(${esc(fmtD(o.shotAt))})\u8D77\u5DF2\u6B20 <b>${esc(od)} \u5929</b>,\u8FBE\u5230 ${esc(db.threshold)} \u5929\u50AC\u6536\u9608\u503C,\u5EFA\u8BAE\u7535\u8BDD\u8DDF\u8FDB\u3002${snoozed(o) ? `\u5DF2\u5907\u5FD8:${esc(fmtD(o.remindAt))} \u518D\u63D0\u9192\u3002` : ""}</span></div>` : ""}
-    <div class="mile" style="--p:${progress.toFixed(1)}%">${mile}</div>
-    <div class="shotline">
-      <button class="mini-btn" data-act="shot-pick" data-oid="${esc(o.id)}">\u{1F4F7} ${o.photoThumb ? "\u91CD\u62CD\u95E8\u53E3\u7167" : "\u968F\u624B\u62CD \xB7 \u5230\u5E97\u95E8\u53E3\u6765\u4E00\u5F20"}</button>
-      ${o.photoThumb ? `<button class="mini-btn" style="background:#F1F1F5;color:#7a7a82" data-act="shot-clear" data-oid="${esc(o.id)}">\u5220\u9664\u7167\u7247</button>` : ""}
-    </div>
-    <div style="margin-top:10px">${detailActions(o)}</div>
-    ${o.submittedAt ? `<div class="sec-title" style="margin-top:14px">\u9001\u5BA1\u7ED3\u679C</div>
-      <div class="btn2">
-        <button class="btn ${o.reviewResult === "pass" ? "green" : "ghost"}" data-act="set-review" data-oid="${esc(o.id)}" data-v="pass">${o.reviewResult === "pass" ? "\u2713 \u5408\u683C" : "\u5408\u683C"}</button>
-        <button class="btn ${o.reviewResult === "fail" ? "danger-ghost" : "ghost"}" data-act="set-review" data-oid="${esc(o.id)}" data-v="fail">${o.reviewResult === "fail" ? "\u2717 \u4E0D\u5408\u683C" : "\u4E0D\u5408\u683C"}</button>
-      </div>` : ""}
-    <div class="sec-title" style="margin-top:16px">\u6536\u6B3E</div>
-    ${payBtns.join("")}
-    ${snoozeHtml}
-    ${expectHtml}
-    <div class="info-grid">
+  const financeCard = `<div class="info-grid" style="margin-top:0">
+      <div class="ig"><div class="k">\u8BA2\u5355\u603B\u4EF7</div><div class="v">${esc(fmtMoney2(o.price))}</div></div>
+      <div class="ig"><div class="k">\u5B9A\u91D1</div><div class="v">${esc(fmtMoney2(o.deposit))}</div></div>
+      <div class="ig"><div class="k">\u5C3E\u6B3E</div><div class="v">${esc(fmtMoney2(money ? money.final / 100 : 0))}</div></div>
+      <div class="ig"><div class="k">\u5DF2\u6536\u5408\u8BA1</div><div class="v" style="color:var(--green)">${received > 0 ? esc(fmtMoney2(received)) : "\u2014"}</div></div>
+      <div class="ig"><div class="k">\u5F53\u524D\u5F85\u6536</div><div class="v" style="${owedOf(o) > 0 ? isOver(o) ? "color:var(--red)" : "color:var(--orange)" : "color:var(--green)"}">${owedOf(o) > 0 ? esc(fmtMoney2(owedOf(o))) : "\u5DF2\u7ED3\u6E05"}</div></div>
+      <div class="ig"><div class="k">\u7ED3\u7B97\u65B9\u5F0F</div><div class="v">${o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u79C1\u6536"}</div></div>
+    </div><div style="margin-top:10px">${payBtns.join("")}</div>`;
+  const infoCard = `<div class="info-grid" style="margin-top:0">
       <div class="ig"><div class="k">\u9884\u7EA6\u65F6\u95F4</div><div class="v">${esc(fmtD(o.appt))} ${esc(fmtHM(o.appt))}</div></div>
       <div class="ig"><div class="k">\u5B9E\u9645\u62CD\u6444</div><div class="v">${esc(fmtDT(o.shotAt))}</div></div>
-      ${accMulti() ? `<div class="ig"><div class="k">\u8D26\u53F7</div><div class="v" style="display:flex;align-items:center;gap:6px">${accTagHTML(accById(o.accountId))}<button class="mini-btn" data-act="copy-account" data-id="${o.accountId ?? ""}">\u62F7\u8D1D</button></div></div>` : ""}
-      <div class="ig"><div class="k">\u5730\u70B9</div><div class="v">${esc(o.location || "\u2014")}${o.location ? `<button class="mini-btn" style="padding:4px 9px;font-size:11.5px;margin-left:6px;vertical-align:middle" data-act="nav-place" data-oid="${esc(o.id)}">\u5BFC\u822A</button>` : ""}</div></div>
-      <div class="ig"><div class="k">\u5230\u5E97\u5B9A\u4F4D</div><div class="v">${o.gpsPlace ? `${esc(gpsText(o))}<button class="mini-btn" style="padding:4px 9px;font-size:11.5px;margin-left:6px;vertical-align:middle" data-act="nav-place" data-oid="${esc(o.id)}" data-gps="1">\u770B\u4F4D\u7F6E</button>` : `<button class="mini-btn" style="padding:4px 9px;font-size:11.5px" data-act="locate-now" data-oid="${esc(o.id)}">\u8BB0\u5F55\u5F53\u524D\u4F4D\u7F6E</button>`}</div></div>
+      ${accMulti() ? `<div class="ig"><div class="k">\u8D26\u53F7</div><div class="v" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${accTagHTML(accById(o.accountId))}<button class="mini-btn" data-act="copy-account" data-id="${o.accountId ?? ""}">\u62F7\u8D1D</button></div></div>` : ""}
+      <div class="ig"><div class="k">\u5730\u70B9</div><div class="v">${esc(o.location || "\u2014")}${o.location ? `<button class="mini-btn" style="margin:5px 0 0 6px" data-act="nav-place" data-oid="${esc(o.id)}">\u5BFC\u822A</button>` : ""}</div></div>
+      <div class="ig"><div class="k">\u5230\u5E97\u5B9A\u4F4D</div><div class="v">${o.gpsPlace ? `${esc(gpsText(o))}<button class="mini-btn" style="margin:5px 0 0 6px" data-act="nav-place" data-oid="${esc(o.id)}" data-gps="1">\u770B\u4F4D\u7F6E</button>` : `<button class="mini-btn" style="margin-top:5px" data-act="locate-now" data-oid="${esc(o.id)}">\u8BB0\u5F55\u5F53\u524D\u4F4D\u7F6E</button>`}</div></div>
       <div class="ig"><div class="k">\u53D1\u5E03\u65F6\u95F4</div><div class="v">${esc(fmtDT(o.publishedAt))}</div></div>
       <div class="ig"><div class="k">\u670D\u52A1\u5546</div><div class="v">${esc(o.channel || "\u76F4\u5BA2")}</div></div>
-      <div class="ig"><div class="k">\u7EC4\u961F</div><div class="v">${esc(o.partner || (o.note && o.note.includes("\u4E0D\u7EC4\u961F") ? "\u4E0D\u7EC4\u961F" : "\u2014"))}</div></div>
-      <div class="ig"><div class="k">\u603B\u4EF7</div><div class="v">${esc(fmtMoney2(o.price))}</div></div>
-      <div class="ig"><div class="k">\u5B9A\u91D1 ${o.depositPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.depositPaidAt)) : ""}</div><div class="v">${esc(fmtMoney2(o.deposit))}</div></div>
-      <div class="ig"><div class="k">\u5C3E\u6B3E ${o.finalPaidAt ? "\xB7 \u5DF2\u6536 " + esc(fmtD(o.finalPaidAt)) : ""}</div><div class="v">${esc(fmtMoney2(money ? money.final / 100 : 0))}</div></div>
-      <div class="ig"><div class="k">\u5DF2\u6536\u5408\u8BA1</div><div class="v" style="color:#239648">${received > 0 ? esc(fmtMoney2(received)) : "\u2014"}</div></div>
-      <div class="ig"><div class="k">\u5F53\u524D\u5F85\u6536</div><div class="v" style="${owedOf(o) > 0 ? "color:var(--red)" : "color:#239648"}">${owedOf(o) > 0 ? esc(fmtMoney2(owedOf(o))) : "\u5DF2\u7ED3\u6E05"}</div></div>
-      <div class="ig"><div class="k">\u7ED3\u7B97\u65B9\u5F0F</div><div class="v">${o.settleVia === "douyin" ? "\u6296\u97F3\u5546\u5355" : "\u79C1\u6536"}</div></div>
+      <div class="ig"><div class="k">\u7EC4\u961F / \u51FA\u955C</div><div class="v">${esc(o.partner || (o.note && o.note.includes("\u4E0D\u7EC4\u961F") ? "\u4E0D\u7EC4\u961F" : "\u2014"))}</div></div>
+      <div class="ig"><div class="k">\u5B9A\u91D1\u5230\u8D26</div><div class="v">${o.depositPaidAt ? esc(fmtD(o.depositPaidAt)) : "\u2014"}</div></div>
+      <div class="ig"><div class="k">\u5C3E\u6B3E\u5230\u8D26</div><div class="v">${o.finalPaidAt ? esc(fmtD(o.finalPaidAt)) : "\u2014"}</div></div>
+    </div>`;
+  $("#detail-body").innerHTML = `
+    <div class="detail-hero">
+      <div class="detail-title-row"><div style="min-width:0"><div class="eyebrow">Order / #${esc(o.id)}</div><div class="detail-title">${esc(o.store)}</div><div class="detail-sub">${esc(o.cat)}${o.contact ? " \xB7 " + esc(o.contact) : ""}</div></div>
+        <div class="detail-tools"><button class="sheet-close" data-act="copy-order" data-oid="${esc(o.id)}" title="\u590D\u5236\u8BA2\u5355" aria-label="\u590D\u5236\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button>
+        <button class="sheet-close" data-act="edit-order" data-oid="${esc(o.id)}" title="\u7F16\u8F91" aria-label="\u7F16\u8F91\u8BA2\u5355" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
+        <button class="sheet-close" data-act="close-sheet" aria-label="\u5173\u95ED"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div>
+      <div class="chiprow">${workChip(o)}${payChip(o)}${o.reviewResult ? `<span class="chip ${o.reviewResult === "pass" ? "c-green" : "c-red"}">${REVIEW_LABEL[o.reviewResult]}</span>` : ""}${deliverLate(o) ? `<span class="chip c-red">\u8D85 24h \u672A\u51FA\u7247</span>` : ""}${isOver(o) ? `<span class="chip c-red">\u6B20\u6B3E ${esc(od)} \u5929</span>` : ""}${o.settleVia === "douyin" && o.expectPayAt && unFin(o) > 0 ? `<span class="chip ${lateDays > 0 ? "c-red" : "c-blue"}">\u9884\u8BA1 ${esc(fmtD(o.expectPayAt))} \u5230\u8D26${lateDays > 0 ? ` \xB7 \u8D85\u671F ${esc(lateDays)} \u5929` : ""}</span>` : ""}${snoozed(o) ? '<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>' : ""}</div>
     </div>
-    ${o.note ? `<div class="card" style="margin-top:12px;background:#F8F8FA;box-shadow:none"><div class="rsub" style="white-space:normal;line-height:1.6">${esc(o.note)}</div></div>` : ""}
-    <div style="padding-top:16px"><button class="btn danger-ghost" data-act="del-order" data-oid="${esc(o.id)}">\u5220\u9664\u8BA2\u5355</button></div>`;
+    ${isOver(o) ? `<div class="banner-red"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg><span>\u5C3E\u6B3E\u81EA\u62CD\u6444\u65E5\uFF08${esc(fmtD(o.shotAt))}\uFF09\u8D77\u5DF2\u6B20 <b>${esc(od)} \u5929</b>\uFF0C\u8FBE\u5230 ${esc(db.threshold)} \u5929\u50AC\u6536\u9608\u503C\uFF0C\u5EFA\u8BAE\u7535\u8BDD\u8DDF\u8FDB\u3002${snoozed(o) ? `\u5DF2\u5907\u5FD8\uFF1A${esc(fmtD(o.remindAt))} \u518D\u63D0\u9192\u3002` : ""}</span></div>` : ""}
+    <div class="mile-wrap"><div class="section-kicker" style="margin:0 6px 10px">\u4EA4\u4ED8\u8F68\u9053 / Delivery track</div><div class="mile" style="--p:${progress.toFixed(1)}%">${mile}</div></div>
+    <div class="shotline"><button class="mini-btn" data-act="shot-pick" data-oid="${esc(o.id)}">${o.photoThumb ? "\u91CD\u62CD\u95E8\u53E3\u7167" : "\u968F\u624B\u62CD \xB7 \u5230\u5E97\u95E8\u53E3\u6765\u4E00\u5F20"}</button>${o.photoThumb ? `<button class="mini-btn" style="background:rgba(23,53,47,.06);color:var(--sub)" data-act="shot-clear" data-oid="${esc(o.id)}">\u5220\u9664\u7167\u7247</button>` : ""}</div>
+    ${detailActions(o) ? `<div class="detail-next">${detailActions(o)}</div>` : ""}
+    ${o.submittedAt ? detailSection("\u9001\u5BA1\u7ED3\u679C", `<div class="btn2"><button class="btn ${o.reviewResult === "pass" ? "green" : "ghost"}" data-act="set-review" data-oid="${esc(o.id)}" data-v="pass">${o.reviewResult === "pass" ? "\u2713 \u5408\u683C" : "\u5408\u683C"}</button><button class="btn ${o.reviewResult === "fail" ? "danger-ghost" : "ghost"}" data-act="set-review" data-oid="${esc(o.id)}" data-v="fail">${o.reviewResult === "fail" ? "\u2717 \u4E0D\u5408\u683C" : "\u4E0D\u5408\u683C"}</button></div>`) : ""}
+    ${detailSection("\u6536\u6B3E", financeCard)}
+    ${snoozeHtml}${expectHtml}
+    ${detailSection("\u9884\u7EA6\u4E0E\u5E97\u94FA", infoCard)}
+    ${o.note ? `<div class="detail-section"><div class="detail-section-title"><h3>\u5907\u6CE8</h3></div><div class="card"><div class="rsub" style="white-space:normal;line-height:1.7">${esc(o.note)}</div></div></div>` : ""}
+    <div style="padding-top:18px;text-align:center"><button class="btn danger-ghost" data-act="del-order" data-oid="${esc(o.id)}">\u5220\u9664\u8BA2\u5355</button></div>`;
   showSheet("sheet-detail");
 }
 function rerenderDetail() {
@@ -2038,16 +2105,12 @@ function openPay(oid, kind, keepMethod) {
   const amt = m[kind] / 100;
   ui.payCtx = { oid, kind, method };
   $("#pay-body").innerHTML = `
-    <div style="text-align:center;padding:6px 0 2px">
-      <div style="font-size:14px;font-weight:700">${esc(o.store)}</div>
-      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${esc(fmtMoney3(amt))}</div>
-      <div style="font-size:12px;color:var(--sub)">${spec.label} \xB7 ${o.settleVia === "douyin" ? "\u7EA6\u5B9A\u6296\u97F3\u5546\u5355\u7ED3\u7B97" : "\u79C1\u6536\u6B3E\u9879"} \xB7 \u4EC5\u4F5C\u5165\u8D26\u8BB0\u5F55</div>
-    </div>
-    <div class="sec-title" style="justify-content:center">\u6536\u6B3E\u65B9\u5F0F(\u8BB0\u5F55\u7528)</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+    <div class="money-hero" style="margin-bottom:18px"><div class="section-kicker">${esc(spec.label)} / \u672C\u6B21\u5165\u8D26</div><div class="money-total">${esc(fmtMoney3(amt))}</div><div class="rsub" style="color:rgba(255,252,246,.68)">${esc(o.store)} \xB7 ${o.settleVia === "douyin" ? "\u7EA6\u5B9A\u6296\u97F3\u5546\u5355\u7ED3\u7B97" : "\u79C1\u6536\u6B3E\u9879"} \xB7 \u4EC5\u4F5C\u5165\u8D26\u8BB0\u5F55</div></div>
+    <div class="detail-section-title"><h3>\u6536\u6B3E\u65B9\u5F0F</h3><span class="rsub">\u8BB0\u4E00\u7B14\uFF0C\u4E0D\u4F1A\u81EA\u52A8\u8F6C\u8D26</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px">
       ${METHODS.map((m2) => `<button class="mchip ${ui.payCtx.method === m2 ? "on" : ""}" data-act="pay-method" data-m="${esc(m2)}">${esc(m2)}</button>`).join("")}
     </div>
-    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">\u786E\u8BA4\u6536\u6B3E ${esc(fmtMoney3(amt))}</button></div>`;
+    <div style="padding:20px 0 4px"><button class="btn green" data-act="confirm-pay">\u786E\u8BA4\u6536\u6B3E ${esc(fmtMoney3(amt))}</button></div>`;
   showSheet("sheet-pay");
 }
 var REMIND_QUICK = ["\u8BF4\u8FD9\u5468\u7ED9", "\u8BF4\u6708\u5E95\u7EDF\u4E00\u7ED3", "\u8D22\u52A1\u8D70\u6D41\u7A0B", "\u6CA1\u56DE\u590D/\u4E0D\u63A5", "\u5DF2\u8F6C\u5BF9\u516C", "\u8BF4\u62CD\u5B8C\u518D\u7ED3"];
@@ -2360,32 +2423,27 @@ function openEdit(oid) {
   const cats = ["\u5496\u5561", "\u9910\u996E", "\u70E7\u70E4", "\u706B\u9505", "\u8336\u996E", "\u751C\u54C1", "\u70D8\u7119", "\u7F8E\u53D1", "\u5065\u8EAB", "\u6C11\u5BBF", "\u96F6\u552E", "\u4F53\u9A8C\u9986", "\u9732\u8425", "\u670D\u9970", "\u5FEB\u9910", "\u5176\u4ED6"];
   const catOpts = [.../* @__PURE__ */ new Set([o.cat || "\u5176\u4ED6", ...cats])];
   $("#edit-body").innerHTML = `
+    <div class="form-section-title">\u5E97\u94FA\u4E0E\u8D26\u53F7</div>
     <div class="frow"><label>\u54C1\u540D/\u5546\u5BB6</label><input id="e-store" value="${esc(o.store || "")}"></div>
     <div class="frow"><label>\u7C7B\u578B</label><select id="e-cat">${catOpts.map((c) => `<option ${c === o.cat ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></div>
-    <div class="frow"><label>\u7ED3\u7B97\u65B9\u5F0F</label><select id="e-settle"><option value="private" ${o.settleVia !== "douyin" ? "selected" : ""}>\u79C1\u6536(\u5FAE\u4FE1/\u652F\u4ED8\u5B9D/\u94F6\u884C\u5361)</option><option value="douyin" ${o.settleVia === "douyin" ? "selected" : ""}>\u6296\u97F3\u5546\u5355(\u5E73\u53F0\u7ED3\u7B97)</option></select></div>
-    <div id="e-acc-block"></div>
-    <div id="e-prov-block"></div>
-    <div class="frow"><label>\u7EC4\u961F</label><input id="e-partner" value="${esc(o.partner || "")}" placeholder="\u7EC4\u961F/\u51FA\u955C\u642D\u6863,\u5355\u4EBA\u62CD\u6444\u53EF\u7A7A"></div>
-    <div class="frow"><label>\u5730\u70B9</label><input id="e-location" value="${esc(o.location || "")}" placeholder="\u5982:\u4E07\u8C61\u57CE 3 \u5C42"></div>
+    <div class="frow"><label>\u7ED3\u7B97\u65B9\u5F0F</label><select id="e-settle"><option value="private" ${o.settleVia !== "douyin" ? "selected" : ""}>\u79C1\u6536\uFF08\u5FAE\u4FE1 / \u652F\u4ED8\u5B9D / \u94F6\u884C\u5361\uFF09</option><option value="douyin" ${o.settleVia === "douyin" ? "selected" : ""}>\u6296\u97F3\u5546\u5355\uFF08\u5E73\u53F0\u7ED3\u7B97\uFF09</option></select></div>
+    <div id="e-acc-block"></div><div id="e-prov-block"></div>
+    <div class="frow"><label>\u7EC4\u961F</label><input id="e-partner" value="${esc(o.partner || "")}" placeholder="\u7EC4\u961F / \u51FA\u955C\u642D\u6863\uFF0C\u5355\u4EBA\u62CD\u6444\u53EF\u7A7A"></div>
+    <div class="frow"><label>\u5730\u70B9</label><input id="e-location" value="${esc(o.location || "")}" placeholder="\u5982\uFF1A\u4E07\u8C61\u57CE 3 \u5C42"></div>
+    <div class="form-section-title" style="margin-top:20px">\u9884\u7EA6\u4E0E\u4EA4\u4ED8</div>
     <div class="frow date-row"><label>\u9884\u7EA6\u65F6\u95F4</label><input id="e-date" type="date" value="${esc((o.appt || "").slice(0, 10))}"><input id="e-time" type="time" value="${esc((o.appt || "").slice(11, 16))}"><span class="date-relative" id="e-date-relative" aria-live="polite"></span></div>
-    <div class="frow"><label>\u51FA\u7247\u8981\u6C42</label><div style="display:flex;gap:22px;align-items:center;padding:6px 2px">
-      <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="e-need-main" ${needMain(o) ? "checked" : ""} style="width:17px;height:17px;accent-color:var(--brand)"> \u6B63\u7247</label>
-      <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="e-need-sub" ${needSub(o) ? "checked" : ""} style="width:17px;height:17px;accent-color:var(--brand)"> \u526F\u7247</label>
-    </div></div>
-    <div class="frow"><label>\u9001\u5BA1\u7ED3\u679C</label><select id="e-review">
-      <option value="" ${!o.reviewResult ? "selected" : ""}>\u672A\u9001\u5BA1/\u5F85\u5BA1</option>
-      <option value="pass" ${o.reviewResult === "pass" ? "selected" : ""}>\u5408\u683C</option>
-      <option value="fail" ${o.reviewResult === "fail" ? "selected" : ""}>\u4E0D\u5408\u683C</option>
-    </select></div>
-    <div class="frow"><label>\u603B\u4EF7(\xA5)</label><input id="e-price" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy ? "" : esc(o.price)}"${ui.privacy ? ' placeholder="\xA5\u2731\u2731\u2731" data-masked="1" readonly' : ""}></div>
-    <div class="frow"><label>\u5B9A\u91D1(\xA5)</label><input id="e-deposit" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy ? "" : esc(o.deposit)}"${ui.privacy ? ' placeholder="\xA5\u2731\u2731\u2731" data-masked="1" readonly' : ""}></div>
+    <div class="banner-amber" id="e-conflict"></div>
+    <div class="frow"><label>\u51FA\u7247\u8981\u6C42</label><div style="display:flex;gap:22px;align-items:center;padding:6px 2px"><label class="check-opt"><input type="checkbox" id="e-need-main" ${needMain(o) ? "checked" : ""} style="width:17px;height:17px;accent-color:var(--brand)"> \u6B63\u7247</label><label class="check-opt"><input type="checkbox" id="e-need-sub" ${needSub(o) ? "checked" : ""} style="width:17px;height:17px;accent-color:var(--brand)"> \u526F\u7247</label></div></div>
+    <div class="frow"><label>\u9001\u5BA1\u7ED3\u679C</label><select id="e-review"><option value="" ${!o.reviewResult ? "selected" : ""}>\u672A\u9001\u5BA1 / \u5F85\u5BA1</option><option value="pass" ${o.reviewResult === "pass" ? "selected" : ""}>\u5408\u683C</option><option value="fail" ${o.reviewResult === "fail" ? "selected" : ""}>\u4E0D\u5408\u683C</option></select></div>
+    <div class="form-section-title" style="margin-top:20px">\u91D1\u989D\u4E0E\u8054\u7CFB</div>
+    <div class="frow"><label>\u603B\u4EF7\uFF08\xA5\uFF09</label><input id="e-price" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy ? "" : esc(o.price)}"${ui.privacy ? ' placeholder="\xA5\u2731\u2731\u2731" data-masked="1" readonly' : ""}></div>
+    <div class="frow"><label>\u5B9A\u91D1\uFF08\xA5\uFF09</label><input id="e-deposit" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy ? "" : esc(o.deposit)}"${ui.privacy ? ' placeholder="\xA5\u2731\u2731\u2731" data-masked="1" readonly' : ""}></div>
     <div class="rsub" id="e-money-help" style="margin:6px 0;line-height:1.5"></div>
     <div class="frow"><label>\u8054\u7CFB\u65B9\u5F0F</label><input id="e-contact" value="${esc(o.contact || "")}"></div>
     <div class="frow"><label>\u5907\u6CE8</label><textarea id="e-note" rows="2">${esc(o.note || "")}</textarea></div>
-    <div class="banner-amber" id="e-conflict"></div>
-    <div class="sec-title">\u6536\u6B3E\u8BB0\u5F55(\u53EF\u64A4\u9500 / \u8865\u8BB0)</div>
+    <div class="form-section-title" style="margin-top:20px">\u6536\u6B3E\u8BB0\u5F55 \xB7 \u53EF\u64A4\u9500 / \u8865\u8BB0</div>
     <div class="btn2" id="e-payments"></div>
-    <div class="rsub" style="margin-top:6px;line-height:1.5">\u8865\u8BB0\u524D\u8BF7\u5148\u4FDD\u5B58\u4FEE\u6539\uFF1B\u6309\u5DF2\u4FDD\u5B58\u91D1\u989D\u8BB0\u4E00\u7B14\uFF0C\u5E73\u53F0\u5355\u4F7F\u7528\u6296\u97F3\u5546\u5355\uFF0C\u79C1\u6536\u9ED8\u8BA4\u5FAE\u4FE1\u3002\u64A4\u9500\u4EC5\u7528\u4E8E\u7EA0\u6B63\u9519\u8BEF\u6536\u6B3E\uFF0C\u4F1A\u540C\u65F6\u79FB\u9664\u5BF9\u5E94\u6D41\u6C34\u3002</div>`;
+    <div class="rsub" style="margin-top:7px;line-height:1.5">\u8865\u8BB0\u524D\u8BF7\u5148\u4FDD\u5B58\u4FEE\u6539\u3002\u64A4\u9500\u4EC5\u7528\u4E8E\u7EA0\u6B63\u9519\u8BEF\u6536\u6B3E\uFF0C\u4F1A\u540C\u65F6\u79FB\u9664\u5BF9\u5E94\u6D41\u6C34\u3002</div>`;
   ui.draftProv = o.channel || "\u76F4\u5BA2";
   ui.draftAccId = o.accountId ?? (accMulti() ? null : ACCS().length ? ACCS()[0].id : null);
   renderAccPick("e-acc-block", ui.draftAccId);
@@ -2657,17 +2715,17 @@ async function previewImport(file) {
   if (!file) return;
   try {
     if (file.size > 10 * 1024 * 1024) throw new Error("\u5907\u4EFD\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 10 MB");
-    const state = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
-    for (const order of state.orders) {
+    const state2 = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
+    for (const order of state2.orders) {
       for (const [kind, key, expected] of [["\u5B9A\u91D1", "depositPaidAt", order.deposit], ["\u5C3E\u6B3E", "finalPaidAt", order.price - order.deposit]]) {
-        const entries = state.payments.filter((p) => p.oid === order.id && p.kind === kind);
+        const entries = state2.payments.filter((p) => p.oid === order.id && p.kind === kind);
         const total2 = entries.reduce((sum, p) => sum + Math.round(p.amount * 100), 0);
         if (entries.length > 1 || entries.length > 0 && !order[key] || total2 !== Math.round((order[key] ? expected : 0) * 100)) throw new Error(`\u8BA2\u5355\u300C${order.store}\u300D\u7684${kind}\u6D41\u6C34\u4E0E\u5DF2\u6536\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5148\u6838\u5BF9\u5907\u4EFD`);
       }
     }
-    Store.pending = state;
-    const total = state.payments.reduce((sum, p) => sum + p.amount, 0);
-    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state.orders.length} \u7B14\u8BA2\u5355\u3001${state.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
+    Store.pending = state2;
+    const total = state2.payments.reduce((sum, p) => sum + p.amount, 0);
+    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state2.orders.length} \u7B14\u8BA2\u5355\u3001${state2.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state2.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
     showSheet("sheet-import");
   } catch (error) {
     Store.pending = null;
@@ -2676,8 +2734,8 @@ async function previewImport(file) {
 }
 async function confirmImport() {
   if (!Store.pending || Store.busy) return;
-  const state = Store.pending;
-  if (await replaceData(state)) {
+  const state2 = Store.pending;
+  if (await replaceData(state2)) {
     Store.pending = null;
     toast("\u5907\u4EFD\u5DF2\u6062\u590D\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
   }
@@ -2734,16 +2792,13 @@ function buildTodayImage(day = TODAY) {
   c.height = H * S;
   const g = c.getContext("2d");
   g.scale(S, S);
-  g.fillStyle = "#F2F2F7";
+  g.fillStyle = "#F4F1E8";
   g.fillRect(0, 0, W, H);
-  const gr = g.createLinearGradient(0, 0, W, headH);
-  gr.addColorStop(0, "#FF8A3D");
-  gr.addColorStop(1, "#E8352A");
-  g.fillStyle = gr;
+  g.fillStyle = "#17352F";
   g.fillRect(0, 0, W, headH - 28);
-  g.fillStyle = "rgba(255,255,255,.9)";
+  g.fillStyle = "rgba(255,252,246,.72)";
   g.font = "600 26px -apple-system,PingFang SC,sans-serif";
-  g.fillText("\u63A2\u8BB0 TanJi \xB7 \u62CD\u6444\u884C\u7A0B", pad2, 62);
+  g.fillText("\u63A2\u8BB0 HG \xB7 \u62CD\u6444\u884C\u7A0B", pad2, 62);
   g.fillStyle = "#fff";
   g.font = "800 58px -apple-system,PingFang SC,sans-serif";
   g.fillText(`${date.getFullYear()}\u5E74${date.getMonth() + 1}\u6708${date.getDate()}\u65E5 \u5468${dowOf(day)}`, pad2, 136);
@@ -2751,35 +2806,38 @@ function buildTodayImage(day = TODAY) {
   g.fillStyle = "rgba(255,255,255,.88)";
   g.fillText(list.length ? `${list.length} \u4E2A\u62CD\u6444\u5B89\u6392` : "\u5F53\u5929\u6682\u65E0\u62CD\u6444\u5B89\u6392", pad2, 186);
   let y = headH;
-  const WT = { "\u5F85\u62CD\u6444": ["#007AFF"], "\u540E\u671F\u4E2D": ["#AF52DE"], "\u53D1\u7247\u4E2D": ["#FF9500"], "\u5DF2\u4EA4\u4ED8": ["#239648"] };
+  const WT = { "\u5F85\u62CD\u6444": ["#E9683C"], "\u540E\u671F\u4E2D": ["#4B7092"], "\u53D1\u7247\u4E2D": ["#B87924"], "\u5DF2\u4EA4\u4ED8": ["#2F6F58"] };
   if (!list.length) {
-    g.fillStyle = "#8E8E93";
+    g.fillStyle = "#7B837B";
     g.font = "500 30px -apple-system,PingFang SC";
-    g.fillText("\u{1F319} \u4F11\u606F,\u660E\u5929\u518D\u6218", pad2, y + 66);
+    g.fillText("\u4ECA\u5929\u4E0D\u6392\u7247\uFF0C\u7ED9\u81EA\u5DF1\u7559\u70B9\u4F59\u91CF\u3002", pad2, y + 66);
     y += rowH + gap;
   }
   for (const o of list) {
-    g.fillStyle = "#fff";
+    g.fillStyle = "#FFFCF6";
+    g.strokeStyle = "rgba(23,53,47,.14)";
+    g.lineWidth = 1;
     rr(g, pad2, y, W - pad2 * 2, rowH, 20);
     g.fill();
-    g.fillStyle = "#FF6A2B";
+    g.stroke();
+    g.fillStyle = "#E9683C";
     g.font = "800 40px -apple-system,PingFang SC";
     g.fillText(fmtHM(o.appt), pad2 + 30, y + 56);
-    g.fillStyle = "#1C1C1E";
+    g.fillStyle = "#17352F";
     g.font = "700 34px -apple-system,PingFang SC";
     g.fillText(o.store, pad2 + 156, y + 46, W - pad2 * 2 - 320);
     const st = WT[workOf(o)][0];
     g.fillStyle = st;
     g.font = "700 24px -apple-system,PingFang SC";
     g.fillText("\u25CF " + workOf(o), pad2 + 158, y + 88);
-    g.fillStyle = "#8E8E93";
+    g.fillStyle = "#7B837B";
     g.font = "500 24px -apple-system,PingFang SC";
     g.fillText(o.cat, pad2 + 300, y + 88, W - pad2 * 2 - 300);
     y += rowH + gap;
   }
-  g.fillStyle = "#B9B9C0";
+  g.fillStyle = "#7B837B";
   g.font = "500 24px -apple-system,PingFang SC";
-  g.fillText("\u7531\u300C\u63A2\u8BB0\u300D\u751F\u6210 \xB7 \u4E0D\u542B\u91D1\u989D\u4FE1\u606F", pad2, y + 34);
+  g.fillText("\u7531\u300C\u63A2\u8BB0 HG\u300D\u751F\u6210 \xB7 \u4E0D\u542B\u91D1\u989D\u4FE1\u606F", pad2, y + 34);
   return new Promise((res) => c.toBlob((b) => res(b), "image/png"));
 }
 async function shareToday() {
@@ -2808,7 +2866,7 @@ function statsFor(period, list) {
 }
 function headBtns(share) {
   return `<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-    <span style="font-size:10px;color:var(--sub)">${Store.mode === "demo" ? "\u6F14\u793A" : "\u5DE5\u4F5C"}</span>
+    <span class="mode-label">${Store.mode === "demo" ? "DEMO" : "WORK"}</span>
     ${share ? `<button class="icon-btn" data-act="share" aria-label="\u5206\u4EAB\u884C\u7A0B"><svg class="ic" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></svg></button>` : ""}
     <button class="icon-btn ${ui.privacy ? "on" : ""}" data-act="privacy" aria-label="${ui.privacy ? "\u663E\u793A\u91D1\u989D" : "\u9690\u85CF\u91D1\u989D"}"><svg class="ic" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>${ui.privacy ? '<path d="M4.5 4.5l15 15"/>' : ""}</svg></button>
   </div>`;
@@ -2836,8 +2894,9 @@ function chipMatch(o) {
 function renderOrders() {
   const q2 = ui.q.trim().toLowerCase();
   const hit = (o) => q2 && [o.store, o.location, o.contact, o.channel, o.partner, o.note, o.cat].some((v) => String(v ?? "").toLowerCase().includes(q2));
-  const all = db.orders.filter(accMatch).filter(chipMatch).filter((o) => !q2 || hit(o)).sort((a, b) => (b.shotAt || b.appt).localeCompare(a.shotAt || a.appt));
-  const cnt = (k) => db.orders.filter(accMatch).filter((o) => {
+  const base = db.orders.filter(accMatch);
+  const all = base.filter(chipMatch).filter((o) => !q2 || hit(o)).sort((a, b) => (b.shotAt || b.appt).localeCompare(a.shotAt || a.appt));
+  const cnt = (k) => base.filter((o) => {
     const t = ui.chip;
     ui.chip = k;
     const r = chipMatch(o);
@@ -2849,26 +2908,18 @@ function renderOrders() {
     <div class="order-swipe" data-oid="${esc(o.id)}">
       <div class="order-swipe-actions"><button type="button" tabindex="-1" data-act="copy-order" data-oid="${esc(o.id)}" aria-label="\u590D\u5236 ${esc(o.store)}"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg><span>\u590D\u5236</span></button></div>
       <div class="row order-swipe-track${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
-        <div class="rmain">
-          <div class="rname">${esc(o.store)}</div>
+        <div class="rmain"><div class="rname">${esc(o.store)}</div>
           <div class="rsub">${o.shotAt ? `\u62CD\u6444 ${fmtD(o.shotAt)}` : `\u9884\u7EA6 ${fmtD(o.appt)} ${fmtHM(o.appt)}`} \xB7 ${esc(o.cat)}${o.partner ? " \xB7 \u51FA\u955C " + esc(o.partner) : ""}</div>
-          <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}${isOver(o) ? `<span class="chip c-red">\u6B20 ${overdueDays(o)} \u5929</span>` : ""}${snoozed(o) ? '<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>' : ""}${stepBtn(o)}</div>
-        </div>
-        <div class="rside">${priceCell(o)}
-          <div class="rsub" style="${owedOf(o) > 0 ? "color:var(--red);font-weight:700" : ""}">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney4(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div>
-        </div>
-        <button class="icon-btn" style="width:40px;height:40px;background:var(--brand-soft);color:var(--brand);box-shadow:none" data-act="edit-order" data-oid="${esc(o.id)}" aria-label="\u7F16\u8F91 ${esc(o.store)}" title="\u7F16\u8F91\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
+          <div class="chiprow">${accOrderTag(o)}${workChip(o)}${payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}${isOver(o) ? `<span class="chip c-red">\u6B20 ${overdueDays(o)} \u5929</span>` : ""}${snoozed(o) ? '<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192</span>' : ""}${stepBtn(o)}</div></div>
+        <div class="rside">${priceCell(o)}<div class="rsub" style="${owedOf(o) > 0 ? "color:var(--red);font-weight:750" : ""}">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney4(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div></div>
+        <button class="icon-btn" style="background:var(--brand-soft);color:var(--brand-ink);box-shadow:none;border-color:transparent" data-act="edit-order" data-oid="${esc(o.id)}" aria-label="\u7F16\u8F91 ${esc(o.store)}" title="\u7F16\u8F91\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
       </div>
-    </div>`).join("") : `<div class="empty"><div class="e-ic">\u{1F50D}</div>\u6CA1\u6709\u7B26\u5408\u6761\u4EF6\u7684\u8BA2\u5355</div>`;
+    </div>`).join("") : `<div class="empty"><div class="e-ic">\u2315</div>${q2 ? "\u6CA1\u6709\u627E\u5230\u5339\u914D\u7684\u8BA2\u5355" : "\u8FD9\u4E2A\u5206\u7C7B\u6682\u65F6\u6CA1\u6709\u8BA2\u5355"}</div>`;
   $("#v-orders").innerHTML = `
-    <div class="htop-row">
-      <div><div class="eyebrow">\u5DE5\u4F5C \xD7 \u6536\u6B3E \u53CC\u8F68\u72B6\u6001</div><h1 class="big">\u8BA2\u5355</h1></div>
-      <div style="display:flex;gap:8px;align-items:center">${headBtns(false)}
-        <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button></div>
-    </div>
+    <div class="app-header"><div><div class="eyebrow">Work / \u4EA4\u4ED8\u4E0E\u8D44\u91D1\u53CC\u8F68</div><h1 class="big">\u8BA2\u5355</h1><div class="hsub">${base.length} \u7B14\u8BA2\u5355 \xB7 \u70B9\u4E00\u884C\u63A8\u8FDB\u4E0B\u4E00\u6B65</div></div>
+      <div class="app-actions">${headBtns(false)}<button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button></div></div>
     ${accChipbarHTML()}
-    <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-      <input id="q-input" placeholder="\u641C\u7D22\u5546\u5BB6 / \u5730\u70B9 / \u8054\u7CFB\u4EBA / \u5907\u6CE8" value="${esc(ui.q)}"></div>
+    <div class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="q-input" placeholder="\u641C\u7D22\u5546\u5BB6 / \u5730\u70B9 / \u8054\u7CFB\u4EBA / \u5907\u6CE8" value="${esc(ui.q)}"></div>
     <div class="chips">${chips}</div>
     <div class="card rows">${rows}</div>`;
   initOrderSwipeActions();
@@ -2952,11 +3003,9 @@ function initOrderSwipeActions() {
 var fmtMoney5 = (n) => fmtMoney(n, ui.privacy);
 function renderPay() {
   const rows0 = db.orders.filter(accMatch).filter((o) => owedOf(o) > 0);
-  const unDepSum = rows0.reduce((s, o) => s + unDep(o), 0);
-  const unFinSum = rows0.reduce((s, o) => s + unFin(o), 0);
+  const unDepSum = rows0.reduce((s, o) => s + unDep(o), 0), unFinSum = rows0.reduce((s, o) => s + unFin(o), 0);
   const dySum = rows0.filter((o) => o.settleVia === "douyin").reduce((s, o) => s + unFin(o), 0);
-  const overAll = db.orders.filter(accMatch).filter(isOver);
-  const over = overAll.filter((o) => !snoozed(o));
+  const overAll = db.orders.filter(accMatch).filter(isOver), over = overAll.filter((o) => !snoozed(o));
   const overSum = over.reduce((s, o) => s + unFin(o), 0);
   const bucket = (o) => {
     const d = overdueDays(o);
@@ -2964,81 +3013,35 @@ function renderPay() {
   };
   const rows = rows0.filter((o) => ui.bucket === "all" || (ui.bucket === "over" ? isOver(o) && !snoozed(o) : ui.bucket === "snoozed" ? isOver(o) && snoozed(o) : bucket(o) === ui.bucket)).sort((a, b) => snoozed(a) - snoozed(b) || overdueDays(b) - overdueDays(a) || a.appt.localeCompare(b.appt));
   const listHtml = rows.length ? rows.map((o) => {
-    const d = overdueDays(o), isDep = unDep(o) > 0 && !isOver(o), isDy = o.settleVia === "douyin", sn = snoozed(o);
-    const late = isDy ? expectOverdue(o) : 0;
-    const dyNote = isDy && o.expectPayAt ? ` \xB7 \u9884\u8BA1 ${fmtD(o.expectPayAt)} \u5230\u8D26${late > 0 ? `(\u5DF2\u8D85 ${late} \u5929)` : ""}` : "";
+    const d = overdueDays(o), isDep = unDep(o) > 0 && !isOver(o), isDy = o.settleVia === "douyin", sn = snoozed(o), late = isDy ? expectOverdue(o) : 0;
+    const dyNote = isDy && o.expectPayAt ? ` \xB7 \u9884\u8BA1 ${fmtD(o.expectPayAt)} \u5230\u8D26${late > 0 ? `\uFF08\u5DF2\u8D85 ${late} \u5929\uFF09` : ""}` : "";
     const due = isDep ? { kind: "deposit", amt: unDep(o), sub: `\u9884\u7EA6 ${fmtD(o.appt)} ${fmtHM(o.appt)} \xB7 \u5B9A\u91D1`, btn: "\u6807\u8BB0\u5DF2\u6536" } : isDy ? { kind: "final", amt: unFin(o), sub: `${o.shotAt ? "\u62CD\u6444 " + fmtD(o.shotAt) : "\u5F85\u62CD\u6444"} \xB7 \u6296\u97F3\u5546\u5355\u7ED3\u7B97${dyNote}`, btn: "\u6807\u8BB0\u5230\u8D26" } : { kind: "final", amt: unFin(o), sub: `${o.shotAt ? "\u62CD\u6444 " + fmtD(o.shotAt) : "\u9884\u7EA6 " + fmtD(o.appt)} \xB7 ${workOf(o)}`, btn: "\u6807\u8BB0\u5DF2\u6536" };
-    const chip = isDep ? '<span class="chip c-gray">\u5F85\u5B9A\u91D1</span>' : isDy ? `<span class="chip ${late > 0 ? "c-red" : "c-blue"}">\u5E73\u53F0\u7ED3\u7B97${o.expectPayAt ? ` \xB7 ${fmtD(o.expectPayAt)}${late > 0 ? " \u5DF2\u8D85\u671F" : ""}` : ""}</span>` : isOver(o) ? sn ? `<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192 \xB7 ${fmtD(o.remindAt)}\u518D\u50AC</span>` : `<span class="chip c-red">\u903E\u671F \xB7 \u6B20 ${d} \u5929</span>` : `<span class="chip ${d > 7 ? "c-orange" : "c-gray"}">${o.shotAt ? "\u6B20\u6B3E " + d + " \u5929" : "\u672A\u62CD\u6444 \xB7 \u5C1A\u672A\u8D77\u7B97\u8D26\u671F"}</span>`;
+    const chip = isDep ? '<span class="chip c-gray">\u5F85\u5B9A\u91D1</span>' : isDy ? `<span class="chip ${late > 0 ? "c-red" : "c-blue"}">\u5E73\u53F0\u7ED3\u7B97${o.expectPayAt ? ` \xB7 ${fmtD(o.expectPayAt)}${late > 0 ? " \u5DF2\u8D85\u671F" : ""}` : ""}</span>` : isOver(o) ? sn ? `<span class="chip c-gray">\u5DF2\u8BBE\u63D0\u9192 \xB7 ${fmtD(o.remindAt)} \u518D\u50AC</span>` : `<span class="chip c-red">\u903E\u671F \xB7 \u6B20 ${d} \u5929</span>` : `<span class="chip ${d > 7 ? "c-orange" : "c-gray"}">${o.shotAt ? "\u6B20\u6B3E " + d + " \u5929" : "\u672A\u62CD\u6444 \xB7 \u5C1A\u672A\u8D77\u7B97\u8D26\u671F"}</span>`;
     return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
-      <div class="rmain"><div class="rname">${esc(o.store)}</div>
-        <div class="rsub">${due.sub} ${fmtMoney5(due.amt)}</div>
-        <div class="chiprow">${accOrderTag(o)}${chip}${!isDep && unDep(o) > 0 ? `<span class="chip c-gray">\u53E6\u5F85\u5B9A\u91D1 ${fmtMoney5(unDep(o))}</span>` : ""}</div>
-      </div>
-      <button class="mini-btn green" data-act="open-pay" data-oid="${o.id}" data-kind="${due.kind}">${due.btn}</button>
-    </div>`;
-  }).join("") : `<div class="empty"><div class="e-ic">\u2705</div>\u8BE5\u533A\u95F4\u6682\u65E0\u5F85\u6536\u6B3E</div>`;
+      <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">${due.sub} \xB7 <b style="color:var(--ink)">${fmtMoney5(due.amt)}</b></div>
+        <div class="chiprow">${accOrderTag(o)}${chip}${!isDep && unDep(o) > 0 ? `<span class="chip c-gray">\u53E6\u5F85\u5B9A\u91D1 ${fmtMoney5(unDep(o))}</span>` : ""}</div></div>
+      <button class="mini-btn green" data-act="open-pay" data-oid="${o.id}" data-kind="${due.kind}">${due.btn}</button></div>`;
+  }).join("") : `<div class="empty"><div class="e-ic">\u2713</div>\u8FD9\u4E2A\u533A\u95F4\u6682\u65E0\u5F85\u6536\u6B3E</div>`;
   const flow = [...db.payments].filter((p) => accOrderIds().has(p.oid)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8).map((p) => {
     const po = db.orders.find((x) => x.id === p.oid);
-    return `<div class="row${accBar(po)}" style="${accTint(po)}">
-      <div class="rmain"><div class="rname" style="font-size:14px">+${fmtMoney5(p.amount)} \xB7 ${esc(storeOf(p.oid))}</div>
-        <div class="rsub">${esc(p.kind)} \xB7 ${fmtD(p.at)} ${fmtHM(p.at)}${accMulti() ? ` \xB7 ${accTagHTML(po ? accById(po.accountId) : null)}` : ""}</div></div>
-      <span class="chip ${METHOD_CLS[p.method] || "c-gray"}">${esc(p.method)}</span>
-    </div>`;
+    return `<div class="row${accBar(po)}" style="${accTint(po)}"><div class="rmain"><div class="rname" style="font-size:13.5px;color:var(--green)">+${fmtMoney5(p.amount)} \xB7 ${esc(storeOf(p.oid))}</div>
+      <div class="rsub">${esc(p.kind)} \xB7 ${fmtD(p.at)} ${fmtHM(p.at)}${accMulti() ? ` \xB7 ${accTagHTML(po ? accById(po.accountId) : null)}` : ""}</div></div><span class="chip ${METHOD_CLS[p.method] || "c-gray"}">${esc(p.method)}</span></div>`;
   }).join("");
   $("#v-pay").innerHTML = `
-    <div class="htop-row"><div><div class="eyebrow">\u8D44\u91D1\u7EBF \xB7 \u8D26\u671F\u81EA\u5B9E\u9645\u62CD\u6444\u65E5\u8D77\u7B97</div><h1 class="big">\u6536\u6B3E</h1></div>
-    <div style="display:flex;gap:8px">${headBtns(false)}</div></div>
+    <div class="app-header"><div><div class="eyebrow">Cash flow / \u8D26\u671F\u81EA\u62CD\u6444\u65E5\u8D77\u7B97</div><h1 class="big">\u6536\u6B3E</h1><div class="hsub">\u94B1\u8981\u6536\u56DE\uFF0C\u8FC7\u7A0B\u4E5F\u8981\u7559\u5F97\u6E05\u3002</div></div><div class="app-actions">${headBtns(false)}</div></div>
     ${accChipbarHTML()}
-    <div class="card" style="padding:16px;margin-bottom:12px">
-      <div style="font-size:12px;color:var(--sub)">\u5F85\u6536\u6B3E\u603B\u989D</div>
-      <div style="font-size:32px;font-weight:800;letter-spacing:.3px;margin:4px 0 2px">${fmtMoney5(unDepSum + unFinSum)}</div>
-      <div class="chiprow">
-        <span class="chip c-orange">\u5C3E\u6B3E\xB7\u79C1\u6536 ${fmtMoney5(unFinSum - dySum)}</span>
-        ${dySum > 0 ? `<span class="chip c-blue">\u6296\u97F3\u5546\u5355 ${fmtMoney5(dySum)}</span>` : ""}
-        <span class="chip c-gray">\u5B9A\u91D1 ${fmtMoney5(unDepSum)}</span>
-        ${over.length ? `<span class="chip c-red">\u903E\u671F ${over.length} \u7B14 \xB7 ${fmtMoney5(overSum)}</span>` : '<span class="chip c-green">\u65E0\u903E\u671F</span>'}
-        ${overAll.length > over.length ? `<span class="chip c-gray">${overAll.length - over.length} \u7B14\u5DF2\u8BBE\u63D0\u9192</span>` : ""}
-      </div>
-    </div>
-    <div class="seg" style="margin-bottom:12px">
-      ${[["all", "\u5168\u90E8"], ["s7", "\u22647\u5929"], ["m830", "8\u201330\u5929"], ["g30", "30\u5929+"]].map(([k, l]) => `<button class="${ui.bucket === k ? "on" : ""}" data-act="bucket" data-bucket="${k}">${l}</button>`).join("")}
-    </div>
-    <div class="chips" style="margin-bottom:12px"><button class="fchip ${ui.bucket === "over" ? "on" : ""}" data-act="bucket" data-bucket="over">\u5F85\u50AC\u6536 ${over.length}</button><button class="fchip ${ui.bucket === "snoozed" ? "on" : ""}" data-act="bucket" data-bucket="snoozed">\u5DF2\u8BBE\u63D0\u9192 ${overAll.length - over.length}</button></div>
+    <div class="money-hero"><div class="section-kicker">Outstanding / \u5F85\u6536\u6B3E\u603B\u989D</div><div class="money-total">${fmtMoney5(unDepSum + unFinSum)}</div>
+      <div class="chiprow"><span class="chip c-orange">\u79C1\u6536\u5C3E\u6B3E ${fmtMoney5(unFinSum - dySum)}</span>${dySum > 0 ? `<span class="chip c-blue">\u6296\u97F3\u5546\u5355 ${fmtMoney5(dySum)}</span>` : ""}<span class="chip">\u5B9A\u91D1 ${fmtMoney5(unDepSum)}</span>${over.length ? `<span class="chip c-red">\u903E\u671F ${over.length} \u7B14 \xB7 ${fmtMoney5(overSum)}</span>` : '<span class="chip c-green">\u65E0\u903E\u671F</span>'}${overAll.length > over.length ? `<span class="chip">${overAll.length - over.length} \u7B14\u5DF2\u8BBE\u63D0\u9192</span>` : ""}</div></div>
+    <div class="seg" style="margin-bottom:12px">${[["all", "\u5168\u90E8"], ["s7", "\u2264 7 \u5929"], ["m830", "8\u201330 \u5929"], ["g30", "30 \u5929+"]].map(([k, l]) => `<button class="${ui.bucket === k ? "on" : ""}" data-act="bucket" data-bucket="${k}">${l}</button>`).join("")}</div>
+    <div class="chips" style="margin-bottom:11px"><button class="fchip ${ui.bucket === "over" ? "on" : ""}" data-act="bucket" data-bucket="over">\u5F85\u50AC\u6536 ${over.length}</button><button class="fchip ${ui.bucket === "snoozed" ? "on" : ""}" data-act="bucket" data-bucket="snoozed">\u5DF2\u8BBE\u63D0\u9192 ${overAll.length - over.length}</button></div>
     <div class="card rows">${listHtml}</div>
-    <div class="sec-title">\u6536\u6B3E\u6D41\u6C34 <span class="more" data-act="export-csv">\u5BFC\u51FA \u203A</span></div>
-    <div class="card rows">${flow || '<div class="empty">\u6682\u65E0\u6536\u6B3E\u8BB0\u5F55</div>'}</div>`;
+    <div class="sec-title">\u6700\u8FD1\u6536\u6B3E <span class="more" role="button" tabindex="0" data-act="export-csv">\u5BFC\u51FA\u6D41\u6C34 \u203A</span></div><div class="card rows">${flow || '<div class="empty">\u6682\u65E0\u6536\u6B3E\u8BB0\u5F55</div>'}</div>`;
 }
 
 // src/app/views/stats.js
 var fmtMoney6 = (n) => fmtMoney(n, ui.privacy);
-function accountSectionHtml() {
-  const accs = ACCS();
-  if (!accs.length) return `<div class="menu-row" data-act="open-account">
-    <span class="menu-ic" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 19.5c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/></svg></span>
-    <div class="menu-t"><div class="menu-name">\u6DFB\u52A0\u8D26\u53F7</div><div class="menu-sub">\u591A\u8D26\u53F7\u8FBE\u4EBA:\u8BA2\u5355\u6302\u8D26\u53F7\u3001\u8D44\u6599\u4E00\u952E\u62F7\u8D1D\u53BB\u62A5\u540D;\u5355\u8D26\u53F7\u6570\u636E\u81EA\u52A8\u5F52\u5C5E,\u754C\u9762\u96F6\u6253\u6270</div></div>
-    <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg></div>`;
-  let html = "";
-  for (const a of accs) {
-    const c = accColor(a);
-    const n = db.orders.filter((o) => o.accountId === a.id).length;
-    html += `<div class="row" style="background:${c.bg};border-radius:14px;align-items:center;gap:12px">
-      ${accAvatarHTML(a)}
-      <div style="flex:1;min-width:0"><div class="rname" style="font-size:14.5px">${esc(a.name)}</div>
-        <div class="rsub">\u6296\u97F3:${esc(a.douyin || "\u2014")} \xB7 \u624B\u673A ${esc(a.phone || "\u2014")} \xB7 ${n} \u5355</div></div>
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <button class="mini-btn" data-act="copy-account" data-id="${a.id}">\u62F7\u8D1D</button>
-        <button class="mini-btn" style="background:rgba(0,0,0,.06);color:#55555e" data-act="open-account" data-id="${a.id}">\u7F16\u8F91</button></div>
-    </div>`;
-  }
-  const unassigned = ACCS().length ? db.orders.filter((o) => o.accountId == null).length : 0;
-  if (unassigned) html += `<div class="row" style="align-items:center;gap:10px">
-    <div class="rmain"><div class="rsub" style="color:var(--orange)">${unassigned} \u7B14\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7(\u542B\u5386\u53F2\u5355)</div></div>
-    <button class="mini-btn" data-act="assign-open">\u6279\u91CF\u6539\u6302</button></div>`;
-  return html;
-}
 function renderStats() {
-  const st = statsFor(ui.period, db.orders.filter(accMatch));
-  const avg = st.deals.length ? Math.round(st.dealSum / st.deals.length * 100) / 100 : 0;
+  const st = statsFor(ui.period, db.orders.filter(accMatch)), avg = st.deals.length ? Math.round(st.dealSum / st.deals.length * 100) / 100 : 0;
   let days = [];
   if (ui.period === "M") {
     const e = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -3050,128 +3053,31 @@ function renderStats() {
       days.push(toISO(d));
     }
   }
-  const daily = days.map((d) => st.paid.filter((p) => p.at.slice(0, 10) === d).reduce((s, p) => s + Math.round(p.amount * 100), 0) / 100);
-  const mx = Math.max(...daily, 1);
+  const daily = days.map((d) => st.paid.filter((p) => p.at.slice(0, 10) === d).reduce((s, p) => s + Math.round(p.amount * 100), 0) / 100), mx = Math.max(...daily, 1);
   const bars = daily.map((v, i) => `<div class="bar ${v ? "" : "zero"}" title="${days[i]} \u5B9E\u6536 ${fmtMoney6(v)}"><i style="height:${Math.max(3, Math.round(v / mx * 100))}%"></i></div>`).join("");
   const totOwed = db.orders.filter(accMatch).reduce((s, o) => s + owedOf(o), 0);
   const sending = db.orders.filter(accMatch).filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf(o))).length;
-  const segP = [["7", "\u8FD17\u5929"], ["30", "\u8FD130\u5929"], ["M", "\u672C\u6708"]].map(([k, l]) => `<button class="${ui.period === k ? "on" : ""}" data-act="period" data-period="${k}">${l}</button>`).join("");
+  const segP = [["7", "\u8FD1 7 \u5929"], ["30", "\u8FD1 30 \u5929"], ["M", "\u672C\u6708"]].map(([k, l]) => `<button class="${ui.period === k ? "on" : ""}" data-act="period" data-period="${k}">${l}</button>`).join("");
   const byM = /* @__PURE__ */ Object.create(null);
   st.paid.forEach((p) => {
     byM[p.method] = (byM[p.method] || 0) + p.amount;
   });
-  const entries = Object.entries(byM).sort((a, b) => b[1] - a[1]);
-  const mxm = Math.max(...entries.map((e) => e[1]), 1);
-  const chRows = entries.length ? entries.map(([m, v]) => `
-    <div class="row" style="padding:9px 0">
-      <span class="chip ${METHOD_CLS[m] || "c-gray"}" style="width:70px;justify-content:center">${esc(m)}</span>
-      <div style="flex:1;height:8px;background:#F0F0F4;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(4, Math.round(v / mxm * 100))}%;background:var(--brand);border-radius:4px"></i></div>
-      <div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13.5px">${fmtMoney6(v)}</div></div>
-    </div>`).join("") : '<div class="empty" style="padding:18px 0">\u8BE5\u533A\u95F4\u6682\u65E0\u6536\u6B3E</div>';
+  const entries = Object.entries(byM).sort((a, b) => b[1] - a[1]), mxm = Math.max(...entries.map((e) => e[1]), 1);
+  const chRows = entries.length ? entries.map(([m, v]) => `<div class="row" style="padding:10px 0"><span class="chip ${METHOD_CLS[m] || "c-gray"}" style="width:70px;justify-content:center">${esc(m)}</span><div style="flex:1;height:7px;background:rgba(23,53,47,.07);border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(4, Math.round(v / mxm * 100))}%;background:var(--brand);border-radius:4px"></i></div><div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13px">${fmtMoney6(v)}</div></div></div>`).join("") : '<div class="empty" style="padding:18px 0">\u8BE5\u533A\u95F4\u6682\u65E0\u6536\u6B3E</div>';
   $("#v-stats").innerHTML = `
-    <div class="htop-row"><div><div class="eyebrow">\u5B9E\u65F6\u7EDF\u8BA1 \xB7 \u6253\u5F00\u5373\u5237\u65B0</div><h1 class="big">\u7EDF\u8BA1</h1></div>
-    <div style="display:flex;gap:8px">${headBtns(false)}</div></div>
+    <div class="app-header"><div><div class="eyebrow">Overview / \u6253\u5F00\u5373\u5237\u65B0</div><h1 class="big">\u7EDF\u8BA1</h1><div class="hsub">\u770B\u6E05\u6536\u5165\uFF0C\u4E5F\u770B\u6E05\u8FD8\u6709\u591A\u5C11\u6CA1\u6536\u56DE\u6765\u3002</div></div><div class="app-actions">${headBtns(false)}<button class="icon-btn" data-act="open-settings" aria-label="\u6253\u5F00\u8BBE\u7F6E"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"/></svg></button></div></div>
     ${accChipbarHTML()}
-    <div class="seg" style="margin-bottom:14px">${segP}</div>
+    <div class="seg" style="margin-bottom:15px">${segP}</div>
     <div class="mini-grid">
       <div class="mini"><div class="mv">${fmtMoney6(st.dealSum)}</div><div class="ml">\u6210\u4EA4\u989D \xB7 ${st.deals.length} \u5355</div></div>
-      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney6(st.paidSum)}</div><div class="ml">\u5B9E\u6536\u91D1\u989D \xB7 ${st.paid.length} \u7B14</div></div>
-      <div class="mini"><div class="mv" style="color:var(--brand)">${st.done.length} \u5355</div><div class="ml">\u5DF2\u4EA4\u4ED8\u5B8C\u7ED3(\u6309\u4EA4\u4ED8\u65E5)</div></div>
+      <div class="mini"><div class="mv" style="color:var(--green)">${fmtMoney6(st.paidSum)}</div><div class="ml">\u5B9E\u6536\u91D1\u989D \xB7 ${st.paid.length} \u7B14</div></div>
+      <div class="mini"><div class="mv" style="color:var(--brand-ink)">${st.done.length} \u5355</div><div class="ml">\u5DF2\u4EA4\u4ED8\u5B8C\u7ED3\uFF08\u6309\u4EA4\u4ED8\u65E5\uFF09</div></div>
       <div class="mini"><div class="mv">${fmtMoney6(avg)}</div><div class="ml">\u5BA2\u5355\u4EF7</div></div>
     </div>
-    <div class="card" style="margin-top:14px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-size:14px;font-weight:800">\u6BCF\u65E5\u5B9E\u6536</span>
-        <span style="font-size:11.5px;color:var(--sub)">${ui.period === "M" ? "\u672C\u6708" : "\u8FD1" + ui.period + "\u5929"}\u5408\u8BA1 <b style="color:#239648;font-size:13px">${fmtMoney6(st.paidSum)}</b></span>
-      </div>
-      <div class="bars">${bars}</div>
-      <div class="bar-x"><span>${fmtD(days[0])}</span><span>${fmtD(days[days.length - 1])}</span></div>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-size:14px;font-weight:800">\u6536\u6B3E\u6E20\u9053\u6784\u6210</span>
-        <span style="font-size:11.5px;color:var(--sub)">${ui.period === "M" ? "\u672C\u6708" : "\u8FD1" + ui.period + "\u5929"}</span>
-      </div>
-      <div style="margin-top:4px">${chRows}</div>
-    </div>
-    <div class="card rows" style="margin-top:14px">
-      <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">\u5F53\u524D\u5F85\u6536\u6B3E</div><div class="rsub">\u542B\u5B9A\u91D1\u4E0E\u5C3E\u6B3E</div></div>
-        <div class="rside"><div class="rprice" style="color:var(--red)">${fmtMoney6(totOwed)}</div></div></div>
-      <div class="row"><div class="rmain"><div class="rname" style="font-size:14px">\u5F85\u53D1\u7247\u8BA2\u5355</div><div class="rsub">\u540E\u671F\u4E2D / \u53D1\u7247\u4E2D</div></div>
-        <div class="rside"><div class="rprice" style="color:var(--orange)">${sending} \u5355</div></div></div>
-    </div>
-    <div class="sec-title">\u6211\u7684\u8D26\u53F7 <span class="more" data-act="open-account">+ \u6DFB\u52A0 \u203A</span></div>
-    <div class="card rows">${accountSectionHtml()}</div>
-    <div class="sec-title">\u6570\u636E\u7BA1\u7406(\u672C\u673A SQLite \u5B58\u50A8)</div>
-    <div class="card rows">
-      <div class="menu-row" data-act="open-schema">
-        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg></span>
-        <div class="menu-t"><div class="menu-name">\u6570\u636E\u7ED3\u6784 \xB7 SQLite</div><div class="menu-sub">orders / payments / settings,\u771F\u5B9E .db \u5B58\u4E8E\u672C\u673A,\u53EF\u5BFC\u51FA\u8FC1\u79FB</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </div>
-      <div class="menu-row">
-        <span class="menu-ic" style="background:var(--orange-soft);color:#E8850A"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg></span>
-        <div class="menu-t"><div class="menu-name">\u5C3E\u6B3E\u50AC\u6536\u9608\u503C</div><div class="menu-sub">\u8D85\u8FC7\u8BE5\u5929\u6570\u672A\u6536\u5C3E\u6B3E\u5373\u6807\u8BB0\u300C\u5DF2\u903E\u671F\u300D;\u63D0\u9192\u4EE5\u6253\u5F00 App \u67E5\u770B\u4E3A\u51C6</div></div>
-        <div class="stepper">
-          <button data-act="th" data-v="-1">\u2212</button><span>${db.threshold} \u5929</span><button data-act="th" data-v="1">+</button>
-        </div>
-      </div>
-      <div class="menu-row" data-act="export-db">
-        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/></svg></span>
-        <div class="menu-t"><div class="menu-name">\u5BFC\u51FA SQLite \u6570\u636E\u5E93(.db)</div><div class="menu-sub">\u5B8C\u6574\u6570\u636E\u5E93\u6587\u4EF6,\u53EF\u7528\u4EFB\u610F SQLite \u5DE5\u5177\u6253\u5F00</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </div>
-      <div class="menu-row" data-act="export-csv">
-        <span class="menu-ic" style="background:var(--green-soft);color:#239648"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 11l4.5 4.5L16.5 11"/><path d="M4.5 19.5h15"/></svg></span>
-        <div class="menu-t"><div class="menu-name">\u5BFC\u51FA CSV</div><div class="menu-sub">\u8BA2\u5355\u8868 + \u6536\u6B3E\u6D41\u6C34,Excel / Numbers \u53EF\u76F4\u63A5\u6253\u5F00</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </div>
-      <div class="menu-row" data-act="export-json">
-        <span class="menu-ic" style="background:var(--purple-soft);color:var(--purple)"><svg class="ic" viewBox="0 0 24 24"><path d="M8 4.5H6A2.5 2.5 0 0 0 3.5 7v3A2.5 2.5 0 0 1 1 12.5 2.5 2.5 0 0 1 3.5 15v3A2.5 2.5 0 0 0 6 20.5h2M16 4.5h2A2.5 2.5 0 0 1 20.5 7v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5h-2"/></svg></span>
-        <div class="menu-t"><div class="menu-name">\u5BFC\u51FA JSON \u5907\u4EFD</div><div class="menu-sub">\u542B\u8BA2\u5355 + \u6536\u6B3E\u6D41\u6C34 + \u8BBE\u7F6E,\u53EF\u7528\u4E8E\u8FC1\u79FB</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </div>
-      <div class="menu-row" data-act="import-json" role="button" tabindex="0">
-        <div class="menu-t"><div class="menu-name">\u5BFC\u5165 JSON \u5907\u4EFD</div><div class="menu-sub">\u9884\u89C8\u540E\u6062\u590D\u8BA2\u5355\u3001\u6D41\u6C34\u4E0E\u8BBE\u7F6E\uFF1B\u66FF\u6362\u524D\u81EA\u52A8\u5907\u4EFD</div></div>
-      </div>
-      <div class="menu-row" data-act="restore-backup" role="button" tabindex="0">
-        <div class="menu-t"><div class="menu-name">\u6062\u590D\u66FF\u6362\u524D\u7684\u6570\u636E</div><div class="menu-sub">\u64A4\u56DE\u6700\u8FD1\u4E00\u6B21\u5BFC\u5165\u6216\u6E05\u7A7A\uFF0C\u4EC5\u4FDD\u7559\u6700\u8FD1\u4E00\u4EFD</div></div>
-      </div>
-      ${isNative ? `<div class="menu-row" data-act="notify-toggle" role="button" tabindex="0">
-        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span>
-        <div class="menu-t"><div class="menu-name">\u903E\u671F\u50AC\u6536\u6BCF\u65E5\u63D0\u9192</div><div class="menu-sub">\u6BCF\u5929 09:00 \u672C\u5730\u901A\u77E5 \xB7 \u53EA\u62A5\u6761\u6570\u4E0E\u6700\u957F\u5929\u6570,\u4E0D\u542B\u91D1\u989D</div></div>
-        <span class="tag-badge">${db.notifyEnabled === false ? "\u5DF2\u5173\u95ED" : "\u5DF2\u5F00\u542F"}</span>
-      </div>` : ""}
-      <div class="menu-row" data-act="switch-mode" role="button" tabindex="0">
-        <div class="menu-t"><div class="menu-name">${Store.mode === "demo" ? "\u8FDB\u5165\u5DE5\u4F5C\u6570\u636E" : "\u5207\u6362\u5230\u6F14\u793A\u6570\u636E"}</div><div class="menu-sub">\u5F53\u524D\u4E3A${Store.mode === "demo" ? "\u6F14\u793A" : "\u5DE5\u4F5C"}\u6570\u636E\uFF1B\u4E24\u5957\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u4E92\u4E0D\u8986\u76D6</div></div>
-      </div>
-      <div class="menu-row" data-act="clear-data" role="button" tabindex="0">
-        <div class="menu-t"><div class="menu-name" style="color:var(--red)">\u6E05\u7A7A\u5F53\u524D${Store.mode === "demo" ? "\u6F14\u793A" : "\u5DE5\u4F5C"}\u6570\u636E</div><div class="menu-sub">\u9700\u786E\u8BA4\uFF1B\u6E05\u7A7A\u8BA2\u5355\u4E0E\u6D41\u6C34\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF1B\u66FF\u6362\u524D\u81EA\u52A8\u5907\u4EFD\uFF0C\u4E0D\u5F71\u54CD\u53E6\u4E00\u5957\u6570\u636E</div></div>
-      </div>
-      <div class="rsub" style="text-align:center;padding:10px 0 2px;color:#B9B9C0;white-space:normal">\u63A2\u8BB0 TanJi v0.6 \xB7 \u6570\u636E\u4EC5\u5B58\u672C\u673A\uFF0C\u8BF7\u5B9A\u671F\u5BFC\u51FA\u5907\u4EFD</div>
-    </div>
-    <div class="sec-title">\u5173\u4E8E</div>
-    <div class="card rows">
-      <a class="menu-row" href="${LEGAL_BASE}privacy.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
-        <span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 8.2-7.5 9.5C7.6 20.2 4.5 16.4 4.5 12V6L12 3z"/></svg></span>
-        <div class="menu-t"><div class="menu-name">\u9690\u79C1\u653F\u7B56</div><div class="menu-sub">\u7EAF\u672C\u5730\u8FD0\u884C \xB7 \u4E0D\u6536\u96C6\u3001\u4E0D\u4E0A\u4F20\u4EFB\u4F55\u6570\u636E</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </a>
-      <a class="menu-row" href="${LEGAL_BASE}support.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
-        <span class="menu-ic" style="background:var(--green-soft);color:#239648"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span>
-        <div class="menu-t"><div class="menu-name">\u652F\u6301\u4E0E\u5E38\u89C1\u95EE\u9898</div><div class="menu-sub">\u5907\u4EFD\u3001\u8FC1\u79FB\u3001\u901A\u77E5\u4E0E\u5BFC\u51FA\u95EE\u9898</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </a>
-      ${APP_STORE_URL ? `<a class="menu-row" href="${APP_STORE_URL}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
-        <span class="menu-ic" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span>
-        <div class="menu-t"><div class="menu-name">iOS \u539F\u751F\u7248 \xB7 \u4E70\u65AD</div><div class="menu-sub">\u79BB\u7EBF\u66F4\u7A33 \xB7 \u63A8\u9001\u66F4\u65B0 \xB7 \u672C\u5730\u901A\u77E5\u63D0\u9192</div></div>
-        <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>
-      </a>` : `<div class="menu-row" data-act="app-store-soon">
-        <span class="menu-ic" style="background:var(--brand-soft);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span>
-        <div class="menu-t"><div class="menu-name">iOS \u539F\u751F\u7248 \xB7 \u4E70\u65AD</div><div class="menu-sub">\u79BB\u7EBF\u66F4\u7A33 \xB7 \u63A8\u9001\u66F4\u65B0 \xB7 \u672C\u5730\u901A\u77E5\u63D0\u9192</div></div>
-        <span class="tag-badge">\u5373\u5C06\u4E0A\u67B6</span>
-      </div>`}
-    </div>`;
+    <div class="card" style="margin-top:13px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;font-weight:800">\u6BCF\u65E5\u5B9E\u6536</span><span style="font-size:10px;color:var(--sub)">${ui.period === "M" ? "\u672C\u6708" : "\u8FD1 " + ui.period + " \u5929"}\u5408\u8BA1 <b style="color:var(--green);font-size:12px">${fmtMoney6(st.paidSum)}</b></span></div><div class="bars">${bars}</div><div class="bar-x"><span>${fmtD(days[0])}</span><span>${fmtD(days[days.length - 1])}</span></div></div>
+    <div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;font-weight:800">\u6536\u6B3E\u6E20\u9053\u6784\u6210</span><span style="font-size:10px;color:var(--sub)">${ui.period === "M" ? "\u672C\u6708" : "\u8FD1 " + ui.period + " \u5929"}</span></div><div style="margin-top:5px">${chRows}</div></div>
+    <div class="card rows" style="margin-top:12px"><div class="row"><div class="rmain"><div class="rname" style="font-size:13.5px">\u5F53\u524D\u5F85\u6536\u6B3E</div><div class="rsub">\u542B\u5B9A\u91D1\u4E0E\u5C3E\u6B3E</div></div><div class="rside"><div class="rprice" style="color:var(--orange)">${fmtMoney6(totOwed)}</div></div></div><div class="row"><div class="rmain"><div class="rname" style="font-size:13.5px">\u5F85\u53D1\u7247\u8BA2\u5355</div><div class="rsub">\u540E\u671F\u4E2D / \u53D1\u7247\u4E2D</div></div><div class="rside"><div class="rprice" style="color:var(--orange)">${sending} \u5355</div></div></div></div>
+    `;
 }
 
 // src/app/views/trip.js
@@ -3180,22 +3086,18 @@ function orderRowTrip(o) {
   const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney7(unDep(o))}</span>` : "";
   return `<div class="row trip-row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
     <div class="trip-row-head">
-      <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">${esc(o.cat)}</div></div>
+      <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand-ink);font-family:var(--display);font-size:21px;letter-spacing:-.5px">${fmtHM(o.appt)}</div><div class="rsub" style="margin:3px 0 0">${esc(o.cat)}</div></div>
       <div class="rmain"><div class="rname">${esc(o.store)}</div>${o.location ? `<div class="rsub trip-place">${esc(o.location)}</div>` : ""}</div>
       <div class="rside"><div class="rprice">${fmtMoney7(o.price)}</div><div class="rsub">${owedOf(o) > 0 ? "\u5F85\u6536 " + fmtMoney7(owedOf(o)) : "\u5DF2\u7ED3\u6E05"}</div></div>
-      <button class="icon-btn" style="width:40px;height:40px;background:var(--brand-soft);color:var(--brand);box-shadow:none" data-act="edit-order" data-oid="${esc(o.id)}" aria-label="\u7F16\u8F91 ${esc(o.store)}" title="\u7F16\u8F91\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
+      <button class="icon-btn" style="background:var(--brand-soft);color:var(--brand-ink);box-shadow:none;border-color:transparent" data-act="edit-order" data-oid="${esc(o.id)}" aria-label="\u7F16\u8F91 ${esc(o.store)}" title="\u7F16\u8F91\u8BA2\u5355"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg></button>
     </div>
     <div class="chiprow trip-chips">${accOrderTag(o)}${workChip(o)}${depChip || payChip(o)}${o.channel && o.channel !== "\u76F4\u5BA2" ? `<span class="chip c-gray">${esc(o.channel)}</span>` : ""}</div>
   </div>`;
 }
 function renderTrip() {
-  const { y, m } = ui.vMon;
-  const first = new Date(y, m - 1, 1);
-  const off = (first.getDay() + 6) % 7;
-  const dim = new Date(y, m, 0).getDate();
+  const { y, m } = ui.vMon, first = new Date(y, m - 1, 1), off = (first.getDay() + 6) % 7, dim = new Date(y, m, 0).getDate();
   const mOrders = db.orders.filter(accMatch).filter((o) => +o.appt.slice(0, 4) === y && +o.appt.slice(5, 7) === m);
-  const mSum = mOrders.reduce((s, o) => s + o.price, 0);
-  const mPrefix = `${y}-${pad(m)}`;
+  const mSum = mOrders.reduce((s, o) => s + o.price, 0), mPrefix = `${y}-${pad(m)}`;
   const mPaidSum = db.payments.filter((p) => accOrderIds().has(p.oid) && String(p.at || "").slice(0, 7) === mPrefix).reduce((s, p) => s + p.amount, 0);
   const byDay = {};
   mOrders.forEach((o) => {
@@ -3210,64 +3112,45 @@ function renderTrip() {
     if (b && b.e === "\u{1F525}") bFire++;
     if (b && b.e === "\u{1F4B0}") bMoney++;
   });
-  const mBadges = (bFire ? " \u{1F525}" + bFire : "") + (bMoney ? " \u{1F4B0}" + bMoney : "");
+  const mBadges = (bFire ? " \xB7 \u{1F525}" + bFire : "") + (bMoney ? " \xB7 \u{1F4B0}" + bMoney : "");
   let cells = "";
   for (let i = 0; i < off; i++) cells += '<div class="mc"></div>';
   for (let d = 1; d <= dim; d++) {
-    const iso = `${y}-${pad(m)}-${pad(d)}`;
-    const ds = mOrders.filter((o) => o.appt.slice(0, 10) === iso);
-    const dv = byDay[iso] || { n: 0, s: 0 };
-    const bdg = dayBadge(dv.n, dv.s);
-    cells += `<button class="mc ${iso === ui.selDay ? "sel" : ""} ${iso === TODAY ? "today" : ""}" data-act="day" data-day="${iso}" title="${bdg ? bdg.t : ""}">
+    const iso = `${y}-${pad(m)}-${pad(d)}`, ds = mOrders.filter((o) => o.appt.slice(0, 10) === iso), dv = byDay[iso] || { n: 0, s: 0 }, bdg = dayBadge(dv.n, dv.s);
+    cells += `<button class="mc ${iso === ui.selDay ? "sel" : ""} ${iso === TODAY ? "today" : ""}" data-act="day" data-day="${iso}" title="${bdg ? bdg.t : ""}" aria-label="${iso}\uFF0C${ds.length} \u4E2A\u9884\u7EA6">
       <span class="n">${d}</span><span class="d">${ds.length ? "<i></i>".repeat(Math.min(ds.length, 6)) : ""}</span>${bdg ? `<span class="bdg">${bdg.e}</span>` : ""}</button>`;
   }
   const list = db.orders.filter(accMatch).filter((o) => o.appt.slice(0, 10) === ui.selDay).sort((a, b) => a.appt.localeCompare(b.appt));
-  const listHtml = list.length ? list.map(orderRowTrip).join("") : `<div class="empty"><div class="e-ic">\u{1F4ED}</div>\u8FD9\u4E00\u5929\u6682\u65E0\u62CD\u6444\u5B89\u6392</div>`;
+  const listHtml = list.length ? list.map(orderRowTrip).join("") : `<div class="empty"><div class="e-ic">\u25CC</div>\u8FD9\u4E00\u5929\u6682\u65E0\u62CD\u6444\u5B89\u6392<br>\u70B9\u53F3\u4E0A\u89D2\u9884\u7EA6\uFF0C\u628A\u4E0B\u4E00\u8D9F\u8BB0\u4E0B\u6765</div>`;
+  const daySum = list.reduce((s, o) => s + o.price, 0), dayBadgeInfo = dayBadge(list.length, daySum);
   const tomorrow = dOff(1).slice(0, 10);
   let up = "";
   const mdays = [...new Set(mOrders.map((o) => o.appt.slice(0, 10)))].sort();
   for (const iso of mdays) {
-    const ds = mOrders.filter((o) => o.appt.slice(0, 10) === iso).sort((a, b) => a.appt.localeCompare(b.appt));
-    const d = /* @__PURE__ */ new Date(iso + "T00:00");
+    const ds = mOrders.filter((o) => o.appt.slice(0, 10) === iso).sort((a, b) => a.appt.localeCompare(b.appt)), d = /* @__PURE__ */ new Date(iso + "T00:00");
     const tag = iso === TODAY ? " \xB7 \u4ECA\u5929" : iso === tomorrow ? " \xB7 \u660E\u5929" : "";
-    up += `<div class="sec-title">${d.getMonth() + 1}\u6708${d.getDate()}\u65E5 \u5468${dowOf(iso)}${tag}</div>
-    <div class="card rows">${ds.map(orderRowTrip).join("")}</div>`;
+    up += `<div class="sec-title">${d.getMonth() + 1}\u6708${d.getDate()}\u65E5 \xB7 \u5468${dowOf(iso)}${tag}</div><div class="card rows">${ds.map(orderRowTrip).join("")}</div>`;
   }
-  if (!up) up = `<div class="empty">${m}\u6708\u6682\u65E0\u6863\u671F \xB7 \u70B9\u53F3\u4E0A\u89D2\u300C\u9884\u7EA6\u300D\u65B0\u589E</div>`;
+  if (!up) up = `<div class="empty">${m} \u6708\u6682\u65E0\u6863\u671F \xB7 \u70B9\u53F3\u4E0A\u89D2\u300C\u9884\u7EA6\u300D\u65B0\u589E</div>`;
   const week = upcoming7(), weekCount = week.reduce((s, d) => s + d.count, 0), weekSum = week.reduce((s, d) => s + d.sum, 0);
-  const weekHtml = `<div class="sec-title" style="margin-top:14px;margin-bottom:6px"><span>\u672A\u6765 7 \u5929${weekCount ? ` \xB7 ${weekCount} \u5355` : " \xB7 \u6682\u65E0\u6863\u671F"}</span>${weekSum ? `<span style="font-weight:600">${esc(fmtMoney7(weekSum))}</span>` : ""}</div>
+  const weekHtml = `<div class="sec-title" style="margin-top:18px;margin-bottom:7px"><span>\u672A\u6765 7 \u5929${weekCount ? ` \xB7 ${weekCount} \u5355` : " \xB7 \u6682\u65E0\u6863\u671F"}</span>${weekSum ? `<span style="font-weight:650">${esc(fmtMoney7(weekSum))}</span>` : ""}</div>
     <div class="n7">${week.map((d, i) => {
     const wd = i === 0 ? "\u4ECA\u5929" : i === 1 ? "\u660E\u5929" : `\u5468${dowOf(d.day)}`;
-    return `<button class="n7d ${d.day === ui.selDay ? "on" : ""}" data-act="day" data-day="${d.day}">
-        <div class="w">${wd}</div><div class="d">${d.day.slice(5, 7)}-${d.day.slice(8, 10)}</div><div class="c">${d.count ? `${d.count} \u5355` : "\u7A7A"}</div></button>`;
+    return `<button class="n7d ${d.day === ui.selDay ? "on" : ""}" data-act="day" data-day="${d.day}"><div class="w">${wd}</div><div class="d">${d.day.slice(5, 7)}-${d.day.slice(8, 10)}</div><div class="c">${d.count ? `${d.count} \u5355` : "\u7A7A"}</div></button>`;
   }).join("")}</div>`;
   $("#v-trip").innerHTML = `
-    <div class="htop-row">
-      <div><div class="eyebrow">\u6574\u6708\u6863\u671F \xB7 \u2039 \u203A \u53EF\u7FFB\u6708</div><h1 class="big">\u884C\u7A0B</h1>
-      <div class="hsub">\u5DE6\u53F3\u6ED1\u52A8\u5207\u65E5 \xB7 \u70B9\u65E5\u671F\u67E5\u770B \xB7 \u5206\u4EAB\u751F\u6210\u5F53\u65E5\u884C\u7A0B\u56FE</div></div>
-      <div style="display:flex;gap:8px;align-items:center">
-        ${headBtns(true)}
-        <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button>
-      </div>
-    </div>
+    <div class="app-header"><div><div class="eyebrow">Monthly schedule / \u6574\u6708\u6863\u671F</div><h1 class="big">\u884C\u7A0B</h1><div class="hsub">\u5DE6\u53F3\u6ED1\u52A8\u5207\u65E5 \xB7 \u70B9\u65E5\u671F\u67E5\u770B\u5F53\u5929\u5B89\u6392</div></div>
+      <div class="app-actions">${headBtns(true)}<button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button></div></div>
     ${accChipbarHTML()}
     <div class="mgrid">
-      <div class="mhead">
-        <div class="mtitle">${y}\u5E74${m}\u6708<span class="msum">${mOrders.length} \u4E2A\u6863\u671F \xB7 \u6210\u4EA4 ${fmtMoney7(mSum)} \xB7 \u5B9E\u6536 ${fmtMoney7(mPaidSum)}${mBadges}</span></div>
-        <div class="mnav">
-          <button data-act="mnav" data-d="-1">\u2039</button>
-          <button data-act="mtoday" class="mtod">\u4ECA\u5929</button>
-          <button data-act="mnav" data-d="1">\u203A</button>
-        </div>
-      </div>
-      <div class="mgrid-dow">${"\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u65E5".split("").map((x) => `<span>\u5468${x}</span>`).join("")}</div>
-      <div class="mgrid-c">${cells}</div>
+      <div class="mhead"><div class="mtitle">${y}\u5E74 ${m}\u6708<span class="msum">${mOrders.length} \u4E2A\u6863\u671F \xB7 \u6210\u4EA4 ${fmtMoney7(mSum)} \xB7 \u5B9E\u6536 ${fmtMoney7(mPaidSum)}${mBadges}</span></div>
+        <div class="mnav"><button data-act="mnav" data-d="-1" aria-label="\u4E0A\u4E2A\u6708">\u2039</button><button data-act="mtoday" class="mtod">\u4ECA\u5929</button><button data-act="mnav" data-d="1" aria-label="\u4E0B\u4E2A\u6708">\u203A</button></div></div>
+      <div class="mgrid-dow">${"\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D\u65E5".split("").map((x) => `<span>\u5468${x}</span>`).join("")}</div><div class="mgrid-c">${cells}</div>
     </div>
     ${weekHtml}
-    <div class="sec-title">${ui.selDay === TODAY ? "\u4ECA\u65E5\u884C\u7A0B" : `${+ui.selDay.slice(5, 7)}\u6708${+ui.selDay.slice(8, 10)}\u65E5 \u5468${dowOf(ui.selDay)}`}${list.length && dayBadge(list.length, list.reduce((s, o) => s + o.price, 0)) ? ` \xB7 ${dayBadge(list.length, list.reduce((s, o) => s + o.price, 0)).e} ${dayBadge(list.length, list.reduce((s, o) => s + o.price, 0)).t}` : ""}</div>
+    <div class="sec-title" style="margin-top:20px"><span>${ui.selDay === TODAY ? "\u4ECA\u65E5\u884C\u7A0B" : `${+ui.selDay.slice(5, 7)}\u6708${+ui.selDay.slice(8, 10)}\u65E5 \xB7 \u5468${dowOf(ui.selDay)}`}${dayBadgeInfo ? ` \xB7 ${dayBadgeInfo.e} ${dayBadgeInfo.t}` : ""}</span><span class="more" role="button" tabindex="0" data-act="share">\u5206\u4EAB\u5F53\u65E5 \u203A</span></div>
     <div class="card rows">${listHtml}</div>
-    <div class="sec-title">${m}\u6708\u5168\u90E8\u6863\u671F \xB7 \u5F80\u4E0B\u6EDA\u770B\u6574\u6708</div>
-    ${up}`;
+    <div class="sec-title">${m} \u6708\u5168\u90E8\u6863\u671F <span class="rsub">\u5F80\u4E0B\u6EDA\u770B\u6574\u6708</span></div>${up}`;
 }
 function tripSwipeStep(dx, dy, duration) {
   const ax = Math.abs(dx), ay = Math.abs(dy);
@@ -3327,6 +3210,12 @@ function registerAction(name, fn) {
 }
 registerAction("tab", (t, oid) => {
   showTab(t.dataset.tab);
+});
+registerAction("open-settings", () => {
+  openSettings();
+});
+registerAction("close-settings", () => {
+  closeSettings();
 });
 registerAction("open", (t, oid) => {
   openDetail(oid);
@@ -3726,7 +3615,7 @@ registerAction("switch-mode", (t, oid) => {
 });
 registerAction("clear-data", (t, oid) => {
   if (confirm("\u6E05\u7A7A\u5F53\u524D" + (Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A") + "\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [] }).then((ok) => {
-    if (ok) toast("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u7EDF\u8BA1\u9875\u6062\u590D");
+    if (ok) toast("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u8BBE\u7F6E\u9875\u6062\u590D");
   });
 });
 registerAction("export-checkpoint", (t, oid) => {
@@ -3753,7 +3642,7 @@ document.addEventListener("click", (e) => {
     toast("\u6B63\u5728\u8BFB\u5199\u6570\u636E\uFF0C\u8BF7\u7A0D\u5019");
     return;
   }
-  if (Store.blocked && !["retry-storage", "export-json", "export-csv", "export-db", "export-checkpoint", "tab", "open", "close-sheet", "privacy", "app-store-soon", "goto-collect", "chip", "bucket", "period", "day", "mnav", "mtoday", "share", "share-confirm", "open-schema", "open-account", "acc-filter", "acc-pick", "prov-pick", "pal-pick", "copy-account", "assign-open", "pick-avatar", "crop-cancel", "crop-use", "shot-pick", "nav-place", "remind-open", "expect-open"].includes(act)) {
+  if (Store.blocked && !["retry-storage", "export-json", "export-csv", "export-db", "export-checkpoint", "tab", "open-settings", "close-settings", "open", "close-sheet", "privacy", "app-store-soon", "goto-collect", "chip", "bucket", "period", "day", "mnav", "mtoday", "share", "share-confirm", "open-schema", "open-account", "acc-filter", "acc-pick", "prov-pick", "pal-pick", "copy-account", "assign-open", "pick-avatar", "crop-cancel", "crop-use", "shot-pick", "nav-place", "remind-open", "expect-open"].includes(act)) {
     toast("\u4E3A\u4FDD\u62A4\u539F\u6570\u636E\uFF0C\u5199\u5165\u5DF2\u6682\u505C\uFF0C\u8BF7\u5148\u91CD\u8BD5\u8BFB\u53D6");
     return;
   }
@@ -3773,87 +3662,167 @@ document.addEventListener("click", (e) => {
 
 // src/app/views/home.js
 var fmtMoney8 = (n) => fmtMoney(n, ui.privacy);
+function todayRow(o) {
+  const depChip = unDep(o) > 0 ? `<span class="chip c-orange">\u5F85\u5B9A\u91D1 ${fmtMoney8(unDep(o))}</span>` : "";
+  const punch = o.shotAt ? "" : `<button class="mini-btn" data-act="mark-shot" data-oid="${esc(o.id)}">\u5230\u5E97\u6253\u5361</button>`;
+  return `<div class="row today-row${accBar(o)}" style="${accTint(o)}${o.shotAt ? ";opacity:.62" : ""}" data-act="open" data-oid="${o.id}">
+    <div class="rside today-time"><div class="rprice" style="color:var(--brand-ink);font-family:var(--display);font-size:19px">${fmtHM(o.appt)}</div><div class="rsub" style="margin:2px 0 0">\u9884\u7EA6</div></div>
+    <div class="rmain"><div class="rname">${esc(o.store)}</div>
+      <div class="chiprow">${accOrderTag(o)}${workChip(o)}${depChip || payChip(o)}<span class="chip c-gray">${esc(o.cat)}</span></div></div>
+    ${priceCell(o)}
+    ${punch || '<svg class="ic" style="color:var(--line-strong)"><path d="M9.5 6l6 6-6 6"/></svg>'}
+  </div>`;
+}
+function nextCard(todays, nextUpcoming) {
+  const next = todays.find((o) => !o.shotAt);
+  if (next) {
+    const a = accById(next.accountId);
+    return `<div class="next-card" data-act="open" data-oid="${esc(next.id)}">
+      <div class="next-top"><span class="section-kicker">Next stop / \u4E0B\u4E00\u7AD9</span><span class="live-dot">\u5F85\u5230\u5E97</span></div>
+      <div class="next-main">
+        <div class="next-time">${fmtHM(next.appt)}</div>
+        <div class="next-info"><div class="next-store">${esc(next.store)}</div>
+          <div class="next-meta">${esc(next.location || next.cat)}${a ? ` \xB7 ${esc(a.name)}` : ""}</div></div>
+      </div>
+      <div class="next-actions"><button data-act="open" data-oid="${esc(next.id)}">\u67E5\u770B\u9884\u7EA6</button><button class="primary" data-act="mark-shot" data-oid="${esc(next.id)}">\u5230\u5E97\u6253\u5361</button></div>
+    </div>`;
+  }
+  if (todays.length) {
+    return `<div class="next-card">
+      <div class="next-top"><span class="section-kicker">Today / \u4ECA\u65E5\u5B8C\u6210</span><span class="live-dot">\u5168\u90E8\u62CD\u5B8C</span></div>
+      <div class="next-empty"><strong>\u4ECA\u5929\u7684\u5E97\uFF0C\u90FD\u62CD\u5B8C\u4E86\u3002</strong><span>\u63A5\u4E0B\u6765\u628A\u4EA4\u4ED8\u548C\u6536\u6B3E\u6536\u597D\uFF0C\u5C31\u53EF\u4EE5\u5B89\u5FC3\u6536\u5DE5\u3002</span></div>
+      <div class="next-actions"><button data-act="tab" data-tab="orders">\u53BB\u63A8\u8FDB\u5F85\u53D1\u7247</button><button class="primary" data-act="tab" data-tab="trip">\u770B\u63A5\u4E0B\u6765\u884C\u7A0B</button></div>
+    </div>`;
+  }
+  if (nextUpcoming) {
+    return `<div class="next-card" data-act="open" data-oid="${esc(nextUpcoming.id)}">
+      <div class="next-top"><span class="section-kicker">Next stop / \u4E0B\u4E00\u7AD9</span><span class="live-dot">${esc(fmtD(nextUpcoming.appt))}</span></div>
+      <div class="next-main"><div class="next-time">${fmtHM(nextUpcoming.appt)}</div>
+        <div class="next-info"><div class="next-store">${esc(nextUpcoming.store)}</div><div class="next-meta">${esc(nextUpcoming.location || nextUpcoming.cat)}</div></div></div>
+      <div class="next-actions"><button data-act="open" data-oid="${esc(nextUpcoming.id)}">\u63D0\u524D\u770B\u9884\u7EA6</button><button class="primary" data-act="tab" data-tab="trip">\u6253\u5F00\u6574\u6708\u884C\u7A0B</button></div>
+    </div>`;
+  }
+  return `<div class="next-card">
+    <div class="next-top"><span class="section-kicker">A clear day / \u7A7A\u767D\u6863\u671F</span><span class="live-dot">\u4ECE\u5BB9\u4E00\u70B9</span></div>
+    <div class="next-empty"><strong>\u4ECA\u5929\u6CA1\u6709\u5B89\u6392\u3002</strong><span>\u53EF\u4EE5\u63D0\u524D\u5F55\u4E0B\u4E00\u8D9F\u9884\u7EA6\uFF0C\u4E5F\u53EF\u4EE5\u5148\u628A\u5F85\u53D1\u7247\u6E05\u4E00\u6E05\u3002</span></div>
+    <div class="next-actions"><button data-act="new-order">\u65B0\u5EFA\u9884\u7EA6</button><button class="primary" data-act="tab" data-tab="orders">\u770B\u5F85\u53D1\u7247</button></div>
+  </div>`;
+}
 function renderHome() {
   const flt = db.orders.filter(accMatch);
-  const overAll = flt.filter(isOver);
-  const over = overAll.filter((o) => !snoozed(o));
+  const overAll = flt.filter(isOver), over = overAll.filter((o) => !snoozed(o));
   const overSum = over.reduce((s, o) => s + owedOf(o), 0);
   const maxOver = over.length ? Math.max(...over.map(overdueDays)) : 0;
   const todays = flt.filter((o) => o.appt.slice(0, 10) === TODAY).sort((a, b) => a.appt.localeCompare(b.appt));
   const todoToday = todays.filter((o) => !o.shotAt);
+  const nextUpcoming = flt.filter((o) => o.appt.slice(0, 10) > TODAY && !o.shotAt).sort((a, b) => a.appt.localeCompare(b.appt))[0];
   const sending = flt.filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf(o))).sort((a, b) => (a.shotAt || "").localeCompare(b.shotAt || ""));
-  const m = statsFor("M", flt);
-  const totOwed = flt.reduce((s, o) => s + owedOf(o), 0);
+  const m = statsFor("M", flt), totOwed = flt.reduce((s, o) => s + owedOf(o), 0);
   let alertCard;
   if (over.length) {
     alertCard = `<div class="alert-card" data-act="goto-collect">
       <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg>
       <div class="alert-main"><div class="alert-t">${over.length} \u7B14\u5C3E\u6B3E\u903E\u671F \xB7 \u5F85\u50AC\u6536 ${fmtMoney8(overSum)}</div>
-      <div class="alert-s">\u6700\u957F\u5DF2\u6B20 ${maxOver} \u5929${overAll.length > over.length ? ` \xB7 \u53E6\u6709 ${overAll.length - over.length} \u7B14\u5DF2\u8BBE\u63D0\u9192` : ""} \xB7 \u70B9\u51FB\u8FDB\u5165\u50AC\u6536\u6E05\u5355</div></div>
-      <svg class="ic" style="opacity:.9" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg>
-    </div>`;
+        <div class="alert-s">\u6700\u957F\u5DF2\u6B20 ${maxOver} \u5929${overAll.length > over.length ? ` \xB7 \u53E6\u6709 ${overAll.length - over.length} \u7B14\u5DF2\u8BBE\u63D0\u9192` : ""} \xB7 \u70B9\u51FB\u8FDB\u5165\u50AC\u6536\u6E05\u5355</div></div>
+      <svg class="ic" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg></div>`;
   } else if (overAll.length) {
     const soon = overAll.map((o) => o.remindAt).sort()[0];
     alertCard = `<div class="alert-card amber" data-act="goto-collect">
       <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg>
-      <div class="alert-main"><div class="alert-t">${overAll.length} \u7B14\u5C3E\u6B3E\u5DF2\u8BBE\u50AC\u6536\u63D0\u9192</div>
-      <div class="alert-s">\u6700\u65E9 ${fmtD(soon)} \u518D\u63D0\u9192 \xB7 \u70B9\u51FB\u67E5\u770B\u6E05\u5355</div></div>
-      <svg class="ic" style="opacity:.9" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg>
-    </div>`;
+      <div class="alert-main"><div class="alert-t">${overAll.length} \u7B14\u5C3E\u6B3E\u5DF2\u8BBE\u50AC\u6536\u63D0\u9192</div><div class="alert-s">\u6700\u65E9 ${fmtD(soon)} \u518D\u63D0\u9192 \xB7 \u70B9\u51FB\u67E5\u770B\u6E05\u5355</div></div>
+      <svg class="ic" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></svg></div>`;
   } else {
     alertCard = `<div class="alert-card calm">
       <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-      <div class="alert-main"><div class="alert-t">\u6536\u6B3E\u72B6\u6001\u5065\u5EB7</div><div class="alert-s">\u6682\u65E0\u903E\u671F\u5C3E\u6B3E,\u5171\u5F85\u6536 ${fmtMoney8(totOwed)}</div></div>
-    </div>`;
+      <div class="alert-main"><div class="alert-t">\u6536\u6B3E\u72B6\u6001\u5065\u5EB7</div><div class="alert-s">\u6682\u65E0\u903E\u671F\u5C3E\u6B3E \xB7 \u5171\u5F85\u6536 ${fmtMoney8(totOwed)}</div></div></div>`;
   }
-  const todayRows = todays.length ? todays.map((o) => {
-    const depChip = unDep(o) > 0 ? `<span class="chip c-red">\u5F85\u5B9A\u91D1 ${fmtMoney8(unDep(o))}</span>` : "";
-    const punch = o.shotAt ? "" : `<button class="mini-btn" style="padding:6px 10px;font-size:12px" data-act="mark-shot" data-oid="${esc(o.id)}">\u6253\u5361</button>`;
-    return `<div class="row${accBar(o)}" style="${accTint(o)}${o.shotAt ? ";opacity:.66" : ""}" data-act="open" data-oid="${o.id}">
-      <div class="rside" style="width:52px"><div class="rprice" style="color:var(--brand)">${fmtHM(o.appt)}</div><div class="rsub" style="margin:0">\u9884\u7EA6</div></div>
-      <div class="rmain"><div class="rname">${esc(o.store)}</div>
-        <div class="chiprow">${accOrderTag(o)}${workChip(o)}${depChip || payChip(o)}<span class="chip c-gray">${esc(o.cat)}</span></div></div>
-      <div class="rside">${priceCell(o)}</div>
-      ${punch || '<svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>'}
-    </div>`;
-  }).join("") : `<div class="empty"><div class="e-ic">\u{1F319}</div>\u4ECA\u65E5\u65E0\u62CD\u6444\u5B89\u6392<br>\u53BB\u300C\u884C\u7A0B\u300D\u9875\u770B\u770B\u63A5\u4E0B\u6765\u7684\u6863\u671F</div>`;
+  const todayRows = todays.length ? todays.map(todayRow).join("") : `<div class="empty"><div class="e-ic">\u25CC</div>\u4ECA\u5929\u6682\u65E0\u62CD\u6444\u5B89\u6392<br>\u53BB\u884C\u7A0B\u9875\u770B\u770B\u63A5\u4E0B\u6765\u7684\u6863\u671F</div>`;
   const sendRows = sending.length ? sending.slice(0, 4).map((o) => {
-    const miss = [
-      !o.submittedAt ? "\u5F85\u63D0\u5BA1" : "",
-      needMain(o) && !o.longAt ? "\u5F85\u6B63\u7247" : "",
-      needSub(o) && !o.shortAt ? "\u5F85\u526F\u7247" : "",
-      deliveredAll(o) && !o.publishedAt ? "\u5F85\u53D1\u5E03" : ""
-    ].filter(Boolean).map((t) => `<span class="chip c-orange">${t}</span>`).join("");
-    const late = deliverLate(o) ? `<span class="chip c-red">\u8D8524h</span>` : "";
+    const miss = [!o.submittedAt ? "\u5F85\u63D0\u5BA1" : "", needMain(o) && !o.longAt ? "\u5F85\u6B63\u7247" : "", needSub(o) && !o.shortAt ? "\u5F85\u526F\u7247" : "", deliveredAll(o) && !o.publishedAt ? "\u5F85\u53D1\u5E03" : ""].filter(Boolean).map((t) => `<span class="chip c-orange">${t}</span>`).join("");
+    const late = deliverLate(o) ? '<span class="chip c-red">\u8D85 24h</span>' : "";
     return `<div class="row${accBar(o)}" style="${accTint(o)}" data-act="open" data-oid="${o.id}">
       <div class="rmain"><div class="rname">${esc(o.store)}</div><div class="rsub">\u62CD\u6444\u4E8E ${fmtD(o.shotAt)} \xB7 ${fmtMoney8(o.price)}</div>
         <div class="chiprow">${accOrderTag(o)}${late}${miss}</div></div>
-      ${stepBtn(o, "padding:8px 12px") || '<svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg>'}
+      ${stepBtn(o, "padding:8px 12px") || '<svg class="ic" style="color:var(--line-strong)"><path d="M9.5 6l6 6-6 6"/></svg>'}
     </div>`;
-  }).join("") + (sending.length > 4 ? `<div class="row" data-act="tab" data-tab="orders">
-      <div class="rmain"><div class="rsub">\u8FD8\u6709 ${sending.length - 4} \u5355\u5F85\u53D1\u7247 \xB7 \u67E5\u770B\u5168\u90E8</div></div>
-      <svg class="ic" style="color:#C6C6CD"><path d="M9.5 6l6 6-6 6"/></svg></div>` : "") : `<div class="empty">\u6CA1\u6709\u5F85\u53D1\u7247\u7684\u8BA2\u5355 \u{1F389}</div>`;
+  }).join("") + (sending.length > 4 ? `<div class="row" data-act="tab" data-tab="orders"><div class="rmain"><div class="rsub">\u8FD8\u6709 ${sending.length - 4} \u5355\u5F85\u63A8\u8FDB \xB7 \u67E5\u770B\u5168\u90E8</div></div><svg class="ic"><path d="M9.5 6l6 6-6 6"/></svg></div>` : "") : `<div class="empty"><div class="e-ic">\u2713</div>\u5F85\u53D1\u7247\u5DF2\u6E05\u7A7A\uFF0C\u505A\u5F97\u6F02\u4EAE\u3002</div>`;
   $("#v-home").innerHTML = `
-    <div class="htop-row">
-      <div><div class="eyebrow">${now.getMonth() + 1}\u6708${now.getDate()}\u65E5 \u5468${dowOf(TODAY)}</div>
-      <div class="hsub">\u4ECA\u65E5 ${todays.length} \u5355${todays.length ? ` \xB7 ${todoToday.length ? `\u5F85\u62CD ${todoToday.length}` : "\u5DF2\u5168\u90E8\u62CD\u5B8C"}` : ""} \xB7 ${over.length ? `${over.length} \u7B14\u5F85\u50AC\u6536` : "\u6536\u6B3E\u6B63\u5E38"}</div></div>
-      <div style="display:flex;gap:8px;align-items:center">
-        ${headBtns(true)}
-        <button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button>
-      </div>
+    <div class="app-header">
+      <div><div class="eyebrow">${now.getMonth() + 1}\u6708${now.getDate()}\u65E5 \xB7 \u5468${dowOf(TODAY)}</div><h1 class="big">\u4ECA\u65E5\u5B89\u6392</h1>
+        <div class="hsub">${todays.length ? `${todays.length} \u4E2A\u9884\u7EA6 \xB7 ${todoToday.length ? `\u5F85\u62CD ${todoToday.length}` : "\u5DF2\u5168\u90E8\u62CD\u5B8C"}` : "\u4ECA\u5929\u6CA1\u6709\u9884\u7EA6\uFF0C\u6309\u81EA\u5DF1\u7684\u8282\u594F\u6765"}</div></div>
+      <div class="app-actions">${headBtns(true)}<button class="btn-pill" data-act="new-order"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>\u9884\u7EA6</button></div>
     </div>
     ${accChipbarHTML()}
+    ${nextCard(todays, nextUpcoming)}
     ${alertCard}
-    <div class="sec-title">\u4ECA\u65E5\u62CD\u6444${todays.length ? ` <span class="rsub" style="font-weight:600">${todays.length - todoToday.length}/${todays.length} \u5DF2\u62CD</span>` : ""} <span class="more" data-act="tab" data-tab="trip">\u884C\u7A0B \u203A</span></div>
+    <div class="sec-title">\u4ECA\u65E5\u62CD\u6444 <span class="rsub">${todays.length - todoToday.length}/${todays.length} \u5DF2\u62CD</span><span class="more" role="button" tabindex="0" data-act="tab" data-tab="trip">\u6574\u6708\u884C\u7A0B \u203A</span></div>
     <div class="card rows">${todayRows}</div>
-    <div class="sec-title">\u5F85\u53D1\u7247 <span class="more" data-act="tab" data-tab="orders">\u5168\u90E8 \u203A</span></div>
+    <div class="sec-title">\u5F85\u53D1\u7247 <span class="more" role="button" tabindex="0" data-act="tab" data-tab="orders">\u5168\u90E8 \u203A</span></div>
     <div class="card rows">${sendRows}</div>
-    <div class="sec-title">\u672C\u6708\u901F\u89C8 <span class="more" data-act="tab" data-tab="stats">\u7EDF\u8BA1 \u203A</span></div>
+    <div class="sec-title">\u672C\u6708\u901F\u89C8 <span class="more" role="button" tabindex="0" data-act="tab" data-tab="stats">\u7EDF\u8BA1 \u203A</span></div>
     <div class="mini-grid">
-      <div class="mini"><div class="mv" style="color:#239648">${fmtMoney8(m.paidSum)}</div><div class="ml">\u672C\u6708\u5B9E\u6536 \xB7 ${m.paid.length} \u7B14</div></div>
+      <div class="mini"><div class="mv" style="color:var(--green)">${fmtMoney8(m.paidSum)}</div><div class="ml">\u672C\u6708\u5B9E\u6536 \xB7 ${m.paid.length} \u7B14</div></div>
       <div class="mini"><div class="mv">${fmtMoney8(m.dealSum)}</div><div class="ml">\u672C\u6708\u6210\u4EA4 \xB7 ${m.deals.length} \u5355</div></div>
-      <div class="mini"><div class="mv" style="color:var(--red)">${fmtMoney8(totOwed)}</div><div class="ml">\u5F53\u524D\u5F85\u6536\u6B3E</div></div>
-      <div class="mini"><div class="mv" style="color:var(--orange)">${sending.length}</div><div class="ml">\u5F85\u53D1\u7247\u8BA2\u5355</div></div>
+      <div class="mini"><div class="mv" style="color:var(--orange)">${fmtMoney8(totOwed)}</div><div class="ml">\u5F53\u524D\u5F85\u6536\u6B3E</div></div>
+      <div class="mini"><div class="mv" style="color:var(--brand-ink)">${sending.length}</div><div class="ml">\u5F85\u53D1\u7247\u8BA2\u5355</div></div>
+    </div>`;
+}
+
+// src/app/views/settings.js
+var chevron = `<svg class="ic" style="color:var(--line-strong)"><path d="M9.5 6l6 6-6 6"/></svg>`;
+function accountSectionHtml() {
+  const accs = ACCS();
+  if (!accs.length) return `<div class="menu-row" data-act="open-account" role="button" tabindex="0"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 19.5c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/></svg></span><div class="menu-t"><div class="menu-name">\u6DFB\u52A0\u8D26\u53F7</div><div class="menu-sub">\u8BA2\u5355\u6302\u8D26\u53F7\uFF0C\u62A5\u540D\u8D44\u6599\u4E00\u952E\u62F7\u8D1D</div></div>${chevron}</div>`;
+  let html = "";
+  for (const a of accs) {
+    const n = db.orders.filter((o) => o.accountId === a.id).length;
+    html += `<div class="row" style="align-items:center;gap:12px">${accAvatarHTML(a)}<div style="flex:1;min-width:0"><div class="rname" style="font-size:14px">${esc(a.name)}</div><div class="rsub">\u6296\u97F3 ${esc(a.douyin || "\u2014")} \xB7 \u624B\u673A ${esc(a.phone || "\u2014")} \xB7 ${n} \u5355</div></div><div style="display:flex;gap:6px;flex-shrink:0"><button class="mini-btn" data-act="copy-account" data-id="${a.id}">\u62F7\u8D1D</button><button class="mini-btn" style="background:rgba(23,53,47,.06);color:var(--ink-2);border-color:transparent" data-act="open-account" data-id="${a.id}">\u7F16\u8F91</button></div></div>`;
+  }
+  const unassigned = db.orders.filter((o) => o.accountId == null).length;
+  if (unassigned) html += `<div class="row" style="align-items:center;gap:10px"><div class="rmain"><div class="rsub" style="color:var(--orange)">${unassigned} \u7B14\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7</div></div><button class="mini-btn" data-act="assign-open">\u6279\u91CF\u6539\u6302</button></div>`;
+  return html;
+}
+function renderSettings() {
+  const mode = Store.mode === "demo" ? "DEMO" : "WORK";
+  $("#v-settings").innerHTML = `
+    <div class="app-header">
+      <button class="icon-btn" data-act="close-settings" aria-label="\u8FD4\u56DE\u7EDF\u8BA1"><svg class="ic" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div style="flex:1;min-width:0"><div class="eyebrow">Settings / \u672C\u673A\u4E0E\u504F\u597D</div><h1 class="big">\u8BBE\u7F6E</h1></div>
+      <span class="mode-label">${mode}</span>
+    </div>
+
+    <div class="sec-title">\u6211\u7684\u8D26\u53F7 <span class="more" role="button" tabindex="0" data-act="open-account">+ \u6DFB\u52A0 \u203A</span></div>
+    <div class="card rows">${accountSectionHtml()}</div>
+
+    <div class="sec-title">\u6570\u636E\u4E0E\u5907\u4EFD <span class="rsub">\u672C\u673A SQLite \xB7 \u5B8C\u5168\u79BB\u7EBF</span></div>
+    <div class="card rows">
+      <div class="menu-row" data-act="import-json" role="button" tabindex="0"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10l4.5 4.5L16.5 10"/><path d="M4.5 19.5h15"/></svg></span><div class="menu-t"><div class="menu-name">\u4ECE\u65E7\u7248\u63A2\u8BB0\u5BFC\u5165</div><div class="menu-sub">\u9009\u62E9 JSON \u5907\u4EFD\uFF1B\u9884\u89C8\u540E\u66FF\u6362\uFF0C\u81EA\u52A8\u7559\u6062\u590D\u70B9</div></div>${chevron}</div>
+      <div class="menu-row" data-act="export-json" role="button" tabindex="0"><span class="menu-ic" style="background:var(--green-soft);color:var(--green)"><svg class="ic" viewBox="0 0 24 24"><path d="M8 4.5H6A2.5 2.5 0 0 0 3.5 7v3A2.5 2.5 0 0 1 1 12.5 2.5 2.5 0 0 1 3.5 15v3A2.5 2.5 0 0 0 6 20.5h2M16 4.5h2A2.5 2.5 0 0 1 20.5 7v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3A2.5 2.5 0 0 1 16 20.5h-2"/></svg></span><div class="menu-t"><div class="menu-name">\u5BFC\u51FA JSON \u5907\u4EFD</div><div class="menu-sub">\u8BA2\u5355\u3001\u6D41\u6C34\u3001\u8D26\u53F7\u4E0E\u8BBE\u7F6E\uFF1B\u6362\u673A\u8FC1\u79FB\u9009\u8FD9\u4E2A</div></div>${chevron}</div>
+      <div class="menu-row" data-act="export-db" role="button" tabindex="0"><span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/></svg></span><div class="menu-t"><div class="menu-name">\u5BFC\u51FA SQLite\uFF08.db\uFF09</div><div class="menu-sub">\u5B8C\u6574\u6570\u636E\u5E93\u5B58\u6863\uFF0C\u53EF\u7528 SQLite \u5DE5\u5177\u6253\u5F00</div></div>${chevron}</div>
+      <div class="menu-row" data-act="export-csv" role="button" tabindex="0"><span class="menu-ic" style="background:var(--green-soft);color:var(--green)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 11l4.5 4.5L16.5 11"/><path d="M4.5 19.5h15"/></svg></span><div class="menu-t"><div class="menu-name">\u5BFC\u51FA CSV</div><div class="menu-sub">\u8BA2\u5355\u8868 + \u6536\u6B3E\u6D41\u6C34\uFF0CExcel / Numbers \u53EF\u76F4\u63A5\u6253\u5F00</div></div>${chevron}</div>
+      <div class="menu-row" data-act="open-schema" role="button" tabindex="0"><span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg></span><div class="menu-t"><div class="menu-name">\u6570\u636E\u7ED3\u6784 \xB7 SQLite</div><div class="menu-sub">orders / payments / accounts / settings</div></div>${chevron}</div>
+      <div class="menu-row" data-act="restore-backup" role="button" tabindex="0"><span class="menu-ic" style="background:var(--orange-soft);color:var(--orange)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1.5 7.5M4 4v6h6"/></svg></span><div class="menu-t"><div class="menu-name">\u6062\u590D\u66FF\u6362\u524D\u7684\u6570\u636E</div><div class="menu-sub">\u64A4\u56DE\u6700\u8FD1\u4E00\u6B21\u5BFC\u5165\u6216\u6E05\u7A7A\uFF0C\u4EC5\u4FDD\u7559\u6700\u8FD1\u4E00\u4EFD</div></div>${chevron}</div>
+    </div>
+
+    <div class="sec-title">\u63D0\u9192\u4E0E\u9690\u79C1</div>
+    <div class="card rows">
+      <div class="menu-row" data-act="privacy" role="button" tabindex="0"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></span><div class="menu-t"><div class="menu-name">\u9690\u79C1\u6A21\u5F0F</div><div class="menu-sub">\u9690\u85CF\u6240\u6709\u91D1\u989D\uFF0C\u9002\u5408\u622A\u56FE\u4E0E\u5BF9\u8D26</div></div><span class="tag-badge">${ui.privacy ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED"}</span></div>
+      <div class="menu-row"><span class="menu-ic" style="background:var(--orange-soft);color:var(--orange)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg></span><div class="menu-t"><div class="menu-name">\u5C3E\u6B3E\u50AC\u6536\u9608\u503C</div><div class="menu-sub">\u8D85\u8FC7\u8BE5\u5929\u6570\u672A\u6536\u5C3E\u6B3E\u5373\u6807\u8BB0\u903E\u671F</div></div><div class="stepper"><button data-act="th" data-v="-1" aria-label="\u51CF\u5C11\u50AC\u6536\u9608\u503C">\u2212</button><span>${db.threshold} \u5929</span><button data-act="th" data-v="1" aria-label="\u589E\u52A0\u50AC\u6536\u9608\u503C">+</button></div></div>
+      ${isNative ? `<div class="menu-row" data-act="notify-toggle" role="button" tabindex="0"><span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span><div class="menu-t"><div class="menu-name">\u903E\u671F\u50AC\u6536\u6BCF\u65E5\u63D0\u9192</div><div class="menu-sub">\u6BCF\u5929 09:00 \xB7 \u53EA\u62A5\u6761\u6570\u4E0E\u6700\u957F\u5929\u6570\uFF0C\u4E0D\u542B\u91D1\u989D</div></div><span class="tag-badge">${db.notifyEnabled === false ? "\u5DF2\u5173\u95ED" : "\u5DF2\u5F00\u542F"}</span></div>` : ""}
+    </div>
+
+    <div class="sec-title">\u6570\u636E\u6A21\u5F0F</div>
+    <div class="card rows"><div class="menu-row" data-act="switch-mode" role="button" tabindex="0"><span class="menu-ic" style="background:var(--ink);color:var(--card)"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h12l-3-3M19 17H7l3 3M19 7l-3 3M5 17l3-3"/></svg></span><div class="menu-t"><div class="menu-name">${Store.mode === "demo" ? "\u8FDB\u5165\u5DE5\u4F5C\u6570\u636E" : "\u5207\u6362\u5230\u6F14\u793A\u6570\u636E"}</div><div class="menu-sub">\u5F53\u524D\u4E3A${Store.mode === "demo" ? "\u6F14\u793A" : "\u5DE5\u4F5C"}\u6570\u636E\uFF1B\u4E24\u5957\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58</div></div>${chevron}</div></div>
+
+    <div class="sec-title">\u5371\u9669\u64CD\u4F5C</div>
+    <div class="card rows"><div class="menu-row" data-act="clear-data" role="button" tabindex="0"><span class="menu-ic" style="background:var(--red);color:#fff"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></span><div class="menu-t"><div class="menu-name" style="color:var(--red)">\u6E05\u7A7A\u5F53\u524D${Store.mode === "demo" ? "\u6F14\u793A" : "\u5DE5\u4F5C"}\u6570\u636E</div><div class="menu-sub">\u6E05\u7A7A\u8BA2\u5355\u4E0E\u6D41\u6C34\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF1B\u66FF\u6362\u524D\u81EA\u52A8\u5907\u4EFD</div></div>${chevron}</div></div>
+
+    <div class="sec-title">\u5173\u4E8E\u4E0E\u652F\u6301</div>
+    <div class="card rows">
+      <a class="menu-row" href="${LEGAL_BASE}privacy.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l7.5 3v6c0 4.4-3.1 8.2-7.5 9.5C7.6 20.2 4.5 16.4 4.5 12V6L12 3z"/></svg></span><div class="menu-t"><div class="menu-name">\u9690\u79C1\u653F\u7B56</div><div class="menu-sub">\u7EAF\u672C\u5730\u8FD0\u884C \xB7 \u4E0D\u6536\u96C6\u3001\u4E0D\u4E0A\u4F20\u4EFB\u4F55\u6570\u636E</div></div>${chevron}</a>
+      <a class="menu-row" href="${LEGAL_BASE}support.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="menu-ic" style="background:var(--green-soft);color:var(--green)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span><div class="menu-t"><div class="menu-name">\u652F\u6301\u4E0E\u5E38\u89C1\u95EE\u9898</div><div class="menu-sub">\u5907\u4EFD\u3001\u8FC1\u79FB\u3001\u901A\u77E5\u4E0E\u5BFC\u51FA\u95EE\u9898</div></div>${chevron}</a>
+      ${APP_STORE_URL ? `<a class="menu-row" href="${APP_STORE_URL}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span><div class="menu-t"><div class="menu-name">iOS \u539F\u751F\u7248 \xB7 \u4E70\u65AD</div><div class="menu-sub">\u79BB\u7EBF\u66F4\u7A33 \xB7 \u672C\u5730\u901A\u77E5\u63D0\u9192</div></div>${chevron}</a>` : `<div class="menu-row" data-act="app-store-soon" role="button" tabindex="0"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span><div class="menu-t"><div class="menu-name">iOS \u539F\u751F\u7248 \xB7 \u4E70\u65AD</div><div class="menu-sub">\u79BB\u7EBF\u66F4\u7A33 \xB7 \u672C\u5730\u901A\u77E5\u63D0\u9192</div></div><span class="tag-badge">\u5373\u5C06\u4E0A\u67B6</span></div>`}
+      <div class="rsub" style="text-align:center;padding:12px 0 3px;color:var(--sub);white-space:normal">\u63A2\u8BB0 HG \xB7 \u6570\u636E\u4EC5\u5B58\u672C\u673A\uFF0C\u8BF7\u5B9A\u671F\u5BFC\u51FA JSON \u5907\u4EFD</div>
     </div>`;
 }
 
@@ -3870,7 +3839,7 @@ Object.defineProperty(globalThis, "__TANJI__", { value: {
   previewImport,
   buildSqliteBytes
 }, configurable: true });
-registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats });
+registerRenderers({ home: renderHome, trip: renderTrip, orders: renderOrders, pay: renderPay, stats: renderStats, settings: renderSettings });
 registerDetailRerender(rerenderDetail);
 registerStorageHooks({ renderAll, showTab, toast, closeSheets, notify: Notify, resetFilters() {
   ui.q = "";
@@ -3881,6 +3850,8 @@ registerStorageHooks({ renderAll, showTab, toast, closeSheets, notify: Notify, r
 registerBadgeCounter(() => db.orders.filter(accMatch).filter((o) => isOver(o) && !snoozed(o)).length);
 registerDailySync(() => Notify.syncDaily());
 registerBytesBuilder(buildSqliteBytes);
+initNativeTabs(showTab);
+registerNativeSync(syncNativeTabs);
 document.documentElement.classList.toggle("native", isNative);
 if (!isNative && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
   addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => toast("\u79BB\u7EBF\u7F13\u5B58\u5B89\u88C5\u5931\u8D25\uFF0C\u8054\u7F51\u65F6\u4ECD\u53EF\u4F7F\u7528")));
@@ -3935,6 +3906,7 @@ $("#f-date").value = TODAY;
   initSheetGestures();
   initTripGestures();
   if (!had && !Store.blocked) await save();
+  syncNativeTabs({ ready: true });
   initSqlite().then((s) => {
     if (s) {
       Store.sqlite3 = s;

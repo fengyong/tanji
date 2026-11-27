@@ -69,6 +69,7 @@ const server=http.createServer((request,response)=>{
       await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...position});
     };
     const fill=async(selector,value)=>evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))})()`);
+    const openSettings=async()=>{await click('.tab[data-tab="stats"]');await click('#v-stats [data-act="open-settings"]')};
     await call('Page.navigate',{url:origin});await ready();
     assert.equal(await evaluate('__TANJI__.db.orders.length'),17);
     await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.sqlite3?resolve():setTimeout(check,25);check()})');
@@ -78,13 +79,27 @@ const server=http.createServer((request,response)=>{
     const readonly=await send('Runtime.evaluate',{expression:'new Promise(resolve=>{const check=()=>!!window.__TANJI__&&__TANJI__.Store.ready?resolve({blocked:__TANJI__.Store.blocked,count:__TANJI__.db.orders.length}):setTimeout(check,25);check()})',awaitPromise:true,returnByValue:true},attached.sessionId);
     assert.deepEqual(readonly.result.value,{blocked:true,count:17});await send('Target.closeTarget',{targetId:secondary.targetId});
     await capture('home-mobile');
-    await click('.tab[data-tab="stats"]');
-    await click('[data-act="switch-mode"]');
+    await call('Emulation.setDeviceMetricsOverride',{width:320,height:568,deviceScaleFactor:1,mobile:true});
+    const narrow=await evaluate(`(()=>{const p=document.querySelector('.phone').getBoundingClientRect();return {viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,phone:[p.x,p.y,p.width,p.height]}})()`);
+    assert.equal(narrow.scrollWidth,narrow.viewport,'320px 窄屏不能横向溢出: '+JSON.stringify(narrow));
+    assert.deepEqual(narrow.phone,[0,0,320,568],'窄屏应铺满视口，不能再套桌面机身: '+JSON.stringify(narrow));
+    await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+    await openSettings();
+    assert.equal(await evaluate('document.querySelector("#v-settings").classList.contains("active")&&__TANJI__.ui.settingsOpen'),true,'齿轮应进入独立设置页');
+    assert.equal(await evaluate('document.querySelectorAll("#v-stats [data-act=export-json],#v-stats [data-act=open-account]").length'),0,'低频动作不应留在统计页');
+    await click('#v-settings [data-act="close-settings"]');
+    assert.equal(await evaluate('document.querySelector("#v-stats").classList.contains("active")&&!__TANJI__.ui.settingsOpen'),true,'返回应回到统计页');
+    await openSettings();
+    await click('#v-settings [data-act="switch-mode"]');
     await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.busy?setTimeout(check,25):resolve();check()})');
     assert.equal(await evaluate('__TANJI__.Store.mode'),'work');assert.equal(await evaluate('__TANJI__.db.orders.length'),0);
-    await click('.tab[data-tab="stats"]');await click('#v-stats [data-act="export-json"]');
+    await openSettings();await click('#v-settings [data-act="export-json"]');
     await click('.tab[data-tab="home"]');await click('#v-home [data-act="new-order"]');
     await evaluate('Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})))');
+    const touchTargets=await evaluate(`(()=>['#sheet-new [data-act="save-order"]','#sheet-new .sheet-close','#f-store','#f-price'].map(selector=>{const el=document.querySelector(selector);if(!el)return {selector,found:false};const r=el.getBoundingClientRect();return {selector,found:true,width:r.width,height:r.height}}))()`);
+    for(const target of touchTargets){assert.ok(target.found,'缺少触控目标 '+target.selector);assert.ok(target.width>=43.5&&target.height>=43.5,'触控目标至少 44px: '+JSON.stringify(target))}
+    const keyboardTargets=await evaluate(`(()=>{const selectors=['.more[data-act]','.prov-chip[data-act]'];return selectors.map(selector=>({selector,total:document.querySelectorAll(selector).length,ready:[...document.querySelectorAll(selector)].every(el=>el.getAttribute('role')==='button'&&el.tabIndex===0)}))})()`);
+    for(const target of keyboardTargets)assert.ok(target.total>0&&target.ready,'可点击元素应支持键盘: '+JSON.stringify(target));
     // 保存按钮必须常驻:内容滚到顶部时也得在视口内,且不能躺在滚动区里
     const saveBar=await evaluate(`(()=>{const body=document.querySelector('#sheet-new .sheet-body');body.scrollTop=0;const btn=document.querySelector('#sheet-new [data-act="save-order"]');if(!btn)return {found:false};const r=btn.getBoundingClientRect();return {found:true,top:r.top,bottom:r.bottom,viewport:innerHeight,inScrollArea:!!btn.closest('.sheet-body')}})()`);
     assert.ok(saveBar.found,'新建弹层缺少保存按钮');
@@ -160,9 +175,9 @@ const server=http.createServer((request,response)=>{
   // P0 拆分安全网:新增订单 → 标记收款 → 导出 JSON 的全链路 —— 导出必须真的
   // 产出下载文件,且内容与页面状态一致(不是只点了按钮、toast 亮了一下)。
   // 此刻:工作模式、1 笔订单、1 笔定金收款、无弹层遮挡。
-  await click('.tab[data-tab="stats"]');
+  await openSettings();
   const beforeExport=Date.now();
-  await click('#v-stats [data-act="export-json"]');
+  await click('#v-settings [data-act="export-json"]');
   const exported=await new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>reject(new Error('export-json 没有产出下载文件')),10000);
     const check=()=>{
@@ -193,7 +208,7 @@ const server=http.createServer((request,response)=>{
     await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.ui.shareBlob?resolve():setTimeout(check,25);check()})');
     assert.equal(await evaluate('__TANJI__.ui.shareDay'),'2026-11-22');
     await evaluate('Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{})))');await capture('share-mobile');
-    await click('#sheet-share [data-act="close-sheet"]');await click('.tab[data-tab="stats"]');
+    await click('#sheet-share [data-act="close-sheet"]');await openSettings();
     const importPath=path.join(profile,'roundtrip.json');fs.writeFileSync(importPath,await evaluate('JSON.stringify(__TANJI__.backupDocument())'));
     await call('DOM.enable');const {root:documentRoot}=await call('DOM.getDocument');const input=await call('DOM.querySelector',{nodeId:documentRoot.nodeId,selector:'#import-file'});
     await call('DOM.setFileInputFiles',{nodeId:input.nodeId,files:[importPath]});
@@ -203,14 +218,15 @@ const server=http.createServer((request,response)=>{
     await click('[data-act="confirm-import"]');await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.busy?setTimeout(check,25):resolve();check()})');
     assert.equal(await evaluate('__TANJI__.db.payments.length'),1);
     await evaluate('__TANJI__.previewImport(new File(["{bad"],"bad.json"))');assert.equal(await evaluate('__TANJI__.Store.pending'),null);assert.equal(await evaluate('__TANJI__.db.orders.length'),1);
-    await click('#v-stats [data-act="clear-data"]');await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.busy?setTimeout(check,25):resolve();check()})');
+    await openSettings();await click('#v-settings [data-act="clear-data"]');await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.busy?setTimeout(check,25):resolve();check()})');
     await call('Page.reload');await ready();assert.equal(await evaluate('__TANJI__.db.orders.length'),0);
     await click('.tab[data-tab="stats"]');await capture('stats-mobile');
+    await openSettings();await capture('settings-mobile');
     // 付费漏斗:必须有 iOS 原生版入口(未上架显示「即将上架」,上架后是可点的 App Store 链接)
-    const iosRow=await evaluate(`(()=>{const r=[...document.querySelectorAll('#v-stats .menu-row')].find(x=>(x.querySelector('.menu-name')?.textContent||'').includes('iOS 原生版'));if(!r)return null;return {isLink:r.tagName==='A',href:r.getAttribute('href')||'',badge:r.querySelector('.tag-badge')?.textContent||''}})()`);
-    assert.ok(iosRow,'统计页缺少 iOS 原生版入口(免费体验 → 付费版的转化入口)');
+    const iosRow=await evaluate(`(()=>{const r=[...document.querySelectorAll('#v-settings .menu-row')].find(x=>(x.querySelector('.menu-name')?.textContent||'').includes('iOS 原生版'));if(!r)return null;return {isLink:r.tagName==='A',href:r.getAttribute('href')||'',badge:r.querySelector('.tag-badge')?.textContent||''}})()`);
+    assert.ok(iosRow,'设置页缺少 iOS 原生版入口(免费体验 → 付费版的转化入口)');
     assert.ok(iosRow.isLink?/^https:\/\/apps\.apple\.com\//.test(iosRow.href):iosRow.badge==='即将上架','iOS 原生版入口状态异常: '+JSON.stringify(iosRow));
-    await click('#v-stats [data-act="restore-backup"]');await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.busy?setTimeout(check,25):resolve();check()})');
+    await click('#v-settings [data-act="restore-backup"]');await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.busy?setTimeout(check,25):resolve();check()})');
     assert.equal(await evaluate('__TANJI__.db.orders.length'),1);assert.equal(await evaluate('__TANJI__.db.payments.length'),1);
     // 头像裁剪:选图 → 全屏裁剪层 → 「使用」只把 128×128 的裁剪结果存进草稿。
     // 不调整直接用 = 以前的居中正方形裁切(逐像素一致);拖动后存的是取景框对着的那一块;「取消」不动草稿。
@@ -219,7 +235,7 @@ const server=http.createServer((request,response)=>{
     const centerPixel=async url=>evaluate(`(async()=>{const i=new Image();i.src=${JSON.stringify(url)};await i.decode();const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.drawImage(i,0,0);return [i.naturalWidth,i.naturalHeight,...g.getImageData(64,64,1,1).data].slice(0,6)})()`);
     const pickAvatar=async()=>{const {root:doc}=await call('DOM.getDocument');const input=await call('DOM.querySelector',{nodeId:doc.nodeId,selector:'#avatar-file'});await call('DOM.setFileInputFiles',{nodeId:input.nodeId,files:[stripPath]});await evaluate('new Promise(resolve=>{const check=()=>!document.querySelector("#avatar-crop").hidden?resolve():setTimeout(check,25);check()})')};
     const nextDraft=async not=>evaluate(`new Promise(resolve=>{const check=()=>__TANJI__.ui.draftAvatar&&__TANJI__.ui.draftAvatar!==${JSON.stringify(not)}?resolve(__TANJI__.ui.draftAvatar):setTimeout(check,25);check()})`);
-    await click('.tab[data-tab="stats"]');await evaluate(`document.querySelector('#v-stats [data-act="open-account"]').click()`);
+    await openSettings();await evaluate(`document.querySelector('#v-settings [data-act="open-account"]').click()`);
     // 记下每次出图用的取景区域(原图像素坐标):断言的是几何,不是 JPEG 字节 —— 同一张图先按预览尺寸
     // 画过再缩小出图,浏览器走的重采样路径略有差异,色块边缘会有个位数级的像素差,肉眼不可见。
     await evaluate("window.__cropRects=[];const origCrop=TanJiImage.crop;TanJiImage.crop=async(img,rect,preset)=>{window.__cropRects.push(rect);return origCrop(img,rect,preset)};'ok'");
@@ -252,6 +268,8 @@ const server=http.createServer((request,response)=>{
     await call('Page.reload');await ready();assert.equal(await evaluate('__TANJI__.db.orders.length'),1);assert.equal(await evaluate('__TANJI__.db.payments[0].amount'),200);
     // 订单列表左滑露出复制;竖向滚动不能误触,副本直接进完整编辑
     await evaluate(`__TANJI__.db.accounts=[{id:1,name:'甲账号',color:0},{id:2,name:'乙账号',color:1}];__TANJI__.renderTrip()`);
+    const accountKeys=await evaluate(`(()=>{const chips=[...document.querySelectorAll('#v-trip .acc-chip')];const states=chips.map(el=>({role:el.getAttribute('role'),tabIndex:el.tabIndex,pressed:el.hasAttribute('aria-pressed'),id:el.dataset.id}));if(chips.length<3||chips.some(el=>el.getAttribute('role')!=='button'||el.tabIndex!==0||!el.hasAttribute('aria-pressed')))return {ready:false,states};const account=chips[chips.length-1],id=account.dataset.id;account.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));const filtered=__TANJI__.ui.accFilter===+id;const all=document.querySelector('#v-trip .acc-chip');all.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true,cancelable:true}));return {ready:true,filtered,restored:__TANJI__.ui.accFilter===null}})()`);
+    assert.deepEqual(accountKeys,{ready:true,filtered:true,restored:true},'账号筛选应支持 Enter/空格与 pressed 状态');
     await click('.tab[data-tab="orders"]');
     const swipeCopy=await evaluate(`(()=>{const track=document.querySelector('#v-orders .order-swipe-track'),item=track.closest('.order-swipe');const fire=(type,touches,changedTouches=touches)=>track.dispatchEvent(new TouchEvent(type,{touches,changedTouches,bubbles:true,cancelable:true}));const swipe=(x0,y0,x1,y1)=>{const start=new Touch({identifier:1,target:track,clientX:x0,clientY:y0}),move=new Touch({identifier:1,target:track,clientX:x1,clientY:y1});fire('touchstart',[start]);fire('touchmove',[move]);fire('touchend',[],[move]);return item.classList.contains('open')};return {vertical:swipe(300,200,295,330),horizontal:swipe(300,400,170,405)}})()`);
     assert.deepEqual(swipeCopy,{vertical:false,horizontal:true},'订单左滑复制与竖向滚动冲突判定异常');
@@ -288,7 +306,7 @@ const server=http.createServer((request,response)=>{
     await call('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
     await call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await capture('home-desktop');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({passed:true,viewports:['390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','geo module loaded','touch feel locked','sheet drag to dismiss','future 7 days bar','collection follow-up log','payment + statistics','payment undo','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','avatar crop','offline reload'],consoleErrors:errors},null,2));
+    console.log(JSON.stringify({passed:true,viewports:['320x568','390x844','1280x900'],screenshots,checks:['SQLite generation','single-writer lock','demo/work isolation','create + reload','HTML escaping','save button always visible','44px touch targets','keyboard-activated filters','narrow-screen containment','geo module loaded','touch feel locked','sheet drag to dismiss','future 7 days bar','collection follow-up log','payment + statistics','payment undo','financial edit protection','selected-date sharing','JSON file input + restore','corrupt import rejection','clear + empty reload','checkpoint recovery','avatar crop','offline reload'],consoleErrors:errors},null,2));
     await send('Browser.close');
   }finally{
     if(socket)socket.close();

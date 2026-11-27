@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# 探记 TanJi · 真机安装(免费 Apple ID / 个人团队)
+# 探记 HG · 真机安装(Apple Development 签名)
 #
-# 免费签名的两个事实:
-#   1. 证书 7 天有效,到期后 App 打不开 —— 重跑本脚本覆盖安装即可,沙盒数据保留;
-#      千万别卸载再装(卸载 = 删沙盒 = 丢账)。
-#   2. 不需要任何付费能力:本项目没有 entitlements / APNs / App Groups,
-#      本地通知(LocalNotifications)、SQLite、相机、定位在免费签名下都可用。
+# 签名有效期取决于 Team 与 provisioning profile:
+#   - 付费开发者团队按 Apple 当前政策与账号状态签发,不统一按 7 天计算;
+#   - 免费 Personal Team 的描述文件通常只有 7 天有效期。
+# 覆盖安装会保留沙盒数据;卸载会删除沙盒数据,升级时不要卸载。
 #
 # 用法:
-#   DEVELOPMENT_TEAM=XXXXXXXXXX DEVICE_UDID=<手机UDID> ./scripts/build-device.sh
+#   DEVELOPMENT_TEAM=<TEAM_ID> DEVICE_UDID=<DEVICE_UDID> ./scripts/build-device.sh
 #
 # 可选环境变量:
-#   BUNDLE_ID=com.olatanji.app   覆盖 bundle id(不动工程文件,只在构建时替换)
+#   BUNDLE_ID=com.tanji.hg       默认即 HG 正式 bundle id;仅在构建时覆盖
 #   CONFIGURATION=Release        默认 Debug
 #   SKIP_SYNC=1                  跳过 npm run sync(www 已同步时)
 # ---------------------------------------------------------------------------
@@ -20,7 +19,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TEAM="${DEVELOPMENT_TEAM:-}"
-BUNDLE="${BUNDLE_ID:-com.olatanji.app}"
+BUNDLE="${BUNDLE_ID:-com.tanji.hg}"
 CONFIG="${CONFIGURATION:-Debug}"
 DEVICE="${DEVICE_UDID:-}"
 
@@ -29,7 +28,7 @@ if [[ -z "$TEAM" ]]; then
 缺少 DEVELOPMENT_TEAM。
 
 取法:Xcode → Settings → Accounts → 选中你的 Apple ID → 右侧 Team 列表里的 ID
-     (形如 A1B2C3D4E5 的 10 位串,个人团队的名字通常显示为 "Personal Team")
+     (形如 A1B2C3D4E5 的 10 位串;付费团队与 Personal Team 均可)
 
 然后:DEVELOPMENT_TEAM=你的TeamID DEVICE_UDID=手机UDID ./scripts/build-device.sh
 EOF
@@ -74,11 +73,11 @@ xcrun devicectl device install app --device "$DEVICE" "$APP"
 
 echo "==> 启动"
 xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE" || \
-  echo "自动启动失败,手动点桌面的「探记」图标即可"
+  echo "自动启动失败,手动点桌面的「探记 HG」图标即可"
 
 cat <<EOF
 
 完成。两件事记住:
   1. 首次启动若提示「不受信任的开发者」:iPhone → 设置 → 通用 → VPN与设备管理 → 信任你的证书
-  2. **7 天后** App 会打不开:重跑本脚本覆盖安装即可,数据保留;不要卸载
+  2. 签名或描述文件失效时,重跑本脚本覆盖安装即可,数据保留;不要卸载
 EOF

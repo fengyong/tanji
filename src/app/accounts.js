@@ -47,7 +47,7 @@ export function accChipbarHTML(){
     const c=a?accColor(a):null;
     const style=a?(on?`background:${c.ink};color:#fff;font-weight:700`:`color:${c.ink};background:${c.bg};font-weight:600`):(on?'background:var(--ink);color:#fff':'');
     // 昵称来自输入或备份,导入校验只查「非空文本」:拼进 innerHTML 前在这里统一按文本转义。
-    return `<span class="chip acc-chip${on?' on':''}" data-act="acc-filter" data-id="${id==null?'':id}" style="${style}">${esc(label)}</span>`;
+    return `<span class="chip acc-chip${on?' on':''}" role="button" tabindex="0" aria-pressed="${on}" data-act="acc-filter" data-id="${id==null?'':id}" style="${style}">${esc(label)}</span>`;
   };
   let html=chip('全部',null);
   for(const a of ACCS())html+=chip(a.name,a.id);
@@ -73,10 +73,10 @@ export function renderAccPick(elId,sel,multiple=false){
 export function renderProvPick(elId,val){
   const el=$('#'+elId);if(!el)return;
   el.innerHTML=`<div style="padding:10px 2px 0"><div style="font-size:14px;font-weight:600">服务商 <span class="rsub" style="font-weight:400;margin-left:4px">预设点选,或直接输入</span></div>
-    <div class="chiprow" style="margin:8px 0 0">${providerList().map(p=>`<span class="chip prov-chip ${val===p?'on':'c-gray'}" data-act="prov-pick" data-v="${esc(p)}">${esc(p)}</span>`).join('')}</div>
+    <div class="chiprow" style="margin:8px 0 0">${providerList().map(p=>`<span class="chip prov-chip ${val===p?'on':'c-gray'}" role="button" tabindex="0" aria-pressed="${val===p}" data-act="prov-pick" data-v="${esc(p)}">${esc(p)}</span>`).join('')}</div>
     <div class="frow" style="border-bottom:none;padding:9px 0 0"><input id="${elId}-input" placeholder="输入自定义服务商…保存后自动记入预设" value="${esc(val&&!providerList().includes(val)?val:'')}" style="text-align:left;font-size:14px"></div></div>`;
   const input=el.querySelector('input');
-  input.addEventListener('input',()=>{ui.draftProv=input.value.trim();el.querySelectorAll('.prov-chip').forEach(c=>c.classList.remove('on'))});
+  input.addEventListener('input',()=>{ui.draftProv=input.value.trim();el.querySelectorAll('.prov-chip').forEach(c=>{c.classList.remove('on');c.setAttribute('aria-pressed','false')})});
 }
 export function chanFromDraft(){
   const v=(ui.draftProv||'').trim()||'直客';
@@ -107,7 +107,7 @@ export function renderPal(){
   $('#a-pal').innerHTML=ACC_COLORS.map((c,i)=>
     `<button type="button" class="sw ${i===idx?'sel':''}" data-act="pal-pick" data-i="${i}" aria-label="${c.name}" title="${c.name}" style="background:${c.ink}"></button>`).join('');
   const label=$('#a-pal-name');
-  if(label)label.innerHTML=`当前标识色:<b>${cur.name}</b> · 列表底色与行内小标同步跟随`;
+  if(label)label.innerHTML=`当前标识色：<b>${cur.name}</b> · 列表色条与行内小标同步跟随`;
 }
 export function saveAccount(){
   const name=$('#a-name').value.trim();

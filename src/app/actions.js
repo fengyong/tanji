@@ -1,6 +1,6 @@
 /* ================= 事件委托(P0 §3;P0-3 起改为 action 注册表) ================= */
 import {$,esc,pad,now,TODAY,dOff,fmtD,copyText} from './util.js';
-import {ui,showTab,renderAll,refreshClock} from './ui.js';
+import {ui,showTab,openSettings,closeSettings,renderAll,refreshClock} from './ui.js';
 import {db,Store,save,switchMode,replaceData,loadState,accountCopyText} from './storage.js';
 import {Notify} from './notify.js';
 import {byId,isOver,snoozed,REVIEW_LABEL} from './derived.js';
@@ -27,6 +27,14 @@ export function actionNames(){return Object.keys(ACTIONS)}
 
 registerAction('tab',(t,oid)=>{
   showTab(t.dataset.tab);
+});
+
+registerAction('open-settings',()=>{
+  openSettings();
+});
+
+registerAction('close-settings',()=>{
+  closeSettings();
 });
 
 registerAction('open',(t,oid)=>{
@@ -371,7 +379,7 @@ registerAction('switch-mode',(t,oid)=>{
 registerAction('clear-data',(t,oid)=>{
   // 账号资料与服务商预设跟 notifyEnabled 一样随清空保留:用户"重新开始记账"
       // 不该把精心录好的账号资料一并抹掉(订单与流水才是"数据"的本体)
-      if(confirm('清空当前'+(Store.mode==='work'?'工作':'演示')+'数据？订单与流水会清空，账号与设置保留，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold,notifyEnabled:db.notifyEnabled,accounts:db.accounts||[],providers:db.providers||[]}).then(ok=>{if(ok)toast('已清空，替换前数据可在统计页恢复')});
+      if(confirm('清空当前'+(Store.mode==='work'?'工作':'演示')+'数据？订单与流水会清空，账号与设置保留，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold,notifyEnabled:db.notifyEnabled,accounts:db.accounts||[],providers:db.providers||[]}).then(ok=>{if(ok)toast('已清空，替换前数据可在设置页恢复')});
 });
 
 registerAction('export-checkpoint',(t,oid)=>{
@@ -393,7 +401,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;
   const act=t.dataset.act,oid=+t.dataset.oid||0;
   if(!Store.ready||Store.busy){toast('正在读写数据，请稍候');return}
-  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','crop-cancel','crop-use','shot-pick','nav-place','remind-open','expect-open'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
+  if(Store.blocked&&!['retry-storage','export-json','export-csv','export-db','export-checkpoint','tab','open-settings','close-settings','open','close-sheet','privacy','app-store-soon','goto-collect','chip','bucket','period','day','mnav','mtoday','share','share-confirm','open-schema','open-account','acc-filter','acc-pick','prov-pick','pal-pick','copy-account','assign-open','pick-avatar','crop-cancel','crop-use','shot-pick','nav-place','remind-open','expect-open'].includes(act)){toast('为保护原数据，写入已暂停，请先重试读取');return}
   refreshClock();
   const fn=ACTIONS[act];
   if(fn){

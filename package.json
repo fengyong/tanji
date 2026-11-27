@@ -1,7 +1,7 @@
 {
-  "name": "tanji-native",
+  "name": "tanji-native-hg",
   "version": "0.1.0",
-  "description": "探记 TanJi iOS App —— Capacitor 壳复用 Web UI,SQLite 本机存储",
+  "description": "探记 HG —— 面向探店创作者的独立行程、交付与收款 App",
   "private": true,
   "scripts": {
     "build:plugins": "esbuild src/cap-plugins.js --bundle --format=iife --outfile=www/cap-plugins.js --minify",

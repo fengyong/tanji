@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>探记 TanJi · 产品设计文档 v0.6</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --brand:#FF6A2B;--brand-soft:#FFF1E9;--ink:#1C1C1E;--ink2:#3C3C43;--sub:#8E8E93;
+    --line:#E7E7EC;--bg:#F2F2F7;--green:#2FA05F;--green-soft:#EAF9EE;--red:#E8352A;
+    --red-soft:#FFEBEA;--blue:#3B7DD8;--blue-soft:#EAF2FF;--orange:#E8850A;--orange-soft:#FFF5E6;
+    --purple:#8B6BC4;--purple-soft:#F4EBFC;--r:16px;--r-lg:22px;
+    --doc:#FFFFFF;--docbg:#F6F6F9;--code:#1E1E24;
+  }
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:var(--docbg);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased;
+  }
+  /* ============ 骨架 ============ */
+  .layout{display:grid;grid-template-columns:252px minmax(0,1fr)}
+  aside{
+    position:sticky;top:0;height:100vh;overflow:auto;background:#FFF;border-right:1px solid var(--line);
+    padding:26px 18px 40px;font-size:13px;
+  }
+  .brand-mark{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+  .brand-dot{width:26px;height:26px;border-radius:9px;background:linear-gradient(135deg,#FF8B55,var(--brand));
+    box-shadow:0 4px 12px rgba(255,106,43,.35);display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:800;font-size:13px}
+  .brand-name{font-weight:800;font-size:15px;letter-spacing:.2px}
+  .brand-sub{font-size:11.5px;color:var(--sub);margin-bottom:22px;padding-left:35px}
+  nav a{
+    display:flex;gap:8px;align-items:baseline;padding:6.5px 10px;border-radius:9px;color:#5B5B64;
+    text-decoration:none;font-weight:600;transition:.15s;line-height:1.35;
+  }
+  nav a .n{font-size:10.5px;color:#B9B9C0;font-variant-numeric:tabular-nums;min-width:17px}
+  nav a:hover{background:#F7F7FA;color:var(--ink)}
+  nav a.on{background:var(--brand-soft);color:#C64E15}
+  nav a.on .n{color:#E8855A}
+  nav .grp{font-size:10.5px;font-weight:800;letter-spacing:.12em;color:#B0B0B8;padding:16px 10px 5px;text-transform:uppercase}
+  main{padding:0 0 140px;min-width:0}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 40px}
+
+  /* ============ 封面 ============ */
+  .hero{
+    background:linear-gradient(150deg,#221F2E 0%,#2B2233 40%,#4A2A24 100%);
+    color:#fff;padding:64px 0 56px;position:relative;overflow:hidden;
+  }
+  .hero::after{
+    content:"";position:absolute;inset:auto -160px -260px auto;width:620px;height:620px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%,rgba(255,106,43,.55),rgba(255,106,43,0) 62%);
+  }
+  .hero::before{
+    content:"";position:absolute;left:-120px;top:-180px;width:460px;height:460px;border-radius:50%;
+    background:radial-gradient(circle,rgba(120,110,255,.24),rgba(120,110,255,0) 65%);
+  }
+  .hero .wrap{position:relative;z-index:2}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.14em;
+    text-transform:uppercase;color:#FFB894;margin-bottom:18px}
+  .kicker i{display:block;width:22px;height:1px;background:#FFB894;opacity:.6}
+  h1.title{font-size:44px;line-height:1.16;font-weight:800;letter-spacing:-.5px;max-width:760px}
+  h1.title em{font-style:normal;color:#FFA06B}
+  .lede{margin-top:16px;font-size:15.5px;line-height:1.85;color:rgba(255,255,255,.76);max-width:660px}
+  .meta{display:flex;flex-wrap:wrap;gap:9px;margin-top:26px}
+  .meta span{font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:20px;
+    background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.88)}
+
+  /* ============ 章节 ============ */
+  section{padding-top:64px;scroll-margin-top:12px}
+  .sec-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:8px}
+  .sec-no{font-size:12px;font-weight:800;color:#fff;background:var(--ink);border-radius:8px;
+    padding:3px 8px;letter-spacing:.05em;flex-shrink:0;margin-top:4px}
+  h2{font-size:26px;font-weight:800;letter-spacing:-.2px;line-height:1.3}
+  h2 .en{font-size:12px;font-weight:700;color:#B9B9C0;letter-spacing:.1em;margin-left:8px;vertical-align:3px}
+  .sec-desc{font-size:14px;color:#6D6D75;margin:10px 0 26px;max-width:820px}
+  h3{font-size:17px;font-weight:800;margin:34px 0 12px;display:flex;align-items:center;gap:8px}
+  h3::before{content:"";width:3px;height:15px;border-radius:2px;background:var(--brand)}
+  h4{font-size:14px;font-weight:800;margin:20px 0 8px;color:var(--ink2)}
+  p{font-size:14px;color:#4A4A52;margin-bottom:12px;max-width:860px}
+  p.strong{color:var(--ink);font-weight:600}
+  ul,ol{margin:0 0 14px 20px;font-size:14px;color:#4A4A52}
+  li{margin-bottom:7px}
+  li b{color:var(--ink)}
+  code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:#EFEFF4;
+    padding:1.5px 5px;border-radius:5px;color:#B23E0C}
+  .hl{background:linear-gradient(180deg,transparent 62%,rgba(255,106,43,.22) 62%);font-weight:700;color:var(--ink)}
+
+  /* ============ 卡片/网格 ============ */
+  .card{background:#fff;border-radius:var(--r-lg);padding:24px 26px;border:1px solid #EEEEF3;
+    box-shadow:0 1px 2px rgba(20,20,40,.04)}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+
+  .pillar{background:#fff;border-radius:var(--r);padding:18px 20px;border:1px solid #EEEEF3;position:relative;overflow:hidden}
+  .pillar::after{content:"";position:absolute;right:-40px;top:-40px;width:110px;height:110px;border-radius:50%;
+    background:var(--tint,#FFF1E9)}
+  .pillar .pi{position:relative;z-index:1;font-size:20px;margin-bottom:8px}
+  .pillar h5{position:relative;z-index:1;font-size:14.5px;font-weight:800;margin-bottom:5px}
+  .pillar p{position:relative;z-index:1;font-size:12.5px;line-height:1.65;color:#6D6D75;margin:0}
+
+  .kv{display:grid;grid-template-columns:132px 1fr;gap:10px 16px;font-size:13.5px}
+  .kv dt{color:var(--sub);font-weight:600}
+  .kv dd{color:var(--ink2)}
+
+  /* ============ 表格 ============ */
+  .tblwrap{overflow-x:auto;border:1px solid #ECECF1;border-radius:var(--r);background:#fff;margin-bottom:18px}
+  table{width:100%;border-collapse:collapse;font-size:12.8px;min-width:620px}
+  th{background:#FAFAFC;text-align:left;font-weight:800;color:#5B5B64;padding:10px 13px;
+    border-bottom:1px solid #ECECF1;white-space:nowrap;font-size:11.8px;letter-spacing:.02em}
+  td{padding:10px 13px;border-bottom:.5px solid #F0F0F5;vertical-align:top;color:#43434B;line-height:1.6}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#FCFCFE}
+  td b{color:var(--ink)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;white-space:nowrap}
+  .t-p0{background:var(--red-soft);color:#B72116}
+  .t-p1{background:var(--orange-soft);color:#A55F00}
+  .t-p2{background:#EFEFF3;color:#6E6E76}
+  .t-ok{background:var(--green-soft);color:#1F7A46}
+  .t-no{background:#F1F1F5;color:#8A8A92}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ============ 状态流 ============ */
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0 6px}
+  .node{font-size:12.5px;font-weight:800;padding:7px 14px;border-radius:10px;background:#fff;
+    border:1.5px solid var(--line);color:#4A4A52;white-space:nowrap}
+  .node.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .node.warm{border-color:#FFC6A8;background:var(--brand-soft);color:#B4470F}
+  .ar{color:#C6C6CD;font-weight:800;font-size:13px}
+  .flow-note{font-size:12px;color:var(--sub);margin-top:6px}
+
+  /* ============ 时间线 ============ */
+  .timeline{position:relative;margin:16px 0 8px;padding-left:26px}
+  .timeline::before{content:"";position:absolute;left:8px;top:6px;bottom:8px;width:2px;background:#EDEDF2}
+  .tl{position:relative;margin-bottom:16px}
+  .tl::before{content:"";position:absolute;left:-22px;top:5px;width:9px;height:9px;border-radius:50%;
+    background:#fff;border:2.5px solid var(--brand)}
+  .tl.done::before{background:var(--brand)}
+  .tl h5{font-size:13.5px;font-weight:800;margin-bottom:3px}
+  .tl p{font-size:12.5px;margin:0;color:#6D6D75}
+
+  /* ============ 引用/提示 ============ */
+  .callout{border-left:3px solid var(--brand);background:#FFF8F4;padding:14px 18px;border-radius:0 12px 12px 0;
+    font-size:13px;color:#7A4526;margin:16px 0;line-height:1.75}
+  .callout b{color:#8A3A0F}
+  .callout.blue{border-color:var(--blue);background:#F5F9FF;color:#2C4E7C}
+  .callout.blue b{color:#1E3B60}
+  .callout.gray{border-color:#C6C6CD;background:#FAFAFC;color:#5B5B64}
+  .callout.gray b{color:#3C3C43}
+
+  /* ============ 原型 ============ */
+  .proto-block{margin:26px 0 10px}
+  .proto-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .proto-id{font-size:11px;font-weight:800;letter-spacing:.08em;color:#C64E15;background:var(--brand-soft);
+    padding:3px 8px;border-radius:6px}
+  .proto-title{font-size:15px;font-weight:800}
+  .proto-for{font-size:12px;color:var(--sub)}
+  .proto{display:grid;grid-template-columns:316px minmax(0,1fr);gap:30px;align-items:start;
+    padding:22px;background:#fff;border:1px solid #ECECF1;border-radius:var(--r-lg)}
+  .proto.rev{grid-template-columns:minmax(0,1fr) 316px}
+  .proto.rev .screen-wrap{order:2}
+  .proto.rev .notes{order:1}
+  @media (max-width:900px){
+    .proto,.proto.rev{grid-template-columns:1fr;gap:22px}
+    .proto.rev .screen-wrap{order:0}
+  }
+  .screen-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .screen{
+    width:300px;height:562px;background:var(--bg);border:9px solid #16161A;border-radius:38px;
+    overflow:hidden;position:relative;box-shadow:0 22px 46px rgba(28,28,40,.18),0 2px 6px rgba(0,0,0,.08);
+    font-size:10px;line-height:1.35;
+  }
+  .screen::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:5px;
+    width:78px;height:3.5px;border-radius:3px;background:#16161A;opacity:.85}
+  .scr-status{height:22px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 16px;font-size:8.5px;font-weight:700;color:#111}
+  .scr-body{position:absolute;inset:22px 0 34px;overflow:hidden;padding:8px 11px 0}
+  /* 内容超出时的渐隐:说明「下面还有,可滚动」,避免看起来像被硬切 */
+  .scr-body::after{content:"";position:absolute;left:0;right:0;bottom:0;height:18px;z-index:3;
+    background:linear-gradient(rgba(242,242,247,0),rgba(242,242,247,.92));pointer-events:none}
+  .scr-body.flush{padding:0}
+  /* 弹层背后的页面底纹:避免遮罩下面是一片空白 */
+  .m-back{position:absolute;inset:0;padding:10px 11px;opacity:.8}
+  .scr-tab{position:absolute;left:0;right:0;bottom:0;height:34px;background:rgba(250,250,252,.94);
+    border-top:.5px solid rgba(0,0,0,.1);display:flex;padding-bottom:5px}
+  .scr-tab i{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+    font-style:normal;font-size:7px;color:#9A9AA1;font-weight:600;position:relative}
+  .scr-tab i b{font-size:11px;line-height:1;font-weight:700;opacity:.85}
+  .scr-tab i.on{color:var(--brand)}
+  .scr-tab i .badge{position:absolute;top:0;right:16px;background:#FF3B30;color:#fff;font-size:6.5px;
+    min-width:10px;height:10px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+    padding:0 2px;font-weight:800}
+  .m-eyebrow{font-size:7.5px;font-weight:700;color:var(--sub);letter-spacing:.02em}
+  .m-h1{font-size:19px;font-weight:800;letter-spacing:.2px;line-height:1.1;margin-top:1px}
+  .m-hsub{font-size:7.5px;color:var(--sub);margin-top:3px}
+  .m-top{display:flex;align-items:flex-end;justify-content:space-between;gap:6px;margin-bottom:6px}
+  .m-pill{background:var(--brand);color:#fff;font-size:7.5px;font-weight:800;padding:4px 8px;border-radius:12px;
+    box-shadow:0 2px 6px rgba(255,106,43,.32);white-space:nowrap}
+  .m-iconbtn{width:19px;height:19px;border-radius:10px;background:#fff;display:flex;align-items:center;
+    justify-content:center;font-size:8px;color:#55555C;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+  .m-chipbar{display:flex;gap:4px;margin:0 0 7px}
+  .m-cchip{font-size:6.8px;font-weight:700;padding:2.5px 6px;border-radius:8px;background:#F1F1F5;color:#3F3F46;
+    white-space:nowrap}
+  .m-cchip.on{background:var(--brand);color:#fff}
+  .m-card{background:#fff;border-radius:10px;padding:7px;box-shadow:0 1px 2px rgba(20,20,40,.05);margin-bottom:7px}
+  .m-card.tight{padding:3px 7px}
+  .m-alert{border-radius:10px;padding:7px 8px;color:#fff;display:flex;gap:6px;align-items:center;
+    background:linear-gradient(120deg,#FF5A45,#E8352A);box-shadow:0 4px 10px rgba(232,53,42,.28);margin-bottom:8px}
+  .m-alert.calm{background:linear-gradient(120deg,#2ECD64,#1FAF52);box-shadow:0 4px 10px rgba(31,175,82,.24)}
+  .m-alert.amber{background:linear-gradient(120deg,#FFB340,#F09A1F);box-shadow:0 4px 10px rgba(240,154,31,.24)}
+  .m-alert .t{font-size:8.5px;font-weight:800}
+  .m-alert .s{font-size:6.6px;opacity:.93;margin-top:1px}
+  .m-sec{display:flex;justify-content:space-between;align-items:center;font-size:7.2px;font-weight:800;
+    color:var(--sub);margin:8px 1px 4px}
+  .m-sec .more{color:var(--brand);font-weight:700}
+  .m-row{display:flex;align-items:center;gap:5px;padding:5px 0;border-bottom:.4px solid var(--line);position:relative}
+  .m-row:last-child{border-bottom:none}
+  .m-row.acc::before{content:"";position:absolute;left:-5px;top:4px;bottom:4px;width:2px;border-radius:2px;background:#E85D1F}
+  .m-row.acc2::before{content:"";position:absolute;left:-5px;top:4px;bottom:4px;width:2px;border-radius:2px;background:#3E7BFA}
+  .m-row.dim{opacity:.55}
+  .m-time{width:26px;flex-shrink:0;text-align:center}
+  .m-time b{font-size:9px;font-weight:800;color:var(--brand);display:block}
+  .m-time span{font-size:5.8px;color:var(--sub)}
+  .m-main{flex:1;min-width:0}
+  .m-name{font-size:8.6px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-sub{font-size:6.4px;color:var(--sub);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-chips{display:flex;gap:2.5px;margin-top:3px;flex-wrap:wrap}
+  .m-chip{font-size:5.9px;font-weight:700;padding:1.5px 4px;border-radius:6px;white-space:nowrap}
+  .c-b{background:var(--blue-soft);color:var(--blue)}
+  .c-p{background:var(--purple-soft);color:var(--purple)}
+  .c-o{background:var(--orange-soft);color:#C97A08}
+  .c-g{background:var(--green-soft);color:#1F7A46}
+  .c-r{background:var(--red-soft);color:#C02A20}
+  .c-gray{background:#EFEFF3;color:#7A7A82}
+  .c-ink{background:#1C1C1E;color:#fff}
+  .m-side{text-align:right;flex-shrink:0}
+  .m-price{font-size:8.8px;font-weight:800;font-variant-numeric:tabular-nums}
+  .m-side .m-sub{text-align:right}
+  .m-mini{font-size:6.4px;font-weight:800;padding:2.5px 5px;border-radius:8px;background:var(--brand-soft);
+    color:#C64E15;flex-shrink:0}
+  .m-mini.g{background:var(--green-soft);color:#1F7A46}
+  .m-grid2{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  .m-miniCard{background:#fff;border-radius:8px;padding:6px 7px;box-shadow:0 1px 2px rgba(20,20,40,.05)}
+  .m-miniCard .v{font-size:10px;font-weight:800;letter-spacing:.1px}
+  .m-miniCard .l{font-size:6.2px;color:var(--sub);margin-top:1px}
+  .m-search{display:flex;align-items:center;gap:4px;background:#E7E7ED;border-radius:7px;padding:4px 7px;
+    font-size:7px;color:#A0A0A8;margin:0 0 6px}
+  .m-fchips{display:flex;gap:4px;margin-bottom:6px;overflow:hidden}
+  .m-fchip{font-size:6.4px;font-weight:700;background:#fff;color:#5C5C64;padding:3px 6px;border-radius:9px;
+    white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .m-fchip.on{background:var(--ink);color:#fff}
+  .m-fchip b{font-weight:800;opacity:.75}
+  .m-swipe{position:relative;background:#fff;border-radius:0;overflow:hidden;margin-bottom:0}
+  .m-swipe .act{position:absolute;right:0;top:0;bottom:0;width:38px;background:var(--brand-soft);color:#C64E15;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:5.8px;font-weight:800}
+  .m-swipe .track{background:#fff;position:relative;z-index:1;transform:translateX(-38px);padding-left:38px}
+  .m-seg{display:flex;background:#E2E2E8;border-radius:8px;padding:2px;gap:2px;margin-bottom:7px}
+  .m-seg i{flex:1;text-align:center;font-size:6.6px;font-weight:700;color:#6D6D75;padding:3px 0;border-radius:6px;font-style:normal}
+  .m-seg i.on{background:#fff;color:#111;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .m-total{font-size:19px;font-weight:800;letter-spacing:.2px;margin:1px 0 3px}
+  .m-bars{display:flex;align-items:flex-end;gap:2px;height:42px;margin-top:6px}
+  .m-bars i{flex:1;background:linear-gradient(180deg,#FF8B55,var(--brand));border-radius:2px 2px 1px 1px;display:block}
+  .m-bars i.zero{background:#E4E4EA}
+  .m-bx{display:flex;justify-content:space-between;font-size:5.8px;color:var(--sub);margin-top:3px}
+  .m-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-top:2px}
+  .m-cal i{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:6.6px;font-weight:700;color:#3C3C43;border-radius:5px;font-style:normal;position:relative;gap:1px}
+  .m-cal i.mute{color:transparent}
+  .m-cal i.sel{background:var(--ink);color:#fff}
+  .m-cal i.today{color:var(--brand)}
+  .m-cal i .d{display:flex;gap:1px}
+  .m-cal i .d u{width:2px;height:2px;border-radius:50%;background:var(--brand);display:block}
+  .m-cal i .bd{position:absolute;top:0;right:1px;font-size:5px}
+  .m-n7{display:flex;gap:4px;overflow:hidden;margin:4px 0 6px}
+  .m-n7 i{flex-shrink:0;width:44px;background:#fff;border-radius:8px;padding:4px 2px;text-align:center;
+    box-shadow:0 1px 2px rgba(20,20,40,.06);font-style:normal}
+  .m-n7 i.on{background:var(--ink)}
+  .m-n7 i .w{font-size:5.6px;color:var(--sub);font-weight:700}
+  .m-n7 i .d{font-size:6.8px;font-weight:800;margin-top:1px}
+  .m-n7 i .c{font-size:5.6px;color:var(--sub);margin-top:1px}
+  .m-n7 i.on .w,.m-n7 i.on .c{color:rgba(255,255,255,.72)}
+  .m-n7 i.on .d{color:#fff}
+  .m-menu{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:.4px solid var(--line)}
+  .m-menu:last-child{border-bottom:none}
+  .m-mic{width:15px;height:15px;border-radius:5px;background:var(--blue-soft);color:var(--blue);
+    display:flex;align-items:center;justify-content:center;font-size:7px;flex-shrink:0}
+  .m-mt{flex:1;min-width:0}
+  .m-mn{font-size:7.4px;font-weight:700}
+  .m-ms{font-size:5.8px;color:var(--sub);line-height:1.35}
+  .m-sheet{position:absolute;left:0;right:0;bottom:0;top:0;background:rgba(15,15,25,.34);display:flex;
+    align-items:flex-end;z-index:5}
+  .m-sheet-in{background:#fff;border-radius:16px 16px 0 0;width:100%;padding:5px 10px 8px;max-height:96%;
+    display:flex;flex-direction:column}
+  .m-grab{width:22px;height:3px;border-radius:2px;background:#DDDDDF;margin:2px auto 5px}
+  .m-shead{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+  .m-stitle{font-size:10px;font-weight:800}
+  .m-close{width:14px;height:14px;border-radius:50%;background:#F1F1F5;color:#7A7A82;font-size:8px;
+    display:flex;align-items:center;justify-content:center}
+  .m-dtitle{font-size:12.5px;font-weight:800;line-height:1.25}
+  .m-frow{display:flex;align-items:center;gap:6px;padding:4.5px 0;border-bottom:.4px solid var(--line)}
+  .m-frow:last-child{border-bottom:none}
+  .m-frow label{font-size:7px;font-weight:700;color:#3C3C43;width:44px;flex-shrink:0}
+  .m-frow .val{flex:1;text-align:right;font-size:7px;color:#1C1C1E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .m-frow .val.ph{color:#B9B9C0}
+  .m-accopt{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:8px;
+    padding:4px 5px;margin-bottom:3px}
+  .m-accopt.on{border-color:#E85D1F;background:#FFF3EC}
+  .m-dot{width:9px;height:9px;border-radius:50%;border:1.4px solid #C6C6CD;background:#fff;flex-shrink:0}
+  .m-accopt.on .m-dot{border-color:var(--brand);position:relative}
+  .m-accopt.on .m-dot::after{content:"";position:absolute;inset:1.6px;border-radius:50%;background:var(--brand)}
+  .m-av{width:13px;height:13px;border-radius:5px;background:#FFF3EC;color:#E85D1F;font-size:6px;
+    font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .m-av.b{background:#EEF4FF;color:#3E7BFA}
+  .m-banner{background:#FFF7E6;color:#B26B00;border-radius:7px;padding:5px 6px;font-size:6.2px;
+    font-weight:700;line-height:1.5;margin-top:4px}
+  .m-banner b{color:#8F5600}
+  .m-banner.red{background:var(--red-soft);color:#B72116;display:flex;gap:4px}
+  .m-foot{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:.5px solid #F1F1F5;
+    padding:6px 10px;box-shadow:0 -4px 10px rgba(120,100,80,.05)}
+  .m-btn{border-radius:8px;padding:6px;text-align:center;font-size:8px;font-weight:800}
+  .m-btn.primary{background:var(--brand);color:#fff;box-shadow:0 3px 8px rgba(255,106,43,.3)}
+  .m-btn.ghost{background:#F1F1F5;color:#3A3A40}
+  .m-btn.tint{background:var(--brand-soft);color:#C64E15}
+  .m-btn.pay{background:#fff;color:#1F7A46;border:1.2px solid rgba(47,160,95,.4)}
+  .m-btn.tintb{background:var(--blue-soft);color:var(--blue)}
+  .m-btn2{display:flex;gap:4px}
+  .m-btn2 .m-btn{flex:1}
+  .m-mile{display:flex;position:relative;margin:8px 0 2px}
+  .m-mile::before{content:"";position:absolute;top:9px;left:13%;right:13%;height:1.5px;background:#E6E6EB;border-radius:2px}
+  .m-mile::after{content:"";position:absolute;top:9px;left:13%;width:44%;height:1.5px;background:var(--brand);border-radius:2px}
+  .m-ms{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;z-index:1}
+  .m-md{width:14px;height:14px;border-radius:50%;background:#EDEDF2;color:#B6B6BE;display:flex;align-items:center;
+    justify-content:center;font-size:6px;font-weight:800;border:1.5px solid #EDEDF2}
+  .m-ms.big .m-md{width:18px;height:18px;font-size:7px}
+  .m-ms.done .m-md{background:var(--mc,#FF6A2B);border-color:var(--mc,#FF6A2B);color:#fff}
+  .m-ms.now .m-md{background:#fff;color:var(--mc,#FF6A2B);border-color:var(--mc,#FF6A2B);
+    box-shadow:0 0 0 2.5px var(--msoft,#FFF1E9)}
+  .m-ms .lb{font-size:5.6px;font-weight:700;color:#55555C}
+  .m-ms.done .lb{color:var(--mc,#FF6A2B)}
+  .m-ms .tm{font-size:4.8px;color:var(--sub);height:6px}
+  .m-infogrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:7px;
+    overflow:hidden;margin-top:6px}
+  .m-ig{background:#fff;padding:4px 5px}
+  .m-ig .k{font-size:5.4px;color:var(--sub)}
+  .m-ig .v{font-size:6.6px;font-weight:700;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-rline{display:flex;gap:4px;font-size:6px;padding:2px 0;border-top:.4px solid var(--line);line-height:1.45}
+  .m-rline:first-of-type{border-top:none}
+  .m-rline .rt{color:var(--sub);flex-shrink:0}
+  .m-paybig{text-align:center;padding:2px 0 4px}
+  .m-paybig .n{font-size:8px;font-weight:800}
+  .m-paybig .amt{font-size:22px;font-weight:800;letter-spacing:-.5px;margin:2px 0 1px}
+  .m-paybig .s{font-size:6px;color:var(--sub)}
+  .m-mchips{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin:4px 0}
+  .m-mchip{font-size:6.8px;font-weight:800;padding:3px 7px;border-radius:9px;border:1px solid #E2E2E8;color:#3A3A40;background:#fff}
+  .m-mchip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .m-empty{text-align:center;color:var(--sub);font-size:6.6px;padding:12px 0;line-height:1.7}
+  .shr{background:linear-gradient(160deg,#ECEAF3,#E4E8EF);border-radius:14px;padding:8px;width:258px}
+  .shr-head{background:linear-gradient(120deg,#FF8A3D,#E8352A);border-radius:10px;padding:10px 11px 14px;color:#fff}
+  .shr-head .b{font-size:6.4px;font-weight:700;opacity:.9}
+  .shr-head .t{font-size:13px;font-weight:800;margin-top:4px}
+  .shr-head .s{font-size:6.4px;opacity:.9;margin-top:3px}
+  .shr-body{margin-top:-6px}
+  .shr-row{background:#fff;border-radius:8px;padding:6px 8px;margin-top:5px;display:flex;align-items:center;gap:8px}
+  .shr-row .tm{font-size:8.4px;font-weight:800;color:var(--brand);width:30px}
+  .shr-row .nm{font-size:7.4px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .shr-row .st{font-size:6px;color:var(--sub)}
+  .shr-foot{font-size:5.6px;color:#B9B9C0;padding:6px 3px 1px}
+
+  /* 标注 */
+  .notes{counter-reset:n;list-style:none;margin:0;padding:0}
+  .notes li{counter-increment:n;position:relative;padding-left:24px;font-size:12.6px;color:#4A4A52;
+    line-height:1.72;margin-bottom:9px}
+  .notes li::before{content:counter(n);position:absolute;left:0;top:2px;width:16px;height:16px;border-radius:50%;
+    background:var(--brand-soft);color:#C64E15;font-size:10px;font-weight:800;display:flex;
+    align-items:center;justify-content:center}
+  .notes li b{color:var(--ink);font-weight:800}
+  .notes li code{font-size:11px}
+  .notes .ta{display:block;margin-top:3px;font-size:11.5px;color:var(--sub)}
+
+  /* 旅程 */
+  .journey{background:#fff;border:1px solid #ECECF1;border-radius:var(--r-lg);padding:22px 24px;margin:18px 0}
+  .jh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .jstep{font-size:10.5px;font-weight:800;letter-spacing:.06em;color:#fff;background:var(--ink);
+    padding:2.5px 8px;border-radius:6px}
+  .jh h4{margin:0;font-size:15px}
+  .jgoal{font-size:12.5px;color:var(--sub);margin-left:auto}
+  .jgrid{display:grid;grid-template-columns:1.15fr 1fr;gap:22px}
+  @media (max-width:820px){.jgrid{grid-template-columns:1fr}}
+  .steps{list-style:none;margin:0;padding:0;counter-reset:s}
+  .steps li{counter-increment:s;position:relative;padding-left:27px;font-size:13px;margin-bottom:10px;
+    color:#4A4A52;line-height:1.65}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:18px;height:18px;border-radius:6px;
+    background:var(--ink);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .steps li b{color:var(--ink)}
+  .steps li .fb{display:block;font-size:11.5px;color:var(--sub);margin-top:2px}
+  .edges{background:#FAFAFC;border:1px dashed #E2E2E8;border-radius:12px;padding:14px 16px}
+  .edges h5{font-size:12px;font-weight:800;color:#5B5B64;margin-bottom:8px;letter-spacing:.04em}
+  .edges ul{margin:0 0 0 16px;font-size:12px;color:#6D6D75}
+  .edges li{margin-bottom:5px}
+  .edges li b{color:#43434B}
+
+  /* 附录折叠 */
+  details{background:#fff;border:1px solid #ECECF1;border-radius:var(--r);padding:14px 18px;margin-bottom:12px}
+  details summary{cursor:pointer;font-size:13.5px;font-weight:800;color:var(--ink);list-style:none;
+    display:flex;align-items:center;gap:8px}
+  details summary::-webkit-details-marker{display:none}
+  details summary::before{content:"▸";color:var(--brand);font-size:11px;transition:.2s}
+  details[open] summary::before{transform:rotate(90deg)}
+  details .dbody{padding-top:12px;font-size:13px;color:#4A4A52}
+  details .dbody ul{margin-left:18px}
+
+  footer{border-top:1px solid var(--line);margin-top:60px;padding:26px 0 10px;font-size:12px;color:var(--sub);
+    display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+
+  @media print{
+    aside{display:none} .layout{grid-template-columns:1fr} main{padding:0}
+    section{page-break-inside:avoid} .proto{page-break-inside:avoid}
+  }
+  @media (max-width:760px){
+    .layout{grid-template-columns:1fr}
+    aside{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);padding:16px}
+    nav{display:flex;flex-wrap:wrap;gap:2px}
+    nav .grp{display:none}
+    .wrap{padding:0 18px}
+    h1.title{font-size:31px}
+    .hero{padding:40px 0 36px}
+    h2{font-size:22px}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<!-- ================= 侧栏 ================= -->
+<aside>
+  <div class="brand-mark"><span class="brand-dot">探</span><span class="brand-name">探记 TanJi</span></div>
+  <div class="brand-sub">产品设计文档 · v0.6</div>
+  <nav id="nav">
+    <div class="grp">理解产品</div>
+    <a href="#s1"><span class="n">01</span>产品概览</a>
+    <a href="#s2"><span class="n">02</span>用户与场景</a>
+    <a href="#s3"><span class="n">03</span>需求清单</a>
+    <div class="grp">模型与结构</div>
+    <a href="#s4"><span class="n">04</span>信息架构与导航</a>
+    <a href="#s5"><span class="n">05</span>状态模型与业务口径</a>
+    <div class="grp">原型与交互</div>
+    <a href="#s6"><span class="n">06</span>核心旅程</a>
+    <a href="#s7"><span class="n">07</span>界面原型（9 组）</a>
+    <a href="#s8"><span class="n">08</span>交互规格表</a>
+    <div class="grp">系统与运营</div>
+    <a href="#s9"><span class="n">09</span>提醒与通知</a>
+    <a href="#s10"><span class="n">10</span>数据与备份</a>
+    <a href="#s11"><span class="n">11</span>隐私与合规</a>
+    <a href="#s12"><span class="n">12</span>非功能与体验原则</a>
+    <a href="#s13"><span class="n">13</span>度量与版本路线</a>
+    <a href="#s14"><span class="n">14</span>附录</a>
+  </nav>
+</aside>
+
+<main>
+<!-- ================= 封面 ================= -->
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker"><i></i>Product Design Doc · Reverse Engineered</div>
+    <h1 class="title">探记 TanJi<br/><em>探店达人的行程与收款</em></h1>
+    <p class="lede">
+      一个纯本地的 iOS 工具：把「接单—排期—到店拍摄—出片送审—发布—收款—催收」这条原本散落在微信聊天、备忘录和
+      Excel 里的流水线，收进一个人一天能真正用起来的 App。本文件从已实现代码反推产品意图，还原信息架构、
+      状态机、交互规则与界面原型。
+    </p>
+    <div class="meta">
+      <span>文档版本 v1.0</span>
+      <span>对应产品 v0.6（多账号版）</span>
+      <span>2026-11-24</span>
+      <span>平台：iOS 原生 / Web PWA</span>
+      <span>形态：纯本地 · 无服务端 · 买断制</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ================= 01 ================= -->
+<section id="s1">
+  <div class="sec-head"><span class="sec-no">01</span><h2>产品概览<span class="en">OVERVIEW</span></h2></div>
+  <p class="sec-desc">先回答三个问题：这是给谁做的、替掉了什么、凭什么比现有做法好。</p>
+
+  <div class="grid g3" style="margin-bottom:22px">
+    <div class="pillar" style="--tint:#FFF1E9">
+      <div class="pi">📅</div>
+      <h5>一句话定位</h5>
+      <p>探店达人自己的「行程表 + 交付看板 + 应收账款」，一个 App 管完从接单到回款的全流程。</p>
+    </div>
+    <div class="pillar" style="--tint:#EAF2FF">
+      <div class="pi">🎯</div>
+      <h5>要解决的三件事</h5>
+      <p>档期撞车与漏拍、片子出没出齐说不清、尾款拖到不好意思催。</p>
+    </div>
+    <div class="pillar" style="--tint:#EAF9EE">
+      <div class="pi">🔒</div>
+      <h5>产品底线</h5>
+      <p>数据只存本机、不上传、不注册、不联网也能用；随手能导出带走。</p>
+    </div>
+  </div>
+
+  <h3>1.1 它替掉了什么</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:23%">现有做法</th><th>具体痛点</th><th style="width:38%">本产品的对应解法</th></tr></thead>
+      <tbody>
+        <tr><td><b>微信聊天记录</b></td><td>接单信息埋在对话里，翻不到；报价、要求、地点各说一半</td><td>一次录入结构化成订单：商家/地点/组队/出片要求/总价定金/联系方式，全字段可搜索</td></tr>
+        <tr><td><b>手机日历</b></td><td>只记得「几点去哪」，不记得这单多少钱、收没收、片发没发</td><td>日历与金额、状态、收款同源；同一天多条自动打点，忙日/爆单/千元日给勋章</td></tr>
+        <tr><td><b>备忘录/脑记</b></td><td>「某某店尾款还没给」→ 想起时已经欠了两个月</td><td>账期从实际拍摄日自动起算，超阈值进逾期池，每天 09:00 汇总提醒</td></tr>
+        <tr><td><b>Excel 对账</b></td><td>月末手敲一遍，漏单、错行、版本混乱</td><td>打开即统计；CSV 29 列 / JSON 备份 / 真 .db 三种导出，随时交给会计或自己归档</td></tr>
+        <tr><td><b>多账号切换</b></td><td>手上带 2–3 个达人号，报名资料每次重打，收入混在一起</td><td>账号作为一等对象：订单挂账号、五页（首页/行程/订单/收款/统计）可合并或拆分查看、资料一键拷贝去报名</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>1.2 价值主张：三条线各自闭环</h3>
+  <div class="grid g3">
+    <div class="card">
+      <h4 style="margin-top:0">① 日程线 —— 不撞单</h4>
+      <p style="font-size:13px">月历 + 未来 7 天 + 当日清单三层视图；新建时同日 ±2 小时给冲突提示（带地点，只提示不拦截）；左右滑动切日。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">② 交付线 —— 不漏片</h4>
+      <p style="font-size:13px">拍摄 → 提审 → 副片/正片 → 发布五节点；按单配置正/副片要求，不需要的节点自动消失；超 24h 未出齐红角标 + 本地通知。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">③ 资金线 —— 不少钱</h4>
+      <p style="font-size:13px">定金/尾款双轨；私收与平台结算分开处理；逾期分桶（≤7 / 8–30 / 30+）；催收痕迹与 1/3/7 天备忘；每笔记账可撤销。</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>产品判断：</b>这是一个「个人作业系统」，不是 SaaS。因此所有设计都服从两条约束 ——
+    <b>零配置上手</b>（不建团队、不配流程、不登录）与<b>零信任外部</b>（数据不离机）。
+    任何需要服务端才能成立的功能（多人协作、云同步、平台账单直连）都被有意排除在 v0.6 之外。
+  </div>
+
+  <h3>1.3 已实现能力矩阵</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:20%">模块</th><th>能力</th><th style="width:12%">状态</th><th style="width:22%">实现归属</th></tr></thead>
+      <tbody>
+        <tr><td><b>订单</b></td><td>11 字段录入、编辑、复制、删除；行内推进；全字段搜索</td><td><span class="tag t-ok">已上线</span></td><td><code>order-forms.js</code> / <code>views/orders.js</code></td></tr>
+        <tr><td><b>行程</b></td><td>月历（翻月/回今天/勋章）、未来 7 天、整月时间线、左右滑切日、当日分享图</td><td><span class="tag t-ok">已上线</span></td><td><code>views/trip.js</code> / <code>share-image.js</code></td></tr>
+        <tr><td><b>状态机</b></td><td>工作线四态 + 资金线四态 + 五里程碑（含前置依赖与截断清除）</td><td><span class="tag t-ok">已上线</span></td><td><code>www/logic.js</code>（规则唯一真源）</td></tr>
+        <tr><td><b>收款</b></td><td>定金/尾款记账（仅记录渠道）、撤销、逾期分桶、平台预计到账</td><td><span class="tag t-ok">已上线</span></td><td><code>order-actions.js</code> / <code>views/pay.js</code></td></tr>
+        <tr><td><b>催收</b></td><td>跟进痕迹（≤50 条）、1/3/7 天备忘、每日 09:00 汇总、阈值 7/15/30/45</td><td><span class="tag t-ok">已上线</span></td><td><code>notify.js</code> / <code>order-actions.js</code></td></tr>
+        <tr><td><b>多账号</b></td><td>账号 CRUD + 头像裁剪 + 8 档标识色 + 五页筛选 + 建单多选拆单 + 资料拷贝 + 批量改挂</td><td><span class="tag t-ok">已上线</span></td><td><code>accounts.js</code> / <code>avatar-crop.js</code></td></tr>
+        <tr><td><b>到店</b></td><td>随手拍（自动写拍摄时间 + GPS）、金额格铺淡化底图、地点一键导航</td><td><span class="tag t-ok">已上线</span></td><td><code>imaging.js</code> / <code>geo.js</code></td></tr>
+        <tr><td><b>数据</b></td><td>SQLite（原生）/ IndexedDB（Web）双写、JSON 导入导出、替换前自动备份、CSV / .db 导出</td><td><span class="tag t-ok">已上线</span></td><td><code>storage.js</code> / <code>export.js</code></td></tr>
+        <tr><td><b>体验</b></td><td>隐私模式、原生手势（禁缩放/禁选中/下拉关弹层）、常驻保存条、Toast 撤销</td><td><span class="tag t-ok">已上线</span></td><td><code>index.html</code> / <code>sheets.js</code></td></tr>
+        <tr><td><b>账期导入</b></td><td>抖音商单、服务商结算表批量导入</td><td><span class="tag t-no">未做</span></td><td>需先定表头与去重规则</td></tr>
+        <tr><td><b>跨端同步</b></td><td>iCloud / 多人协作 / 云备份</td><td><span class="tag t-no">不做</span></td><td>与「纯本地」定位冲突</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 02 ================= -->
+<section id="s2">
+  <div class="sec-head"><span class="sec-no">02</span><h2>用户与场景<span class="en">USERS &amp; SCENARIOS</span></h2></div>
+  <p class="sec-desc">产品只服务一类人：靠「到店拍摄 + 出片交付」换钱的个人创作者。他们的共同特征是 —— 单量不大（日均 1–5 单）、
+  档期由商家定、钱分两笔收、交付有明确验收标准、且同时给多个服务商/多个账号干活。</p>
+
+  <h3>2.1 用户画像</h3>
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0">主画像 · 全职探店达人「饱饱」</h4>
+      <dl class="kv" style="margin-top:12px">
+        <dt>工作形态</dt><dd>个人 + 偶尔组队（带搭档出镜），接服务商派单与直客单</dd>
+        <dt>月单量</dt><dd>20–45 单，单日峰值 3–5 单</dd>
+        <dt>单笔金额</dt><dd>¥300–¥1,500，月流水 ¥8k–¥25k</dd>
+        <dt>账号情况</dt><dd>1–3 个达人号，需分别对账、分别报名</dd>
+        <dt>工具现状</dt><dd>微信 + 日历 + 备忘录；Excel 只在月末用一次</dd>
+        <dt>核心焦虑</dt><dd>怕漏拍、怕漏发片、怕尾款拖着不敢催、怕换手机丢数据</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">次级画像与使用差异</h4>
+      <ul style="font-size:13px">
+        <li><b>兼职达人：</b>每周 2–5 单，只看首页够用；对多账号、统计无感，需要「打开就懂、不学」。</li>
+        <li><b>小团队主理人：</b>自己拍 + 带 1–2 个搭档，需要组队字段与「按账号拆开看」来分账。</li>
+        <li><b>服务商对接人（非用户但受影响）：</b>会收到达人发来的「今日行程图」与「账号资料」，因此分享物必须干净、不含金额。</li>
+      </ul>
+      <div class="callout gray" style="margin-bottom:0">
+        <b>设计推论：</b>单账号用户必须感受不到多账号的存在（≥2 个账号才出现筛选条与选号卡）；
+        所有高频判断都收在首页一屏内，次级功能（统计、数据管理）沉到第 5 个 Tab。
+      </div>
+    </div>
+  </div>
+
+  <h3>2.2 一天的真实节奏</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:14%">时间</th><th style="width:26%">场景</th><th>他要做的事</th><th style="width:20%">产品落点</th><th style="width:8%">点击成本</th></tr></thead>
+      <tbody>
+        <tr><td>08:30</td><td>出门前看今天去哪</td><td>确认时间、店名、地点，顺手看有没有欠款</td><td>首页：今日拍摄 + 告警卡 + 本月速览</td><td class="num">0 tap</td></tr>
+        <tr><td>09:15</td><td>微信谈定新单</td><td>30 秒内回话，得先把商家、时间、报价记下来</td><td>「+预约」弹层（必填仅商家 + 总价）</td><td class="num">2 输入 + 1 tap</td></tr>
+        <tr><td>11:40</td><td>到店开拍</td><td>证明到过店，同时把「已拍摄」标掉</td><td>首页行内「打卡」/ 详情「随手拍」</td><td class="num">1–3 tap</td></tr>
+        <tr><td>14:00</td><td>店门口临时加单</td><td>判断会不会撞档期</td><td>新建弹层冲突横幅（时间 + 店名 + 地点）</td><td class="num">自动</td></tr>
+        <tr><td>20:30</td><td>回家批量出片</td><td>3 单依次提审、发副片、发正片、发布</td><td>首页/订单页行内下一步按钮</td><td class="num">1 tap / 步</td></tr>
+        <tr><td>22:00</td><td>收到尾款</td><td>记一笔，防止月底对不上</td><td>详情/收款页「收尾款」→ 选渠道 → 确认</td><td class="num">2–3 tap</td></tr>
+        <tr><td>隔几天</td><td>钱还没到</td><td>决定什么时候再问一次，记下对方怎么答</td><td>催收跟进记录 + 1/3/7 天备忘</td><td class="num">2 tap</td></tr>
+        <tr><td>月末</td><td>对账 / 交税 / 归档</td><td>看本月实收、成交、渠道构成，导出表格</td><td>统计页 + CSV / JSON / .db</td><td class="num">1 tap</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>2.3 场景→痛点→需求推导</h3>
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0">摩擦点 A：接单要滚两屏</h4>
+      <p style="font-size:13px">谈单发生在微信里，30 秒要回话。11 个字段一次性摊开，用户在第 6 个字段就开始不耐烦，最后只填商家和价格 —— 地点、组队、出片要求全丢，后面拍摄和交付只能靠记忆。</p>
+      <p style="font-size:13px;margin-bottom:0"><b>产品回应：</b>必填只留商家 + 总价；账号/服务商/类型/时间/出片要求全部给默认值或点选；保存条固定在底部，随时能按；冲突提示放在时间行下方而不是保存时才弹。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">摩擦点 B：待发片必须逐单进详情</h4>
+      <p style="font-size:13px">一晚处理 3 单，原路径是「点行 → 详情 → 点标记 → 关闭」×3，9–12 次点击，且中间容易被其他信息打断。</p>
+      <p style="font-size:13px;margin-bottom:0"><b>产品回应：</b>把「下一步该做什么」提到列表层（提审 → 副片 → 正片 → 发布），行尾一个按钮直接完成；首页只展示 4 条并给「还有 N 单」出口。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">摩擦点 C：随时要用的信息拿不走</h4>
+      <p style="font-size:13px">在车上要导航、要把地址发给司机、月底要交表格 —— 地址是死文本、账号资料要重打、对账靠手抄。</p>
+      <p style="font-size:13px;margin-bottom:0"><b>产品回应：</b>地点行「导航」（手填地址优先，没填退到 GPS）；账号「一键拷贝」（昵称 + 抖音 + 手机）；CSV 29 列覆盖全链路。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">摩擦点 D：催收是社交行为，不只是记账</h4>
+      <p style="font-size:13px">真实动作是「问一次 → 对方说 X 号给 → 到点再问」。只记一个「下次提醒」，等于每次都从零开始问，还容易漏掉对方承诺的日期。</p>
+      <p style="font-size:13px;margin-bottom:0"><b>产品回应：</b>催收跟进痕迹（时间 + 对方答复，≤50 条）+ 快捷答复芯片 + 1/3/7 天备忘；备忘到期前首页不再红脸催。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 03 ================= -->
+<section id="s3">
+  <div class="sec-head"><span class="sec-no">03</span><h2>需求清单<span class="en">REQUIREMENTS</span></h2></div>
+  <p class="sec-desc">按模块给出用户故事与验收标准。P0 = 每天都在用，缺失即不可用；P1 = 每周会碰；P2 = 月度级 / 增强。
+  标 <span class="tag t-ok">已实现</span> 的条目即当前 v0.6 交付范围。</p>
+
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:10%">编号</th><th style="width:9%">优先级</th><th style="width:37%">用户故事</th><th>验收标准</th></tr></thead>
+      <tbody>
+        <tr><td>US-01</td><td><span class="tag t-p0">P0</span></td><td>作为达人，我要在 30 秒内记下一单，这样我能在微信里立刻回话。</td><td>仅商家与总价为必填；其余有默认值；保存条常驻底部；保存后跳到该单日期的行程页。</td></tr>
+        <tr><td>US-02</td><td><span class="tag t-p0">P0</span></td><td>作为达人，我要在录单时立刻知道这单会不会撞档期。</td><td>同日 ±120 分钟内的已有单以横幅列出「时间 + 店名 + 地点」；只提示不阻止保存。</td></tr>
+        <tr><td>US-03</td><td><span class="tag t-p0">P0</span></td><td>作为达人，我要在到店时一次动作完成「打卡 + 记录拍摄时间」。</td><td>随手拍一张即写 <code>shotAt</code>；同时静默记录 GPS，失败不阻断；金额格铺该图淡化底图。</td></tr>
+        <tr><td>US-04</td><td><span class="tag t-p0">P0</span></td><td>作为达人，我要在列表上直接推进交付流程，不必逐单进详情。</td><td>首页/订单页行尾按状态给唯一「下一步」按钮：提审 / 发副片 / 发正片 / 发布。</td></tr>
+        <tr><td>US-05</td><td><span class="tag t-p0">P0</span></td><td>作为达人，我要清楚哪些单超 24 小时还没出齐片。</td><td>拍摄满 24h 且未按配置出齐 → 列表红角标「超24h」+ 一次性本地通知；出齐/删单后自动撤销。</td></tr>
+        <tr><td>US-06</td><td><span class="tag t-p0">P0</span></td><td>作为达人，我要能记定金与尾款两笔钱，并知道还差多少。</td><td>定金/尾款分别记账，仅记录渠道（微信/支付宝/银行卡/抖音商单/其他），不做真实支付；重复收款被拦截。</td></tr>
+        <tr><td>US-07</td><td><span class="tag t-p0">P0</span></td><td>作为达人，我要一眼看到谁欠我钱、欠了多久。</td><td>首页告警卡三态；收款页按 ≤7 / 8–30 / 30+ 分桶；逾期天数从实际拍摄日起算。</td></tr>
+        <tr><td>US-08</td><td><span class="tag t-p1">P1</span></td><td>作为达人，我误点「已收」后要能立刻撤回。</td><td>记账成功 Toast 带「撤销」；仅在订单标记与流水未被改动时可回滚，否则提示。</td></tr>
+        <tr><td>US-09</td><td><span class="tag t-p1">P1</span></td><td>作为达人，我要记下「催过几次、对方怎么答」，并让它在几天后再提醒我。</td><td>跟进痕迹含时间与答复（≤50 条，展示最近 4 条）；1/3/7 天备忘生成一次性本地通知；到期前首页不再红催。</td></tr>
+        <tr><td>US-10</td><td><span class="tag t-p1">P1</span></td><td>作为达人，我要给抖音商单填一个「平台预计到账日」。</td><td>过期未到账时详情/收款页标红显示「已超 N 天」；平台单永不计入逾期催收。</td></tr>
+        <tr><td>US-11</td><td><span class="tag t-p1">P1</span></td><td>作为达人，我要在行程页一眼看出这周忙不忙。</td><td>「未来 7 天」横滑条显示每天单量与成交额；点击跳该日、跨月自动翻月。</td></tr>
+        <tr><td>US-12</td><td><span class="tag t-p1">P1</span></td><td>作为达人，我要在列表里按地点/联系人/服务商/备注找回旧单。</td><td>搜索覆盖商家、地点、联系人、服务商、组队、备注、类型；拼音输入法合成期间不打断。</td></tr>
+        <tr><td>US-13</td><td><span class="tag t-p1">P1</span></td><td>作为多号达人，我要把订单分开看，也要能合起来看总额。</td><td>≥2 账号时首页/行程/订单/收款/统计五页都出现账号筛选条；选「全部」合并，选某账号只数该账号的单与流水；收款页角标随筛选变化。</td></tr>
+        <tr><td>US-14</td><td><span class="tag t-p1">P1</span></td><td>作为多号达人，我要一键拷贝账号资料去报名。</td><td>拷贝内容含昵称、抖音号、手机号；成功后 Toast 明确告知已拷贝。</td></tr>
+        <tr><td>US-15</td><td><span class="tag t-p1">P1</span></td><td>作为多号达人，我要一次给多个账号建单（同店同日多号发）。</td><td>建单选号支持多选，每个账号各生成一笔独立订单，编号连续且独立维护。</td></tr>
+        <tr><td>US-16</td><td><span class="tag t-p2">P2</span></td><td>作为达人，我要在给服务商/搭档看行程时不暴露金额。</td><td>行程分享图默认不含任何金额，跟随当前账号筛选；底部标注「不含金额信息」。</td></tr>
+        <tr><td>US-17</td><td><span class="tag t-p2">P2</span></td><td>作为达人，我要在别人看屏幕时隐藏金额。</td><td>顶栏眼睛一键隐藏所有金额；隐藏态下编辑弹层金额字段只读并说明原因。</td></tr>
+        <tr><td>US-18</td><td><span class="tag t-p2">P2</span></td><td>作为达人，我要在换机/丢机后能恢复数据。</td><td>JSON 备份导出/导入（≤10MB，导入前预览并校验流水一致性）；替换前自动留一份可撤回备份。</td></tr>
+        <tr><td>US-19</td><td><span class="tag t-p2">P2</span></td><td>作为达人，我要能识别「哪套是演示数据」。</td><td>工作/演示两套数据独立存储、互不覆盖；工作/演示标记显示在顶部；演示模式不排真通知。</td></tr>
+        <tr><td>US-20</td><td><span class="tag t-p2">P2</span></td><td>作为达人，我要批量把历史单挂到某个账号下。</td><td>统计页「批量改挂」列出账号与各自单量，一次把全部未指定订单挂到所选账号。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout blue">
+    <b>明确不做（v0.6 范围外）：</b>登录与云同步、团队协作与派单、真实支付通道、平台账号授权抓单、账单自动导入、多端实时同步。
+    这些都会破坏「纯本地、零配置、买断」的产品承诺，或在没有服务端的前提下无法保证一致性。
+  </div>
+</section>
+
+<!-- ================= 04 ================= -->
+<section id="s4">
+  <div class="sec-head"><span class="sec-no">04</span><h2>信息架构与导航<span class="en">INFORMATION ARCHITECTURE</span></h2></div>
+  <p class="sec-desc">底部 5 个 Tab 按「时间 → 对象 → 钱 → 复盘」排列；所有录入与详情走底部弹层，不打断当前页上下文。
+  弹层可下拉关闭，保存类操作常驻底部。</p>
+
+  <div class="grid g2" style="align-items:start">
+    <div class="card">
+      <h4 style="margin-top:0">一级结构（Tab）</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li><b>首页</b>：今天拍什么 + 谁欠我钱 + 本月速览（只回答两个问题）</li>
+        <li><b>行程</b>：月历 / 未来 7 天 / 当日清单 / 整月时间线</li>
+        <li><b>订单</b>：全量检索与筛选，工作 × 收款双轨状态</li>
+        <li><b>收款</b>：待收总额、逾期分桶、收款流水（Tab 带逾期数角标）</li>
+        <li><b>统计</b>：期间复盘 + 渠道构成 + 账号管理 + 数据管理 + 关于</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">二级结构（弹层 / 覆盖层）</h4>
+      <div class="grid g2" style="gap:8px;font-size:12.5px">
+        <div>
+          <p style="margin:0 0 4px;font-weight:700">记录类</p>
+          <p style="margin:0;color:#6D6D75;line-height:1.9">新建预约 · 编辑订单 · 确认收款 · 催收跟进 · 平台到账</p>
+        </div>
+        <div>
+          <p style="margin:0 0 4px;font-weight:700">查看类</p>
+          <p style="margin:0;color:#6D6D75;line-height:1.9">订单详情 · 数据结构 · 行程分享图 · 导入确认</p>
+        </div>
+        <div>
+          <p style="margin:0 0 4px;font-weight:700">管理类</p>
+          <p style="margin:0;color:#6D6D75;line-height:1.9">账号新建/编辑 · 批量改挂 · 头像裁剪</p>
+        </div>
+        <div>
+          <p style="margin:0 0 4px;font-weight:700">全局层</p>
+          <p style="margin:0;color:#6D6D75;line-height:1.9">Toast（可带撤销）· 存储异常提示条 · 隐私模式</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>4.1 导航与页面层级</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:16%">层级</th><th style="width:26%">页面</th><th>关键内容</th><th style="width:22%">出口</th></tr></thead>
+      <tbody>
+        <tr><td>L0 全局</td><td>顶栏工具区</td><td>当前模式标记（工作/演示）、行程分享、隐私模式眼睛</td><td>分享弹层 / 隐私态切换</td></tr>
+        <tr><td>L1</td><td>首页</td><td>告警卡 → 今日拍摄 → 待发片 → 本月速览</td><td>任一单 → 详情；区块标题「›」跳对应 Tab</td></tr>
+        <tr><td>L1</td><td>行程</td><td>月历（含勋章）→ 未来 7 天 → 当日清单 → 整月时间线</td><td>日期格 / 7 天卡切日；行内编辑；行 → 详情</td></tr>
+        <tr><td>L1</td><td>订单</td><td>搜索 → 状态 chips（带计数）→ 订单行（左滑复制）</td><td>行 → 详情；行尾下一步；铅笔 → 编辑</td></tr>
+        <tr><td>L1</td><td>收款</td><td>待收总额 → 分桶 seg → 待催收/已设提醒 → 列表 → 流水</td><td>行 → 详情；行内按钮 → 确认收款</td></tr>
+        <tr><td>L1</td><td>统计</td><td>期间 seg → 四格 → 每日实收 → 渠道构成 → 账号 → 数据管理 → 关于</td><td>账号弹层 / 导出 / 导入 / 模式切换</td></tr>
+        <tr><td>L2 弹层</td><td>订单详情</td><td>状态 chips → 里程碑 → 随手拍 → 主操作 → 收款 → 催收/平台 → 信息栅格</td><td>右上：复制 / 编辑 / 关闭；下拉关闭</td></tr>
+        <tr><td>L2 弹层</td><td>新建 / 编辑</td><td>基础信息 → 账号 → 服务商 → 出片要求 → 时间 → 金额 → 备注</td><td>底部常驻保存；下拉仅从头部触发</td></tr>
+        <tr><td>L3</td><td>头像裁剪</td><td>全屏画布：拖动 / 双指缩放 / 双击放大</td><td>「使用」写入 128×128；取消回到账号弹层</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <b>为什么「收款」独立成 Tab：</b>达人的两条线并不总是同步 —— 片子交付了钱可能没到，钱到了片子可能还没发。
+    把「收款」从「订单」里拆出来，才能承载「按逾期天数分桶」「待催收 / 已设提醒」这类只对钱有意义的视图；
+    同时 Tab 上的红色角标让「有几笔该催」成为常驻可见信息。
+  </div>
+</section>
+
+<!-- ================= 05 ================= -->
+<section id="s5">
+  <div class="sec-head"><span class="sec-no">05</span><h2>状态模型与业务口径<span class="en">STATE MODEL</span></h2></div>
+  <p class="sec-desc">订单有两条互相独立、但共同决定「这单到什么程度了」的状态线。所有展示文案、筛选、角标、通知都由这两条线推导，
+  不允许各页面自己算 —— 这是产品口径唯一真源的意义。</p>
+
+  <h3>5.1 工作线（交付进度，四态）</h3>
+  <div class="flow">
+    <span class="node">待拍摄</span><span class="ar">→</span>
+    <span class="node">后期中</span><span class="ar">→</span>
+    <span class="node">发片中</span><span class="ar">→</span>
+    <span class="node on">已交付</span>
+  </div>
+  <div class="flow-note">判定：无拍摄时间 → 待拍摄；已拍未提审 → 后期中；已提审但按该单配置未出齐 → 发片中；出齐 → 已交付。</div>
+
+  <h3>5.2 资金线（回款进度，四态）</h3>
+  <div class="flow">
+    <span class="node">待定金</span><span class="ar">→</span>
+    <span class="node">待尾款</span><span class="ar">⇢</span>
+    <span class="node warm">平台结算</span><span class="ar">→</span>
+    <span class="node on">已结清</span>
+  </div>
+  <div class="flow-note">「待尾款」与「平台结算」是同一层的两个分支：私收走催收，抖音商单走平台到账日，永不计逾期。两者都收齐后 → 已结清。</div>
+
+  <h3>5.3 五个里程碑与前置依赖</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:14%">节点</th><th style="width:16%">字段</th><th style="width:20%">前置</th><th>规则</th></tr></thead>
+      <tbody>
+        <tr><td><b>拍摄</b></td><td><code>shotAt</code></td><td>—</td><td>随手拍会自动写入；也可手动标记；写入时静默记录 GPS。</td></tr>
+        <tr><td><b>提审</b></td><td><code>submittedAt</code></td><td>拍摄</td><td>提审后才出现「送审结果（合格/不合格）」两个按钮，可再点一次清除。</td></tr>
+        <tr><td><b>副片发出</b></td><td><code>shortAt</code></td><td>提审</td><td>仅当该单勾选「副片」时出现在进度条；圆点放大一号（交付核心）。</td></tr>
+        <tr><td><b>正片发出</b></td><td><code>longAt</code></td><td>提审</td><td>同上，仅勾选「正片」时出现。</td></tr>
+        <tr><td><b>发布</b></td><td><code>publishedAt</code></td><td>提审 + 出齐</td><td>正/副片未出齐时点击会被拦下并提示原因。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0">正向：只推「唯一的下一个动作」</h4>
+      <p style="font-size:13px;margin-bottom:0">详情页主操作区永远只返回一个按钮（拍完 → 提审 → 副片 → 正片 → 发布），
+      用户不需要判断「我现在该点哪个」。列表层的行内按钮复用同一套判定，只是把动作前移到行尾。</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">反向：清除会截断下游</h4>
+      <p style="font-size:13px;margin-bottom:0">任何节点都允许清除，但清除一个上游节点时，其后的所有记录一并清空，
+      并事先告知将被清掉哪些。避免出现「未拍摄却已发布」这类自相矛盾的时间线。</p>
+    </div>
+  </div>
+
+  <h3>5.4 关键业务口径（必须逐条对齐）</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:18%">口径</th><th style="width:30%">规则</th><th>为什么这样做</th></tr></thead>
+      <tbody>
+        <tr><td><b>逾期起算</b></td><td>从<b>实际拍摄日</b>起算自然日，而非预约日或提审日</td><td>只有真到店拍了，达人才有谈判筹码；未拍摄的私收单不算逾期，只标「尚未起算账期」</td></tr>
+        <tr><td><b>催收阈值</b></td><td>默认 15 天，可选 7 / 15 / 30 / 45；超过即进逾期池</td><td>不同服务商结算周期差异大，阈值可配置比写死更实用</td></tr>
+        <tr><td><b>平台单豁免</b></td><td>抖音商单（<code>settleVia=douyin</code>）永不计逾期、不进催收池</td><td>钱不由商家付，催商家没有意义；改看「预计到账日」是否超期</td></tr>
+        <tr><td><b>备忘抑制</b></td><td>设了未到期的 1/3/7 天备忘 → 首页不显示红卡，改为「已设提醒」灰标</td><td>催收是社交行为，用户明确说了「过几天再问」就不该天天红脸</td></tr>
+        <tr><td><b>24 小时未出片</b></td><td>拍摄满 24h 且按该单配置未出齐 → 红角标 + 一次性通知</td><td>出片是达人的履约义务，拖延直接掉服务商评分</td></tr>
+        <tr><td><b>档期冲突</b></td><td>同日前后 120 分钟内 → 提示；同日有其他单但无重叠 → 仅报「当天已有 N 个排期」</td><td>档期由商家定，工具只提供信息，不替用户做决定</td></tr>
+        <tr><td><b>金额精度</b></td><td>内部一律以「分」为整数计算，展示回「元」；最多两位小数</td><td>0.1+0.2 的浮点误差在钱上不可接受</td></tr>
+        <tr><td><b>定金约束</b></td><td>定金 ≤ 总价；0 表示未约定定金；总价 0 合法（免费置换单）</td><td>探店存在「置换 + 少量车马费」与纯置换两种真实形态</td></tr>
+        <tr><td><b>已收锁金额</b></td><td>已有任何收款记录后，总价与定金不可改；要先撤销收款</td><td>否则「已收 ¥800 / 总价 ¥500」这类账实不符无法避免</td></tr>
+        <tr><td><b>收款可逆</b></td><td>记一笔即出 Toast「撤销」；仅在标记与流水都未被改动时回滚</td><td>收款是一键动作，误触概率高；钱必须可逆</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>5.5 统计口径</h3>
+  <div class="grid g4">
+    <div class="card" style="padding:16px 18px"><div style="font-size:12px;color:var(--sub)">成交额</div><div style="font-size:20px;font-weight:800;margin:3px 0">按预约日</div><div style="font-size:12px;color:#6D6D75">落在窗口内的订单总价之和</div></div>
+    <div class="card" style="padding:16px 18px"><div style="font-size:12px;color:var(--sub)">实收金额</div><div style="font-size:20px;font-weight:800;margin:3px 0">按到账日</div><div style="font-size:12px;color:#6D6D75">窗口内流水之和（含定金与尾款）</div></div>
+    <div class="card" style="padding:16px 18px"><div style="font-size:12px;color:var(--sub)">已交付</div><div style="font-size:20px;font-weight:800;margin:3px 0">按交付日</div><div style="font-size:12px;color:#6D6D75">取正/副片中较晚者，缺则退回提审时间</div></div>
+    <div class="card" style="padding:16px 18px"><div style="font-size:12px;color:var(--sub)">客单价</div><div style="font-size:20px;font-weight:800;margin:3px 0">成交 ÷ 单数</div><div style="font-size:12px;color:#6D6D75">四舍五入到元</div></div>
+  </div>
+  <p style="margin-top:12px;font-size:12.8px;color:#6D6D75">
+    窗口三种：近 7 天 / 近 30 天 / 本月（本月为 1 日至今天）。所有统计都跟随当前账号筛选；
+    选择某账号时，只数该账号的订单与该账号名下的流水，两者不能各算各的。
+  </p>
+</section>
+
+<!-- ================= 06 ================= -->
+<section id="s6">
+  <div class="sec-head"><span class="sec-no">06</span><h2>核心旅程<span class="en">USER JOURNEYS</span></h2></div>
+  <p class="sec-desc">六条主旅程覆盖 95% 的日常操作。每条给出：触发时机、操作步骤、系统反馈、异常分支。
+  界面细节见下一章的原型标注。</p>
+
+  <div class="journey">
+    <div class="jh"><span class="jstep">J1</span><h4>微信接单 → 建预约</h4><span class="jgoal">目标：30 秒内记完，且不撞档期</span></div>
+    <div class="jgrid">
+      <ol class="steps">
+        <li>首页/行程/订单任意页点右上「<b>+ 预约</b>」，底部弹层升起（保存条已在底部常驻）。</li>
+        <li>填<b>品名/商家</b>与<b>总价</b>——只有这两项必填，其余按默认值走。</li>
+        <li>（多账号时）在「账号」区<b>点选卡片</b>，可多选；每个选中账号会各生成一笔独立订单。</li>
+        <li>「服务商」点预设芯片（蜂向/小爱/金城/食物/直客），自定义输入保存后自动进预设。</li>
+        <li>选日期时间 → 下方立刻出现<b>冲突横幅</b>：列出同日 ±2h 的时间、店名、地点，不阻止保存。</li>
+        <li>点底部「保存预约」→ 自动跳到该日期的行程页，Toast 确认。 <span class="fb">反馈：单品 →「已添加预约：店名」；多账号 →「已添加 N 笔独立预约」</span></li>
+      </ol>
+      <div class="edges">
+        <h5>异常与边界</h5>
+        <ul>
+          <li><b>总价/定金非法：</b>非数字、超过两位小数、定金 &gt; 总价 → 行内红字拦截，不关弹层。</li>
+          <li><b>正副片都没勾：</b>「出片要求至少要勾选正片或副片」—— 否则交付线永远无法判定完成。</li>
+          <li><b>多账号一个都没选：</b>提示「请至少选择一个账号」。</li>
+          <li><b>编号上限：</b>订单号需 &lt; 100000（通知 id 分段依赖），达上限提示先导出备份。</li>
+          <li><b>时段相对日：</b>选日期后右侧显示「今天 / 明天 / 3 天后」，避免手滑选错月。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="journey">
+    <div class="jh"><span class="jstep">J2</span><h4>到店打卡 → 记录拍摄</h4><span class="jgoal">目标：一个动作同时完成到店证明与状态推进</span></div>
+    <div class="jgrid">
+      <ol class="steps">
+        <li>首页「今日拍摄」找到这一单，行尾点「<b>打卡</b>」（不拍照也可）。</li>
+        <li>要留证据则进详情点「<b>📷 随手拍 · 到店门口来一张</b>」，拍一张即可。</li>
+        <li>系统做三件事：写入 <code>shotAt</code>（若尚未拍）、生成<b>淡化小图</b>入库、静默记录 GPS。</li>
+        <li>金额格立刻铺上该图作为底图 —— 列表扫一眼就能分出「去过店」和「还没去」。 <span class="fb">反馈：「已随手拍 · 拍摄时间已记录」/「已记录到店定位 ✓」</span></li>
+        <li>拍摄完成后，该单进入 24h 出片倒计时，同时排一次本地出片提醒。</li>
+      </ol>
+      <div class="edges">
+        <h5>异常与边界</h5>
+        <ul>
+          <li><b>拒绝定位/无信号：</b>静默失败，不影响「已拍摄」，详情页可手动「记录当前位置」补。</li>
+          <li><b>重拍：</b>覆盖旧图与 GPS —— 重拍语义是「我又到店了」，以最新为准。</li>
+          <li><b>图片处理失败：</b>「这张图处理不了，换一张试试」，不写任何状态。</li>
+          <li><b>存储异常（只读保护）：</b>写入被拦截时明确提示先去「重试保存/读取」，绝不假装成功。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="journey">
+    <div class="jh"><span class="jstep">J3</span><h4>回家批量出片</h4><span class="jgoal">目标：3 单 3 步以内推进完，不必逐单进详情</span></div>
+    <div class="jgrid">
+      <ol class="steps">
+        <li>首页「待发片」区（最多 4 条 + 「还有 N 单」）或订单页，按状态看缺口 chips：待提审 / 待正片 / 待副片 / 待发布。</li>
+        <li>行尾按钮就是<b>当前唯一该做的动作</b>：提审 → 发副片 → 发正片 → 发布。点一下即完成，列表原地刷新。</li>
+        <li>要点开详情时，进度条五节点会按该单配置自动增删（不要求副片的单不出现副片节点）。</li>
+        <li>提审后出现「合格 / 不合格」二选一；再点一次可清除。</li>
+        <li>正副片出齐后，「发布」按钮才生效。 <span class="fb">反馈：每次标记都有 Toast「已标记发副片 ✓」等</span></li>
+      </ol>
+      <div class="edges">
+        <h5>异常与边界</h5>
+        <ul>
+          <li><b>跳步点击：</b>未提审就点发片 →「请先完成「提审」再标记「副片发出」」，而不是静默失效。</li>
+          <li><b>未出齐点发布：</b>「正片/副片出齐后才能标记发布」。</li>
+          <li><b>清除里程碑：</b>确认弹窗列出将被连带清除的下游节点，一次性截断。</li>
+          <li><b>超 24h：</b>行内红角标「超24h」，与通知同一口径，不会出现角标有、通知没有。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="journey">
+    <div class="jh"><span class="jstep">J4</span><h4>收款与撤销</h4><span class="jgoal">目标：2 次点击记完一笔钱，点错能立刻撤回</span></div>
+    <div class="jgrid">
+      <ol class="steps">
+        <li>入口二选一：收款页行内「<b>标记已收 / 标记到账</b>」，或详情页「收定金 / 收尾款」。</li>
+        <li>确认弹层显示店名、大号金额、款项说明（私收 / 约定抖音商单结算）。</li>
+        <li>选收款方式芯片（默认：平台单=抖音商单，私收=微信）；渠道仅作记录标签，不做真实支付。</li>
+        <li>点「确认收款 ¥X」→ 写流水 + 标记已收时间 + 关闭弹层。 <span class="fb">反馈：Toast「已收尾款 ¥1,000 · 微信」+ 右侧「撤销」</span></li>
+        <li>尾款收齐后自动清除该单的催收备忘（已排的通知一并撤销）。</li>
+      </ol>
+      <div class="edges">
+        <h5>异常与边界</h5>
+        <ul>
+          <li><b>重复收款：</b>「该笔款项已记录，请勿重复收款」。</li>
+          <li><b>金额无效：</b>0 元单或金额被改成非法值 →「没有有效的待收金额，不能记账」。</li>
+          <li><b>撤销失效：</b>期间订单标记或流水被改过 →「这笔收款已被改动，无法撤销」，不做危险回滚。</li>
+          <li><b>撤销入口二：</b>编辑弹层可「撤销定金/尾款记录」，会连同流水一起删除，需二次确认。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="journey">
+    <div class="jh"><span class="jstep">J5</span><h4>逾期催收</h4><span class="jgoal">目标：不靠记忆，也不把关系催崩</span></div>
+    <div class="jgrid">
+      <ol class="steps">
+        <li>首页红色告警卡「N 笔尾款逾期 · 待催收 ¥X」→ 点击直达收款页「待催收」筛选。</li>
+        <li>收款页按 ≤7 / 8–30 / 30+ 分桶，逾期越久排越前；已设备忘的单落到「已设提醒」。</li>
+        <li>打电话/微信问完，点详情「<b>再催一次</b>」→ 选快捷答复（说这周给 / 财务走流程 / 没回复…）或自填 → 记下。</li>
+        <li>同时点「<b>1 / 3 / 7 天后提醒</b>」→ 到点生成一次性本地通知；到期前首页不再红催，只留灰标。</li>
+        <li>每天 09:00 还有一条汇总通知：仅报「N 笔 · 最长 M 天」，<b>不含金额</b>。 <span class="fb">反馈：记录后「已记录第 3 次催收 · 说这周给」</span></li>
+      </ol>
+      <div class="edges">
+        <h5>异常与边界</h5>
+        <ul>
+          <li><b>痕迹封顶：</b>只保留最近 50 次，超出提示「最早一条已被挤出」。</li>
+          <li><b>备忘过期：</b>提醒响过即视为已用过，不再显示「X 日再催」的过去日期。</li>
+          <li><b>结清/改平台单：</b>备忘自动失效并撤销通知，避免半夜为已结清的单弹提醒。</li>
+          <li><b>关闭每日提醒：</b>只撤汇总，不动用户自设的 1/3/7 天备忘与 24h 出片提醒。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="journey">
+    <div class="jh"><span class="jstep">J6</span><h4>多账号分账</h4><span class="jgoal">目标：合看总额、拆看单人，报名资料一键取用</span></div>
+    <div class="jgrid">
+      <ol class="steps">
+        <li>统计页「我的账号 → + 添加」录入昵称（必填）、手机号、抖音号、<b>头像</b>（相册选图后可拖动缩放裁剪）、<b>标识色</b>（8 档）。</li>
+        <li>≥2 个账号后，首页/行程/订单/收款/统计五页顶部出现<b>账号筛选条</b>：全部 / 各账号（选中用该账号色填充）。</li>
+        <li>订单列表行首一条 3px 账号色条 + 迷你头像小标，不全行铺底色（避免白卡片里套色块）。</li>
+        <li>建单时多选账号 → 一个商家拆成 N 笔独立订单，分别维护进度与收款。</li>
+        <li>要去报名时点「<b>拷贝</b>」→ 昵称 + 抖音 + 手机一次拷走。 <span class="fb">反馈：「已拷贝「饱饱」资料 ✓」</span></li>
+        <li>历史单未挂账号时，统计页出现「N 笔未指定 → 批量改挂」，一次挂到所选账号。</li>
+      </ol>
+      <div class="edges">
+        <h5>异常与边界</h5>
+        <ul>
+          <li><b>只有 1 个账号：</b>筛选条、选号卡、账号标签全部不出现，订单自动归属，零打扰。</li>
+          <li><b>删除账号：</b>名下订单转为「未指定」，不删单；若正在筛选该账号，筛选自动回到「全部」。</li>
+          <li><b>头像移除：</b>必须真正删掉库里的值，不能只清预览。</li>
+          <li><b>筛选与分享：</b>分享图只画当前账号的单 —— 别把不打算分享的内容画进去。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 07 ================= -->
+<section id="s7">
+  <div class="sec-head"><span class="sec-no">07</span><h2>界面原型<span class="en">PROTOTYPES</span></h2></div>
+  <p class="sec-desc">以下 9 组（共 10 个界面）为按当前实现还原的高保真结构原型（非截图），尺寸按 393×852 等比缩小。
+  每屏右侧编号对应界面上的关键决策点，可直接作为开发对齐与走查清单。</p>
+
+  <!-- P01 首页 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 01</span><span class="proto-title">首页 · 一屏回答两个问题</span><span class="proto-for">今天拍什么 · 谁欠我钱</span></div>
+    <div class="proto">
+      <div class="screen-wrap">
+        <div class="screen">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body">
+            <div class="m-top">
+              <div>
+                <div class="m-eyebrow">11月24日 周一</div>
+                <div class="m-hsub">今日 3 单 · 待拍 1 · 2 笔待催收</div>
+              </div>
+              <div style="display:flex;gap:4px;align-items:center">
+                <span style="font-size:5.6px;color:#8E8E93">工作</span>
+                <span class="m-iconbtn">↗</span><span class="m-iconbtn">👁</span>
+                <span class="m-pill">+ 预约</span>
+              </div>
+            </div>
+            <div class="m-chipbar">
+              <span class="m-cchip">全部</span>
+              <span class="m-cchip on">饱饱</span>
+              <span class="m-cchip">花花</span>
+            </div>
+            <div class="m-alert">
+              <div style="font-size:11px">🔔</div>
+              <div style="flex:1">
+                <div class="t">2 笔尾款逾期 · 待催收 ¥1,800</div>
+                <div class="s">最长已欠 32 天 · 另有 1 笔已设提醒 · 点击进入催收清单</div>
+              </div>
+              <span style="font-size:9px;opacity:.9">›</span>
+            </div>
+            <div class="m-sec"><span>今日拍摄 <span style="font-weight:600;color:#8E8E93">2/3 已拍</span></span><span class="more">行程 ›</span></div>
+            <div class="m-card tight">
+              <div class="m-row acc">
+                <div class="m-time"><b>10:00</b><span>预约</span></div>
+                <div class="m-main">
+                  <div class="m-name">澄川咖啡·滨江店</div>
+                  <div class="m-chips"><span class="m-chip c-b">待拍摄</span><span class="m-chip c-r">待定金 ¥200</span><span class="m-chip c-gray">咖啡</span></div>
+                </div>
+                <div class="m-side"><div class="m-price">¥1,200</div></div>
+                <span class="m-mini">打卡</span>
+              </div>
+              <div class="m-row acc dim">
+                <div class="m-time"><b>14:30</b><span>预约</span></div>
+                <div class="m-main">
+                  <div class="m-name">山野烤肉·万象城</div>
+                  <div class="m-chips"><span class="m-chip c-p">后期中</span><span class="m-chip c-o">待尾款</span><span class="m-chip c-gray">烧烤</span></div>
+                </div>
+                <div class="m-side"><div class="m-price">¥800</div></div>
+                <span style="font-size:9px;color:#C6C6CD">›</span>
+              </div>
+              <div class="m-row acc dim">
+                <div class="m-time"><b>18:00</b><span>预约</span></div>
+                <div class="m-main">
+                  <div class="m-name">棠里·新中式茶饮</div>
+                  <div class="m-chips"><span class="m-chip c-p">后期中</span><span class="m-chip c-o">待尾款</span><span class="m-chip c-gray">茶饮</span></div>
+                </div>
+                <div class="m-side"><div class="m-price">¥600</div></div>
+                <span style="font-size:9px;color:#C6C6CD">›</span>
+              </div>
+            </div>
+            <div class="m-sec"><span>待发片</span><span class="more">全部 ›</span></div>
+            <div class="m-card tight">
+              <div class="m-row acc2">
+                <div class="m-main">
+                  <div class="m-name">山野烤肉·万象城</div>
+                  <div class="m-sub">拍摄于 11-22 · ¥800</div>
+                  <div class="m-chips"><span class="m-chip c-o">待提审</span><span class="m-chip c-r">超24h</span></div>
+                </div>
+                <span class="m-mini">提审</span>
+              </div>
+              <div class="m-row acc">
+                <div class="m-main">
+                  <div class="m-name">拾光小馆</div>
+                  <div class="m-sub">拍摄于 11-23 · ¥1,000</div>
+                  <div class="m-chips"><span class="m-chip c-o">待正片</span></div>
+                </div>
+                <span class="m-mini">发正片</span>
+              </div>
+              <div class="m-row">
+                <div class="m-main"><div class="m-sub">还有 1 单待发片 · 查看全部</div></div>
+                <span style="font-size:9px;color:#C6C6CD">›</span>
+              </div>
+            </div>
+            <div class="m-sec"><span>本月速览</span><span class="more">统计 ›</span></div>
+            <div class="m-grid2">
+              <div class="m-miniCard"><div class="v" style="color:#1F7A46">¥8,640</div><div class="l">本月实收 · 5 笔</div></div>
+              <div class="m-miniCard"><div class="v">¥12,300</div><div class="l">本月成交 · 9 单</div></div>
+              <div class="m-miniCard"><div class="v" style="color:#C02A20">¥3,180</div><div class="l">当前待收款</div></div>
+              <div class="m-miniCard"><div class="v" style="color:#C97A08">2</div><div class="l">待发片订单</div></div>
+            </div>
+          </div>
+          <div class="scr-tab">
+            <i class="on"><b>⌂</b>首页</i><i><b>▤</b>行程</i><i><b>▦</b>订单</i><i><b>▭</b>收款<span class="badge">2</span></i><i><b>▨</b>统计</i>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 01 · 首页</div>
+      </div>
+      <ol class="notes">
+        <li><b>告警卡是三态开关，不是装饰。</b>红＝有逾期未催；琥珀＝有逾期但都设了备忘；绿＝收款健康。<span class="ta">判定：逾期数 &gt; 0 且未设提醒 → 红；逾期数 &gt; 0 但全部已设提醒 → 琥珀；否则绿。点击统一跳收款页对应筛选。</span></li>
+        <li><b>「今日拍摄」按预约时间正序，拍过的单保留但置灰。</b>否则数量会随拍照一路减少，用户会误以为「今天只接了一单」。</li>
+        <li><b>行首 3px 色条 + 名次小标 = 账号归属。</b>单账号时整条消失；多账号时用它区分，不用整行底色（白卡片里套色块会显脏）。</li>
+        <li><b>行内「打卡」是最高频动作。</b>只有未拍摄的单才出现；点一下写拍摄时间并尝试记 GPS，不必进详情。</li>
+        <li><b>待发片行尾按钮按状态只给一个动作。</b>顺序固定：提审 → 发副片 → 发正片 → 发布；没有可做动作时退回「›」。</li>
+        <li><b>「超24h」红标与系统通知同源。</b>拍摄满 24h 且按该单配置未出齐才亮，出齐即消失。</li>
+        <li><b>本月速览四格是「钱的四问」：</b>到手多少、做了多少、还差多少、还欠几单片子。不做趋势图（趋势在统计页）。</li>
+        <li><b>顶栏「工作/演示」常驻小字。</b>两套数据物理隔离，用户必须随时知道自己在看哪套，避免演示数据污染判断。</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- P02 行程 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 02</span><span class="proto-title">行程 · 月历 / 未来 7 天 / 当日 / 整月</span><span class="proto-for">排档期与出门前确认</span></div>
+    <div class="proto rev">
+      <div class="screen-wrap">
+        <div class="screen">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body">
+            <div class="m-top">
+              <div>
+                <div class="m-eyebrow">整月档期 · ‹ › 可翻月</div>
+                <div class="m-h1">行程</div>
+                <div class="m-hsub">左右滑动切日 · 点日期查看 · 分享行程图</div>
+              </div>
+              <div style="display:flex;gap:4px;align-items:center">
+                <span class="m-iconbtn">↗</span><span class="m-iconbtn">👁</span>
+                <span class="m-pill">+ 预约</span>
+              </div>
+            </div>
+            <div class="m-card" style="padding:6px 7px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                <div style="font-size:7.8px;font-weight:800">2026年11月</div>
+                <div style="display:flex;gap:3px">
+                  <span style="font-size:7px;background:#F1F1F5;border-radius:7px;padding:1px 4px">‹</span>
+                  <span style="font-size:6px;background:#F1F1F5;border-radius:7px;padding:1px 4px">今天</span>
+                  <span style="font-size:7px;background:#F1F1F5;border-radius:7px;padding:1px 4px">›</span>
+                </div>
+              </div>
+              <div style="font-size:5.8px;color:#8E8E93;font-weight:600;margin-bottom:3px">7 个档期 · 成交 ¥12,300 · 已收 ¥8,640　🔥1 💰2</div>
+              <div class="m-cal" style="font-size:5px;color:#8E8E93;text-align:center">
+                <i style="color:#8E8E93;font-weight:600">一</i><i style="color:#8E8E93;font-weight:600">二</i><i style="color:#8E8E93;font-weight:600">三</i><i style="color:#8E8E93;font-weight:600">四</i><i style="color:#8E8E93;font-weight:600">五</i><i style="color:#8E8E93;font-weight:600">六</i><i style="color:#8E8E93;font-weight:600">日</i>
+              </div>
+              <div class="m-cal">
+                <i class="mute">30</i><i>1</i><i>2</i><i>3</i><i>4</i><i>5<span class="d"><u></u></span></i><i>6<span class="d"><u></u><u></u></span></i>
+                <i>7</i><i>8</i><i>9</i><i>10</i><i>11<span class="d"><u></u></span></i><i>12<span class="d"><u></u></span><span class="bd">💰</span></i><i>13</i>
+                <i>14</i><i>15<span class="d"><u></u></span></i><i>16</i><i>17</i><i>18</i><i>19<span class="d"><u></u><u></u><u></u><u></u><u></u></span><span class="bd">🔥</span></i><i>20</i>
+                <i>21</i><i>22<span class="d"><u></u><u></u></span></i><i>23<span class="d"><u></u></span></i><i class="today sel">24</i><i>25</i><i>26</i><i>27</i>
+                <i>28</i><i>29<span class="d"><u></u></span></i><i>30</i><i class="mute">1</i><i class="mute">2</i><i class="mute">3</i><i class="mute">4</i>
+              </div>
+            </div>
+            <div class="m-sec" style="margin-top:6px"><span>未来 7 天 · 6 单</span><span style="font-weight:600">¥6,400</span></div>
+            <div class="m-n7">
+              <i class="on"><div class="w">今天</div><div class="d">11-24</div><div class="c">3 单</div></i>
+              <i><div class="w">明天</div><div class="d">11-25</div><div class="c">1 单</div></i>
+              <i><div class="w">周三</div><div class="d">11-26</div><div class="c">空</div></i>
+              <i><div class="w">周四</div><div class="d">11-27</div><div class="c">2 单</div></i>
+              <i><div class="w">周五</div><div class="d">11-28</div><div class="c">空</div></i>
+            </div>
+            <div class="m-sec"><span>11月24日 周一 · 🔥 爆单</span></div>
+            <div class="m-card tight">
+              <div class="m-row acc">
+                <div class="m-time"><b>10:00</b><span>咖啡</span></div>
+                <div class="m-main">
+                  <div class="m-name">澄川咖啡·滨江店</div>
+                  <div class="m-sub">万象城 3 层 L308</div>
+                  <div class="m-chips"><span class="m-chip c-b">待拍摄</span><span class="m-chip c-r">待定金 ¥200</span></div>
+                </div>
+                <div class="m-side"><div class="m-price">¥1,200</div><div class="m-sub">待收 ¥1,200</div></div>
+                <span style="font-size:8px;background:#FFF1E9;color:#C64E15;border-radius:7px;padding:3px 4px">✎</span>
+              </div>
+              <div class="m-row acc dim">
+                <div class="m-time"><b>14:30</b><span>烧烤</span></div>
+                <div class="m-main">
+                  <div class="m-name">山野烤肉·万象城</div>
+                  <div class="m-sub">万象城 5 层</div>
+                  <div class="m-chips"><span class="m-chip c-p">后期中</span><span class="m-chip c-o">待尾款</span><span class="m-chip c-gray">蜂向</span></div>
+                </div>
+                <div class="m-side"><div class="m-price">¥800</div><div class="m-sub">待收 ¥800</div></div>
+                <span style="font-size:8px;background:#FFF1E9;color:#C64E15;border-radius:7px;padding:3px 4px">✎</span>
+              </div>
+            </div>
+            <div class="m-sec"><span>11月全部档期 · 往下滚看整月</span></div>
+            <div class="m-card tight">
+              <div class="m-row"><div class="m-main"><div class="m-sub">11月22日 周六 · 2 单</div></div><span style="font-size:9px;color:#C6C6CD">›</span></div>
+              <div class="m-row"><div class="m-main"><div class="m-sub">11月19日 周三 · 5 单 🔥</div></div><span style="font-size:9px;color:#C6C6CD">›</span></div>
+            </div>
+          </div>
+          <div class="scr-tab">
+            <i><b>⌂</b>首页</i><i class="on"><b>▤</b>行程</i><i><b>▦</b>订单</i><i><b>▭</b>收款<span class="badge">2</span></i><i><b>▨</b>统计</i>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 02 · 行程</div>
+      </div>
+      <ol class="notes">
+        <li><b>月头一行给三个数：</b>档期数、成交额、<u>已收额</u>。排档期时最想知道的是「这个月到手多少」，只有成交额会误导。</li>
+        <li><b>日期格里的小圆点＝当天单量（最多 6 个点），徽章＝单日勋章。</b><span class="ta">⭐ 忙碌日 ≥3 单 · 🔥 爆单 ≥5 单 · 💰 千元日 ≥¥1,000 · 💎 王牌日 ≥¥2,500；同日只显示最高档（💎 &gt; 🔥 &gt; 💰 &gt; ⭐）。阈值按真实峰值校准，保证可达。</span></li>
+        <li><b>「未来 7 天」横滑条解决「排下周」：</b>每天显示单量，条头给总单量与总额；点任意一天直接切日，跨月自动翻月。</li>
+        <li><b>当日清单是三行结构：</b>时间 + 店名 / 地点（可换行，不硬挤）/ 金额与待收。每天单量不多，允许两层信息。</li>
+        <li><b>行内铅笔直达编辑。</b>改时间、改价格不必先点开详情 —— 改档期是高频动作。</li>
+        <li><b>左右滑动切日</b>（位移 ≥56px、时长 &lt;800ms、纵向 &lt;48px 才算），纵向滚动与账号条/7 天条横滑优先，不抢手势。</li>
+        <li><b>整月时间线按日分组</b>，一口气往下滚就能看到本月全部档期，不必逐日点。</li>
+        <li><b>右上「分享」生成当日行程图</b>（默认不含金额，跟随账号筛选），给搭档或司机看。</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- P03 订单 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 03</span><span class="proto-title">订单 · 检索、筛选与行内推进</span><span class="proto-for">找回旧单 / 批量处理</span></div>
+    <div class="proto">
+      <div class="screen-wrap">
+        <div class="screen">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body">
+            <div class="m-top">
+              <div>
+                <div class="m-eyebrow">工作 × 收款 双轨状态</div>
+                <div class="m-h1">订单</div>
+              </div>
+              <div style="display:flex;gap:4px;align-items:center">
+                <span class="m-iconbtn">👁</span><span class="m-pill">+ 预约</span>
+              </div>
+            </div>
+            <div class="m-chipbar">
+              <span class="m-cchip">全部</span><span class="m-cchip on">饱饱</span><span class="m-cchip">花花</span>
+            </div>
+            <div class="m-search"><span>⌕</span><span>搜索商家 / 地点 / 联系人 / 备注</span></div>
+            <div class="m-fchips">
+              <span class="m-fchip on">全部 <b>12</b></span>
+              <span class="m-fchip">待拍摄 <b>3</b></span>
+              <span class="m-fchip">进行中 <b>4</b></span>
+              <span class="m-fchip">待收款 <b>5</b></span>
+              <span class="m-fchip">逾期 <b>2</b></span>
+            </div>
+            <div class="m-card tight" style="padding:0 7px">
+              <div class="m-swipe">
+                <div class="act"><span style="font-size:8px">⧉</span>复制</div>
+                <div class="track">
+                  <div class="m-row acc">
+                    <div class="m-main">
+                      <div class="m-name">澄川咖啡·滨江店</div>
+                      <div class="m-sub">预约 11-24 10:00 · 咖啡</div>
+                      <div class="m-chips">
+                        <span class="m-chip c-b">待拍摄</span><span class="m-chip c-gray">待定金</span><span class="m-chip c-gray">蜂向</span><span class="m-mini" style="font-size:5.6px">提审</span>
+                      </div>
+                    </div>
+                    <div class="m-side"><div class="m-price">¥1,200</div><div class="m-sub" style="color:#C02A20;font-weight:700">待收 ¥1,200</div></div>
+                    <span style="font-size:8px;background:#FFF1E9;color:#C64E15;border-radius:7px;padding:3px 4px">✎</span>
+                  </div>
+                </div>
+              </div>
+              <div class="m-row acc2">
+                <div class="m-main">
+                  <div class="m-name">山野烤肉·万象城</div>
+                  <div class="m-sub">拍摄 11-22 · 烧烤 · 出镜 花花</div>
+                  <div class="m-chips">
+                    <span class="m-chip c-p">后期中</span><span class="m-chip c-o">待尾款</span><span class="m-chip c-r">欠 2 天</span><span class="m-mini" style="font-size:5.6px">提审</span>
+                  </div>
+                </div>
+                <div class="m-side"><div class="m-price">¥800</div><div class="m-sub" style="color:#C02A20;font-weight:700">待收 ¥800</div></div>
+                <span style="font-size:8px;background:#FFF1E9;color:#C64E15;border-radius:7px;padding:3px 4px">✎</span>
+              </div>
+              <div class="m-row acc">
+                <div class="m-main">
+                  <div class="m-name">拾光小馆</div>
+                  <div class="m-sub">拍摄 11-23 · 餐饮</div>
+                  <div class="m-chips">
+                    <span class="m-chip c-o">发片中</span><span class="m-chip c-o">待尾款</span><span class="m-chip c-red">超24h</span><span class="m-mini" style="font-size:5.6px">发正片</span>
+                  </div>
+                </div>
+                <div class="m-side"><div class="m-price">¥1,000</div><div class="m-sub" style="color:#C02A20;font-weight:700">待收 ¥1,000</div></div>
+                <span style="font-size:8px;background:#FFF1E9;color:#C64E15;border-radius:7px;padding:3px 4px">✎</span>
+              </div>
+              <div class="m-row acc2">
+                <div class="m-main">
+                  <div class="m-name">棠里·新中式茶饮</div>
+                  <div class="m-sub">拍摄 11-20 · 茶饮</div>
+                  <div class="m-chips">
+                    <span class="m-chip c-g">已交付</span><span class="m-chip c-g">已结清</span><span class="m-chip c-gray">已设提醒</span>
+                  </div>
+                </div>
+                <div class="m-side"><div class="m-price">¥600</div><div class="m-sub">已结清</div></div>
+                <span style="font-size:8px;background:#FFF1E9;color:#C64E15;border-radius:7px;padding:3px 4px">✎</span>
+              </div>
+            </div>
+          </div>
+          <div class="scr-tab">
+            <i><b>⌂</b>首页</i><i><b>▤</b>行程</i><i class="on"><b>▦</b>订单</i><i><b>▭</b>收款<span class="badge">2</span></i><i><b>▨</b>统计</i>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 03 · 订单（含左滑态）</div>
+      </div>
+      <ol class="notes">
+        <li><b>搜索覆盖 7 个字段：</b>商家、地点、联系人、服务商、组队、备注、类型。找回旧单最常用的锚点是「那个商场」「那个店长」「蜂向那单」，只搜商家名等于白搜。</li>
+        <li><b>筛选 chips 带实时计数</b>，且计数跟随当前账号筛选 —— 拆账号看时数字必须只数这个账号，否则「逾期 2」点进去只有 1 条。</li>
+        <li><b>左滑只露一个次级动作「复制」。</b>不做删除/归档：复制用于「同店再拍一单」，编辑与删除在行内铅笔和详情页里，避免误操作。</li>
+        <li><b>行内 chip 区分「工作 / 资金 / 内容」三类：</b>蓝紫橙绿是工作线，灰橙蓝红绿是资金线，灰底是服务商；「欠 N 天」只在逾期时出现。</li>
+        <li><b>行尾按钮是唯一动作</b>（提审/发副片/发正片/发布），点完原地刷新列表，不跳页。</li>
+        <li><b>排序按「拍摄时间优先，没拍则按预约时间」倒序</b>：最近在处理的单永远在最上面。</li>
+        <li><b>拼音输入法兼容：</b>输入法合成期间不重建输入框，否则候选词会丢、拼音会被拆成字面量上屏。</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- P04 收款 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 04</span><span class="proto-title">收款 · 分桶催收与流水</span><span class="proto-for">回款管理与对账</span></div>
+    <div class="proto rev">
+      <div class="screen-wrap">
+        <div class="screen">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body">
+            <div class="m-top">
+              <div>
+                <div class="m-eyebrow">资金线 · 账期自实际拍摄日起算</div>
+                <div class="m-h1">收款</div>
+              </div>
+              <div style="display:flex;gap:4px"><span class="m-iconbtn">👁</span></div>
+            </div>
+            <div class="m-chipbar"><span class="m-cchip">全部</span><span class="m-cchip on">饱饱</span><span class="m-cchip">花花</span></div>
+            <div class="m-card" style="padding:8px">
+              <div style="font-size:6.2px;color:#8E8E93">待收款总额</div>
+              <div class="m-total">¥3,980</div>
+              <div class="m-chips">
+                <span class="m-chip c-o">尾款·私收 ¥2,000</span>
+                <span class="m-chip c-b">抖音商单 ¥1,000</span>
+                <span class="m-chip c-gray">定金 ¥980</span>
+                <span class="m-chip c-r">逾期 2 笔 · ¥1,800</span>
+                <span class="m-chip c-gray">1 笔已设提醒</span>
+              </div>
+            </div>
+            <div class="m-seg" style="margin-top:6px">
+              <i class="on">全部</i><i>≤7天</i><i>8–30天</i><i>30天+</i>
+            </div>
+            <div class="m-fchips" style="margin-bottom:5px">
+              <span class="m-fchip on">待催收 2</span><span class="m-fchip">已设提醒 1</span>
+            </div>
+            <div class="m-card tight">
+              <div class="m-row acc">
+                <div class="m-main">
+                  <div class="m-name">山野烤肉·万象城</div>
+                  <div class="m-sub">拍摄 11-22 · 后期中 ¥800</div>
+                  <div class="m-chips"><span class="m-chip c-r">逾期 · 欠 32 天</span></div>
+                </div>
+                <span class="m-mini g">标记已收</span>
+              </div>
+              <div class="m-row acc2">
+                <div class="m-main">
+                  <div class="m-name">拾光小馆</div>
+                  <div class="m-sub">拍摄 11-23 · 发片中 ¥1,000</div>
+                  <div class="m-chips"><span class="m-chip c-gray">已设提醒 · 11-26再催</span></div>
+                </div>
+                <span class="m-mini g">标记已收</span>
+              </div>
+              <div class="m-row acc">
+                <div class="m-main">
+                  <div class="m-name">澄川咖啡·滨江店</div>
+                  <div class="m-sub">预约 11-24 10:00 · 定金</div>
+                  <div class="m-chips"><span class="m-chip c-gray">待定金</span></div>
+                </div>
+                <span class="m-mini g">标记已收</span>
+              </div>
+              <div class="m-row acc2">
+                <div class="m-main">
+                  <div class="m-name">棠里·新中式茶饮</div>
+                  <div class="m-sub">拍摄 11-20 · 抖音商单结算 · 预计 11-27 到账</div>
+                  <div class="m-chips"><span class="m-chip c-b">平台结算 · 11-27</span></div>
+                </div>
+                <span class="m-mini g">标记到账</span>
+              </div>
+            </div>
+            <div class="m-sec"><span>收款流水</span><span class="more">导出 ›</span></div>
+            <div class="m-card tight">
+              <div class="m-row">
+                <div class="m-main"><div class="m-name" style="font-size:7.4px">+¥1,000 · 拾光小馆</div><div class="m-sub">尾款 · 11-23 21:10</div></div>
+                <span class="m-chip c-g">微信</span>
+              </div>
+              <div class="m-row">
+                <div class="m-main"><div class="m-name" style="font-size:7.4px">+¥600 · 棠里·新中式茶饮</div><div class="m-sub">尾款 · 11-22 18:02 · 抖音商单</div></div>
+                <span class="m-chip c-ink">抖音商单</span>
+              </div>
+            </div>
+          </div>
+          <div class="scr-tab">
+            <i><b>⌂</b>首页</i><i><b>▤</b>行程</i><i><b>▦</b>订单</i><i class="on"><b>▭</b>收款<span class="badge">2</span></i><i><b>▨</b>统计</i>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 04 · 收款</div>
+      </div>
+      <ol class="notes">
+        <li><b>总额卡片拆成四类，而不是一个数字：</b>尾款私收 / 抖音商单 / 定金 / 逾期。用户要的是「哪部分该催、哪部分只能等」。</li>
+        <li><b>分桶按逾期天数</b>（≤7 / 8–30 / 30+），排序时把「已设提醒」压到后面 —— 已经安排过的单不该占着最显眼的位置。</li>
+        <li><b>「待催收 / 已设提醒」是并列筛选</b>，不与分桶互斥：先决定看哪一类，再看欠了多久。</li>
+        <li><b>平台单不用「催」，用「等」：</b>按钮文案是「标记到账」，副行显示预计到账日，超期标红「已超 N 天」。</li>
+        <li><b>未拍摄的私收单不显示欠款天数</b>，而是「未拍摄 · 尚未起算账期」—— 期还没开始，催没有依据。</li>
+        <li><b>流水只留最近 8 条</b>，行内露出渠道色标；完整数据走「导出」（CSV 含流水段）。</li>
+        <li><b>Tab 角标＝未设提醒的逾期笔数</b>，随账号筛选变化 —— 这是唯一常驻的「钱」提醒。</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- P05 统计 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 05</span><span class="proto-title">统计 · 复盘、账号与数据管理</span><span class="proto-for">月末对账 / 换机备份</span></div>
+    <div class="proto">
+      <div class="screen-wrap">
+        <div class="screen">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body">
+            <div class="m-top">
+              <div><div class="m-eyebrow">实时统计 · 打开即刷新</div><div class="m-h1">统计</div></div>
+              <div class="m-iconbtn">👁</div>
+            </div>
+            <div class="m-chipbar"><span class="m-cchip">全部</span><span class="m-cchip on">饱饱</span><span class="m-cchip">花花</span></div>
+            <div class="m-seg"><i>近7天</i><i>近30天</i><i class="on">本月</i></div>
+            <div class="m-grid2">
+              <div class="m-miniCard"><div class="v">¥12,300</div><div class="l">成交额 · 9 单</div></div>
+              <div class="m-miniCard"><div class="v" style="color:#1F7A46">¥8,640</div><div class="l">实收金额 · 5 笔</div></div>
+              <div class="m-miniCard"><div class="v" style="color:#C64E15">7 单</div><div class="l">已交付完结</div></div>
+              <div class="m-miniCard"><div class="v">¥1,367</div><div class="l">客单价</div></div>
+            </div>
+            <div class="m-card" style="margin-top:6px;padding:7px 8px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="font-size:7.4px;font-weight:800">每日实收</span>
+                <span style="font-size:5.8px;color:#8E8E93">本月合计 <b style="color:#1F7A46">¥8,640</b></span>
+              </div>
+              <div class="m-bars">
+                <i style="height:18%"></i><i style="height:34%"></i><i class="zero" style="height:4%"></i><i style="height:52%"></i>
+                <i style="height:26%"></i><i class="zero" style="height:4%"></i><i style="height:71%"></i><i style="height:40%"></i>
+                <i style="height:88%"></i><i style="height:30%"></i><i class="zero" style="height:4%"></i><i style="height:64%"></i>
+                <i style="height:46%"></i><i style="height:22%"></i><i class="zero" style="height:4%"></i><i style="height:58%"></i>
+              </div>
+              <div class="m-bx"><span>11-01</span><span>11-24</span></div>
+            </div>
+            <div class="m-card" style="margin-top:6px;padding:7px 8px">
+              <div style="font-size:7.4px;font-weight:800;margin-bottom:3px">收款渠道构成</div>
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
+                <span class="m-chip c-g" style="width:26px;text-align:center">微信</span>
+                <div style="flex:1;height:4px;background:#F0F0F4;border-radius:3px"><div style="width:82%;height:4px;background:var(--brand);border-radius:3px"></div></div>
+                <span style="font-size:5.8px;font-weight:800;min-width:33px;text-align:right">¥5,200</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
+                <span class="m-chip c-ink" style="width:26px;text-align:center">抖音</span>
+                <div style="flex:1;height:4px;background:#F0F0F4;border-radius:3px"><div style="width:48%;height:4px;background:var(--brand);border-radius:3px"></div></div>
+                <span style="font-size:5.8px;font-weight:800;min-width:33px;text-align:right">¥2,600</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px">
+                <span class="m-chip c-o" style="width:26px;text-align:center">银行</span>
+                <div style="flex:1;height:4px;background:#F0F0F4;border-radius:3px"><div style="width:16%;height:4px;background:var(--brand);border-radius:3px"></div></div>
+                <span style="font-size:5.8px;font-weight:800;min-width:33px;text-align:right">¥840</span>
+              </div>
+            </div>
+            <div class="m-sec"><span>我的账号</span><span class="more">+ 添加 ›</span></div>
+            <div class="m-card tight">
+              <div class="m-row" style="background:#FFF3EC;border-radius:8px;padding:5px;gap:5px">
+                <div class="m-av">饱</div>
+                <div class="m-main"><div class="m-name">饱饱</div><div class="m-sub">抖音:baobao_eat · 手机 138****6678 · 8 单</div></div>
+                <span class="m-mini" style="font-size:5.6px">拷贝</span>
+                <span class="m-mini" style="background:rgba(0,0,0,.06);color:#55555E;font-size:5.6px">编辑</span>
+              </div>
+              <div class="m-row" style="padding:4px 5px">
+                <div class="m-main"><div class="m-sub" style="color:#C97A08">2 笔订单未指定账号（含历史单）</div></div>
+                <span class="m-mini" style="font-size:5.6px">批量改挂</span>
+              </div>
+            </div>
+            <div class="m-sec"><span>数据管理（本机 SQLite 存储）</span></div>
+            <div class="m-card tight">
+              <div class="m-menu"><span class="m-mic">▤</span><div class="m-mt"><div class="m-mn">数据结构 · SQLite</div><div class="m-ms">orders / payments / accounts，可导出迁移</div></div><span style="font-size:8px;color:#C6C6CD">›</span></div>
+              <div class="m-menu"><span class="m-mic" style="background:#FFF5E6;color:#C97A08">🔔</span><div class="m-mt"><div class="m-mn">尾款催收阈值</div><div class="m-ms">超过该天数未收即标「已逾期」</div></div><span style="font-size:6.4px;font-weight:800;background:#F1F1F5;border-radius:5px;padding:2px 5px">15 天</span></div>
+              <div class="m-menu"><span class="m-mic" style="background:#EAF9EE;color:#1F7A46">↓</span><div class="m-mt"><div class="m-mn">导出 CSV</div><div class="m-ms">订单表 + 收款流水</div></div><span style="font-size:8px;color:#C6C6CD">›</span></div>
+              <div class="m-menu"><span class="m-mic" style="background:#F4EBFC;color:#8B6BC4">⇄</span><div class="m-mt"><div class="m-mn">导入 JSON 备份</div><div class="m-ms">预览后恢复；替换前自动备份</div></div><span style="font-size:8px;color:#C6C6CD">›</span></div>
+              <div class="m-menu"><div class="m-mt"><div class="m-mn" style="color:#C02A20">清空当前工作数据</div><div class="m-ms">账号与设置保留，不影响演示数据</div></div></div>
+            </div>
+          </div>
+          <div class="scr-tab">
+            <i><b>⌂</b>首页</i><i><b>▤</b>行程</i><i><b>▦</b>订单</i><i><b>▭</b>收款<span class="badge">2</span></i><i class="on"><b>▨</b>统计</i>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 05 · 统计</div>
+      </div>
+      <ol class="notes">
+        <li><b>期间三档起点不同：</b>近 7 / 近 30 天按自然日回推；本月从 1 日起算。切换后柱状图与「N 单」「N 笔」同步变。</li>
+        <li><b>四格是复盘四问：</b>做了多少（成交）、到手多少（实收）、交付多少（已交付）、单价值多少（客单价）。</li>
+        <li><b>每日实收柱状图</b>：无收款的日子用灰柱占位（不省略），才能看出「空了几天」。</li>
+        <li><b>渠道构成用条形而非饼图：</b>渠道只有 5 个、金额差异大，条形更容易读出绝对值。</li>
+        <li><b>账号区既是管理也是入口：</b>行内「拷贝 / 编辑」；未指定订单数量直接显示为可点动作。</li>
+        <li><b>数据管理按「风险从低到高」排列：</b>查看结构 → 调阈值 → 导出 → 导入 → 恢复 → 清空；破坏性操作放最后且要二次确认。</li>
+        <li><b>催收阈值用步进器</b>（7/15/30/45 四档），不做自由输入 —— 减少无效值与误设。</li>
+        <li><b>导出三件套各有用途：</b>CSV 给会计、JSON 用于换机搬运、.db 用于归档取证。页脚明确提示「数据仅存本机，请定期备份」。</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- P06 详情 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 06</span><span class="proto-title">订单详情 · 里程碑与下一步</span><span class="proto-for">单笔履约与收款的总控台</span></div>
+    <div class="proto">
+      <div class="screen-wrap">
+        <div class="screen">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body flush">
+            <div class="m-sheet" style="position:absolute;inset:0">
+              <div class="m-sheet-in" style="max-height:100%;border-radius:16px 16px 0 0">
+                <div class="m-grab"></div>
+                <div class="m-shead">
+                  <div>
+                    <div class="m-dtitle">山野烤肉·万象城</div>
+                    <div style="font-size:6px;color:#8E8E93;margin-top:1px">烧烤 · 店长王姐 138****2211</div>
+                  </div>
+                  <div style="display:flex;gap:4px">
+                    <span class="m-close">⧉</span>
+                    <span class="m-close" style="background:#FFF1E9;color:#C64E15">✎</span>
+                    <span class="m-close">✕</span>
+                  </div>
+                </div>
+                <div class="m-chips" style="margin-bottom:3px">
+                  <span class="m-chip c-p">后期中</span>
+                  <span class="m-chip c-r">已逾期</span>
+                  <span class="m-chip c-g">送审合格</span>
+                  <span class="m-chip c-r">超24h未出片</span>
+                  <span class="m-chip c-gray">已设提醒</span>
+                </div>
+                <div class="m-banner red" style="margin-bottom:5px">
+                  <span>🔔</span>
+                  <span>尾款自拍摄日（11-22）起已欠 <b>32 天</b>，达到 15 天催收阈值，建议电话跟进。已备忘：11-26 再提醒。</span>
+                </div>
+                <div class="m-mile">
+                  <div class="m-ms done" style="--mc:#E8663C;--msoft:#FCEFE8"><div class="m-md">✓</div><div class="lb">拍摄</div><div class="tm">11-22</div></div>
+                  <div class="m-ms done" style="--mc:#3B7DD8;--msoft:#EDF3FC"><div class="m-md">✓</div><div class="lb">提审</div><div class="tm">11-22</div></div>
+                  <div class="m-ms big now" style="--mc:#8B6BC4;--msoft:#F3EEFA"><div class="m-md">·</div><div class="lb">副片</div><div class="tm">点击标记</div></div>
+                  <div class="m-ms big" style="--mc:#2FA05F;--msoft:#EAF6EE;opacity:.45"><div class="m-md"></div><div class="lb">正片</div><div class="tm"></div></div>
+                  <div class="m-ms" style="--mc:#5C6B7A;--msoft:#EDEFF2;opacity:.45"><div class="m-md"></div><div class="lb">发布</div><div class="tm"></div></div>
+                </div>
+                <div style="display:flex;gap:4px;justify-content:center;margin:3px 0 5px">
+                  <span class="m-mini" style="font-size:5.8px">📷 重拍门口照</span>
+                  <span class="m-mini" style="font-size:5.8px;background:#F1F1F5;color:#7A7A82">删除照片</span>
+                </div>
+                <div class="m-btn primary" style="margin-bottom:4px">标记已提审</div>
+                <div class="m-sec" style="margin:6px 1px 3px"><span>收款</span></div>
+                <div class="m-btn tintb" style="margin-bottom:3px">收定金 ¥200</div>
+                <div class="m-btn pay">收尾款 <span style="font-size:11px;font-weight:800;margin-left:3px">¥600</span></div>
+                <div class="m-sec" style="margin:7px 1px 3px"><span>催收跟进</span><span class="more">再催一次 ›</span></div>
+                <div class="m-card" style="background:#F8F8FA;box-shadow:none;padding:5px 6px;margin-bottom:4px">
+                  <div style="font-size:5.9px;color:#8E8E93;margin-bottom:3px">已催 2 次 · 最近 11-20 15:20</div>
+                  <div class="m-rline"><span class="rt">11-20 15:20</span><span>财务走流程，说月底统一结</span></div>
+                  <div class="m-rline"><span class="rt">11-18 10:05</span><span>已催</span></div>
+                </div>
+                <div class="m-btn2">
+                  <div class="m-btn ghost" style="font-size:6.6px">1天后提醒</div>
+                  <div class="m-btn ghost" style="font-size:6.6px">3天后提醒</div>
+                  <div class="m-btn ghost" style="font-size:6.6px">7天后提醒</div>
+                </div>
+                <div style="font-size:5.6px;color:#8E8E93;text-align:center;margin:3px 0">已设提醒：11-26 再催收 <span style="background:#F1F1F5;border-radius:5px;padding:1px 4px">清除</span></div>
+                <div class="m-infogrid">
+                  <div class="m-ig"><div class="k">预约时间</div><div class="v">11-22 14:30</div></div>
+                  <div class="m-ig"><div class="k">实际拍摄</div><div class="v">11-22 14:41</div></div>
+                  <div class="m-ig"><div class="k">地点</div><div class="v">万象城 5 层 <span style="color:#C64E15">导航</span></div></div>
+                  <div class="m-ig"><div class="k">到店定位</div><div class="v">已记录 <span style="color:#C64E15">看位置</span></div></div>
+                  <div class="m-ig"><div class="k">组队</div><div class="v">花花</div></div>
+                  <div class="m-ig"><div class="k">当前待收</div><div class="v" style="color:#C02A20">¥800</div></div>
+                </div>
+                <div style="margin-top:5px"><div class="m-btn" style="background:#FFEBEA;color:#C02A20;font-size:7px">删除订单</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 06 · 订单详情</div>
+      </div>
+      <ol class="notes">
+        <li><b>顶部三按钮固定：复制 / 编辑 / 关闭。</b>复制用于「同店再拍一单」—— 复制的是预约资料，不带履约与收款历史，副本立即落库并进入编辑。</li>
+        <li><b>进度条按该单配置伸缩：</b>只要正片就只出现 4 个节点；发片两个节点圆点放大一号（交付核心）；拍过的拍摄圆点直接显示门口照。</li>
+        <li><b>进度线只画到最后一个已完成节点的中心</b>，不画到 100% —— 「完成到哪」比「还剩多少」更重要。</li>
+        <li><b>未来节点不可点但保留点击事件：</b>点了会提示「请先完成「提审」再标记「副片发出」」，而不是灰掉什么都不发生。</li>
+        <li><b>主操作区永远只有一个主按钮。</b>这是全 App 最重要的引导：用户不需要判断该做什么。</li>
+        <li><b>逾期横幅带三个信息：</b>起算日、已欠天数和当前阈值 —— 让「为什么算逾期」可解释，减少与商家的沟通争议。</li>
+        <li><b>催收跟进是时间线不是表格：</b>一行「什么时候问的 + 对方怎么答」，最近 4 条，超出折叠为「另有 N 次」。</li>
+        <li><b>收款按钮按缺口生成：</b>有待收定金才出现「收定金」，有待收尾款才出现「收尾款」；全结清则换成一行绿字「款项已全部结清」。</li>
+        <li><b>信息栅格收的是「事后要查的一组事实」：</b>预约与实拍时间、账号、地点与到店定位、发布时间、服务商、组队、总价 / 定金 / 尾款 / 已收 / 待收、结算方式。两列自适应，多账号时才出现「账号」格。</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- P07 新建 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 07</span><span class="proto-title">新建预约弹层 · 30 秒录单</span><span class="proto-for">微信谈单当场记录</span></div>
+    <div class="proto rev">
+      <div class="screen-wrap">
+        <div class="screen">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body flush">
+            <div class="m-sheet" style="position:absolute;inset:0">
+              <div class="m-sheet-in">
+                <div class="m-grab"></div>
+                <div class="m-shead"><span class="m-stitle">新建探店预约</span><span class="m-close">✕</span></div>
+                <div style="flex:1;overflow:hidden">
+                  <div class="m-frow"><label>品名/商家</label><span class="val">澄川咖啡·滨江店</span></div>
+                  <div class="m-frow"><label>地点</label><span class="val ph">如：万象城 3 层 / 具体地址</span></div>
+                  <div style="padding:4px 0 2px">
+                    <div style="font-size:6.8px;font-weight:700;margin-bottom:3px">账号 <span style="color:#C02A20">*</span></div>
+                    <div class="m-accopt on"><span class="m-dot"></span><span class="m-av">饱</span><span style="font-size:6.6px;font-weight:700;flex:1">饱饱</span><span style="font-size:5.8px;color:#8E8E93">8 单</span></div>
+                    <div class="m-accopt"><span class="m-dot"></span><span class="m-av b">花</span><span style="font-size:6.6px;font-weight:700;flex:1">花花</span><span style="font-size:5.8px;color:#8E8E93">3 单</span></div>
+                    <div style="font-size:5.4px;color:#8E8E93;margin:2px 0 0">每个选中账号各生成一笔独立订单，后续分别维护</div>
+                  </div>
+                  <div class="m-frow"><label>类型</label><span class="val">咖啡</span></div>
+                  <div class="m-frow"><label>结算方式</label><span class="val">私收（微信/支付宝/银行卡）</span></div>
+                  <div style="padding:4px 0 2px">
+                    <div style="font-size:6.8px;font-weight:700;margin-bottom:3px">服务商 <span style="font-size:5.4px;color:#8E8E93;font-weight:400">预设点选，或直接输入</span></div>
+                    <div class="m-chips" style="margin:0 0 2px">
+                      <span class="m-chip c-ink">蜂向</span><span class="m-chip c-gray">小爱</span><span class="m-chip c-gray">金城</span><span class="m-chip c-gray">食物</span><span class="m-chip c-gray">直客</span>
+                    </div>
+                  </div>
+                  <div class="m-frow"><label>组队</label><span class="val ph">组队/出镜搭档，单人可空</span></div>
+                  <div class="m-frow"><label>出片要求</label><span class="val" style="text-align:right;font-size:6.4px">☑ 正片　☐ 副片</span></div>
+                  <div class="m-frow"><label>预约时间</label><span class="val">2026-11-24　10:00　<span style="color:#C64E15;font-weight:700">今天</span></span></div>
+                  <div class="m-banner">
+                    <b>该时段已有排期（前后 2 小时内）：</b>
+                    <div style="margin-top:1px">· 09:30「棠里·新中式茶饮」· 万象城 1 层</div>
+                    <div style="margin-top:1px">不影响保存 —— 可找人代拍或错峰。</div>
+                  </div>
+                  <div class="m-frow"><label>总价(¥)</label><span class="val">1200</span></div>
+                  <div class="m-frow"><label>定金(¥)</label><span class="val ph">0 表示未约定定金</span></div>
+                  <div class="m-frow"><label>联系方式</label><span class="val">店长王姐 138****2211</span></div>
+                  <div class="m-frow"><label>备注</label><span class="val ph">拍摄要点、机位、交付要求…</span></div>
+                </div>
+                <div class="m-foot" style="position:static;box-shadow:none;border-top:1px solid #F1F1F5;margin:4px -10px -8px;padding:6px 10px 8px">
+                  <div class="m-btn primary">保存预约</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 07 · 新建预约</div>
+      </div>
+      <ol class="notes">
+        <li><b>必填只有「商家 + 总价」，其余全部可空或有默认值。</b>录单发生在微信对话中，30 秒内必须能按下保存。</li>
+        <li><b>账号是单选卡不是下拉菜单：</b>可多选时用带勾选框的整行卡片，一眼看清哪个号有几单；单账号时此区块整块消失。</li>
+        <li><b>服务商用预设芯片 + 自由输入：</b>点选快；输入过的自定义名保存后自动进预设，下次直接点。</li>
+        <li><b>「出片要求」是交付线的开关：</b>只勾正片 → 副片节点全链路消失（进度条、行内按钮、统计口径一起变）。两片都不勾会被拦下。</li>
+        <li><b>冲突横幅在时间行下方即时出现</b>，不等保存。列出「时间 + 店名 + 地点」，因为要判断的是「要不要跨区赶场」，只报门店名不够。</li>
+        <li><b>日期右侧给相对日标签</b>（今天/明天/N 天后），防手滑选错月份 —— 这是最高频的录入错误。</li>
+        <li><b>保存条常驻底部，不随内容滚动。</b>11 个字段在手机上大约两屏，保存必须随时可见。</li>
+        <li><b>弹层只允许从头部下拉关闭</b>（表单类），避免滚到底部时误丢已填内容；底部按钮区不参与下拉。</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- P08 收款确认 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 08</span><span class="proto-title">确认收款弹层 · 一步记账</span><span class="proto-for">收到钱的 10 秒内完成记录</span></div>
+    <div class="proto">
+      <div class="screen-wrap">
+        <div class="screen">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body flush">
+            <div class="m-back">
+              <div style="font-size:9px;font-weight:800">山野烤肉·万象城</div>
+              <div class="m-sub" style="margin-bottom:3px">烧烤 · 店长王姐</div>
+              <div class="m-chips"><span class="m-chip c-p">后期中</span><span class="m-chip c-r">已逾期</span><span class="m-chip c-g">送审合格</span></div>
+              <div class="m-card tight" style="margin-top:6px">
+                <div class="m-row"><div class="m-main"><div class="m-name">标记已提审</div><div class="m-sub">主操作 · 单按钮引导</div></div></div>
+              </div>
+              <div class="m-card tight">
+                <div class="m-row"><div class="m-main"><div class="m-name">收尾款 ¥600</div><div class="m-sub">待收 · 私收款项</div></div></div>
+              </div>
+              <div class="m-card tight">
+                <div class="m-row"><div class="m-main"><div class="m-name">催收跟进 · 已催 2 次</div><div class="m-sub">11-20 15:20 · 财务走流程</div></div></div>
+              </div>
+              <div class="m-infogrid">
+                <div class="m-ig"><div class="k">预约时间</div><div class="v">11-22 14:30</div></div>
+                <div class="m-ig"><div class="k">实际拍摄</div><div class="v">11-22 14:41</div></div>
+                <div class="m-ig"><div class="k">总价</div><div class="v">¥800</div></div>
+                <div class="m-ig"><div class="k">当前待收</div><div class="v">¥600</div></div>
+              </div>
+            </div>
+            <div class="m-sheet" style="position:absolute;inset:0;background:rgba(15,15,25,.4)">
+              <div class="m-sheet-in" style="padding-bottom:14px">
+                <div class="m-grab"></div>
+                <div class="m-shead"><span class="m-stitle">确认收款</span><span class="m-close">✕</span></div>
+                <div class="m-paybig">
+                  <div class="n">山野烤肉·万象城</div>
+                  <div class="amt">¥600</div>
+                  <div class="s">尾款 · 私收款项 · 仅作入账记录</div>
+                </div>
+                <div style="font-size:6.4px;font-weight:800;color:#8E8E93;text-align:center;margin:6px 0 2px">收款方式（记录用）</div>
+                <div class="m-mchips">
+                  <span class="m-mchip">微信</span>
+                  <span class="m-mchip">支付宝</span>
+                  <span class="m-mchip">银行卡</span>
+                  <span class="m-mchip">抖音商单</span>
+                  <span class="m-mchip">其他</span>
+                </div>
+                <div class="m-btn" style="background:#34C759;color:#fff;margin-top:8px;box-shadow:0 3px 10px rgba(52,199,89,.3)">确认收款 ¥600</div>
+                <div style="font-size:5.6px;color:#B9B9C0;text-align:center;margin-top:5px">记录后会立刻更新待收金额与统计；记错可撤销</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 08 · 确认收款</div>
+      </div>
+      <ol class="notes">
+        <li><b>金额是唯一主角：</b>34px 数字居中，店名与款项在上，渠道在下 —— 用户此刻只想确认「是不是这笔、多少钱」。</li>
+        <li><b>默认渠道聪明：</b>平台单默认「抖音商单」，私收默认「微信」，多数情况直接点确认即可。</li>
+        <li><b>渠道是记录标签，不是支付通道。</b>文案明确写「仅作入账记录」，避免用户以为 App 在代收钱。</li>
+        <li><b>确认按钮用绿色而非品牌橙：</b>橙色代表「创建/推进」，绿色代表「钱已到手」，色语义区分开。</li>
+        <li><b>一次点击记两件事：</b>写一条流水 + 在订单上标已收时间；两者绑定，撤销时一起回滚。</li>
+        <li><b>尾款收齐顺手清备忘</b>并撤销已排的通知 —— 用户不该为一笔已结清的单再收到催收提醒。</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- P09 催收 -->
+  <div class="proto-block">
+    <div class="proto-head"><span class="proto-id">原型 09</span><span class="proto-title">催收跟进弹层 + 行程分享图</span><span class="proto-for">社交化催收 · 对外分享</span></div>
+    <div class="proto">
+      <div class="screen-wrap">
+        <div class="screen" style="height:420px">
+          <div class="scr-status"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+          <div class="scr-body flush">
+            <div class="m-back">
+              <div style="font-size:9px;font-weight:800">山野烤肉·万象城</div>
+              <div class="m-sub" style="margin-bottom:3px">烧烤 · 店长王姐</div>
+              <div class="m-chips"><span class="m-chip c-p">后期中</span><span class="m-chip c-r">已逾期</span><span class="m-chip c-gray">已设提醒</span></div>
+              <div class="m-card tight" style="margin-top:6px">
+                <div class="m-row"><div class="m-main"><div class="m-name">催收跟进</div><div class="m-sub">已催 2 次 · 最近 11-20 15:20</div></div></div>
+              </div>
+              <div class="m-card tight">
+                <div class="m-row"><div class="m-main"><div class="m-name">1 / 3 / 7 天后提醒</div><div class="m-sub">备忘 · 到期前不再红催</div></div></div>
+              </div>
+              <div class="m-infogrid">
+                <div class="m-ig"><div class="k">当前待收</div><div class="v">¥600</div></div>
+                <div class="m-ig"><div class="k">已催次数</div><div class="v">2 次</div></div>
+              </div>
+            </div>
+            <div class="m-sheet" style="position:absolute;inset:0;background:rgba(15,15,25,.4)">
+              <div class="m-sheet-in" style="padding-bottom:12px">
+                <div class="m-grab"></div>
+                <div class="m-shead"><span class="m-stitle">记一次催收跟进</span><span class="m-close">✕</span></div>
+                <div style="font-size:5.8px;color:#8E8E93;line-height:1.6;margin-bottom:5px">「山野烤肉·万象城」已催 2 次，最近 11-20 15:20 · 记录时间自动取现在</div>
+                <div class="m-chips" style="margin-bottom:5px">
+                  <span class="m-chip c-gray">说这周给</span><span class="m-chip c-gray">说月底统一结</span>
+                  <span class="m-chip c-gray">财务走流程</span><span class="m-chip c-gray">没回复/不接</span>
+                  <span class="m-chip c-gray">已转对公</span><span class="m-chip c-gray">说拍完再结</span>
+                </div>
+                <div class="m-frow"><label>对方答复</label><span class="val">财务走流程，15 号打款</span></div>
+                <div class="m-btn primary" style="margin-top:6px">记下这次跟进</div>
+                <div style="font-size:5.4px;color:#8E8E93;line-height:1.6;margin-top:5px">
+                  只记「什么时候问的、对方怎么答」，不含金额。想让它几天后再提醒你，记完用详情页的 1/3/7 天按钮。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 09a · 催收跟进</div>
+
+        <div class="shr" style="margin-top:6px">
+          <div class="shr-head">
+            <div class="b">探记 TanJi · 拍摄行程</div>
+            <div class="t">2026年11月24日 周一</div>
+            <div class="s">3 个拍摄安排</div>
+          </div>
+          <div class="shr-body">
+            <div class="shr-row"><div class="tm">10:00</div><div class="nm">澄川咖啡·滨江店<span class="st" style="display:block">● 待拍摄　咖啡</span></div></div>
+            <div class="shr-row"><div class="tm">14:30</div><div class="nm">山野烤肉·万象城<span class="st" style="display:block">● 后期中　烧烤</span></div></div>
+            <div class="shr-row"><div class="tm">18:00</div><div class="nm">棠里·新中式茶饮<span class="st" style="display:block">● 已交付　茶饮</span></div></div>
+          </div>
+          <div class="shr-foot">由「探记」生成 · 不含金额信息</div>
+        </div>
+        <div style="font-size:11px;color:var(--sub)">原型 09b · 今日行程分享图</div>
+      </div>
+      <ol class="notes">
+        <li><b>快捷答复芯片覆盖 6 种真实说法：</b>「说这周给 / 说月底统一结 / 财务走流程 / 没回复不接 / 已转对公 / 说拍完再结」—— 点一下填入输入框，仍可改。</li>
+        <li><b>记录只存时间 + 答复，不含金额。</b>催收痕迹是沟通备忘录，不是账本；金额在收款模块已有一份，重复记录只会产生对不上的第二份真相。</li>
+        <li><b>封顶 50 条并明确告知</b>「最早一条已被挤出」，避免用户以为数据丢了。</li>
+        <li><b>分享图默认不含金额，跟随账号筛选。</b>它是拿给外人看的（搭档、司机、服务商），金额属于隐私。</li>
+        <li><b>分享图结构固定：</b>渐变色头（日期 + 单数）→ 每单一行（时间 + 店名 + 状态 + 类型）→ 落款「不含金额信息」。</li>
+        <li><b>分享走系统面板</b>（原生）或下载（Web）；不支持文件分享时自动降级为保存图片，不让用户卡住。</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 08 ================= -->
+<section id="s8">
+  <div class="sec-head"><span class="sec-no">08</span><h2>交互规格表<span class="en">INTERACTION SPEC</span></h2></div>
+  <p class="sec-desc">逐条列出可验收的交互行为。开发按此实现，测试按此走查；任何「点了没反应」都属于缺陷。</p>
+
+  <h3>8.1 手势与动效</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:18%">对象</th><th style="width:22%">手势</th><th>判定与反馈</th></tr></thead>
+      <tbody>
+        <tr><td>行程页</td><td>左右滑动切日</td><td>横向位移 ≥56px、时长 &lt;800ms、纵向位移 &lt;48px、横向 &gt; 纵向 1.35 倍；命中则切上/下一天并跨月同步。账号条与未来 7 天条区域不响应。</td></tr>
+        <tr><td>订单行</td><td>左滑露出「复制」</td><td>跟手位移，最多 -78px；松手位移 &lt;-32px 展开，&gt;24px 收起；同时只允许一项展开；点击行内按钮不触发滑动。</td></tr>
+        <tr><td>底部弹层</td><td>下拉关闭</td><td>跟手位移，超过 110px 松手关闭；列表滚到顶才由弹层接管；表单类弹层仅允许从头部拖，正文滚动不关闭。</td></tr>
+        <tr><td>弹层背景</td><td>点击遮罩关闭</td><td>遮罩 0.28s 淡入淡出；关闭后详情弹层保持原滚动位置。</td></tr>
+        <tr><td>头像裁剪</td><td>拖动 / 双指缩放 / 双击放大</td><td>全屏覆盖在账号弹层之上，账号表单状态不丢；只保存 128×128 结果，原图不落库。</td></tr>
+        <tr><td>全局</td><td>禁止双击缩放 / 长按气泡 / 整页橡皮筋</td><td>仅输入框、文本域、导出内容、数据结构区允许选中与长按。</td></tr>
+        <tr><td>全局</td><td>Toast</td><td>顶部居中、约 1.9 秒自动消失（带「撤销」的保留 5 秒）；带动作的才接收点击，普通 Toast 不拦截下层按钮。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>8.2 状态与反馈</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:20%">动作</th><th style="width:24%">触发</th><th>系统行为</th><th style="width:26%">反馈文案</th></tr></thead>
+      <tbody>
+        <tr><td>保存预约</td><td>底部「保存预约」</td><td>校验 → 落库 → 关弹层 → 跳该日行程 → 重绘全站</td><td>「已添加预约：X」/「已添加 N 笔独立预约：X」</td></tr>
+        <tr><td>打卡</td><td>首页行内「打卡」</td><td>写拍摄时间 → 记 GPS（静默）→ 重排 24h 提醒</td><td>「已记录实际拍摄时间 ✓」</td></tr>
+        <tr><td>随手拍</td><td>详情「📷 随手拍」</td><td>相册/相机 → 压缩烘焙 → 写图 + 拍摄时间 → 记 GPS</td><td>「已随手拍 · 拍摄时间已记录」</td></tr>
+        <tr><td>推进里程碑</td><td>详情主按钮 / 行内按钮</td><td>前置守卫 → 写时间 → 重绘 → 重排提醒</td><td>「已标记「副片发出」」</td></tr>
+        <tr><td>跳步</td><td>点击未解锁节点</td><td>不写入，仅提示前置节点</td><td>「请先完成「提审」再标记「副片发出」」</td></tr>
+        <tr><td>清除里程碑</td><td>点击已完成节点</td><td>确认弹窗列出下游 → 一并置空</td><td>「清除「提审」？其后的「副片」「正片」也将一并清除。」</td></tr>
+        <tr><td>确认收款</td><td>收款弹层「确认收款」</td><td>校验重复/金额 → 写流水 + 标记 → 关弹层 → 重排通知</td><td>「已收尾款 ¥600 · 微信」+ 撤销</td></tr>
+        <tr><td>撤销收款</td><td>Toast「撤销」</td><td>定位 (单号, 款项, 时间) → 校验未被改动 → 删流水 + 清标记</td><td>「已撤销该笔收款」/「这笔收款已被改动，无法撤销」</td></tr>
+        <tr><td>设催收备忘</td><td>详情 1/3/7 天按钮</td><td>写 remindAt（当天 09:00）→ 排一次性通知 → 首页转琥珀态</td><td>「已备忘：3 天后（11-26）提醒催收 ✓」</td></tr>
+        <tr><td>记催收跟进</td><td>「记下这次跟进」</td><td>追加一条痕迹（≤50）→ 回详情 → 重绘</td><td>「已记录第 3 次催收 · 财务走流程」</td></tr>
+        <tr><td>导出</td><td>各处导出入口</td><td>原生：写缓存文件 → 系统分享面板；Web：下载</td><td>「已导出 CSV（订单 + 流水）✓」</td></tr>
+        <tr><td>导入 JSON</td><td>选文件后</td><td>解析 → 校验流水与已收一致 → 预览摘要 → 确认后替换（先留备份）</td><td>「不能导入：订单「X」的尾款流水与已收状态不一致」</td></tr>
+        <tr><td>隐私模式</td><td>顶栏眼睛</td><td>全站金额变 ✱✱✱；编辑弹层金额只读</td><td>「已隐藏金额 · 截图模式」</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>8.3 校验规则</h3>
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0">金额</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li>必须为非负数，最多两位小数；空字符串在定金字段视为 0。</li>
+        <li>定金不得大于总价；总价可为 0（纯置换单）。</li>
+        <li>已存在收款记录时，编辑总价/定金被禁止并给说明。</li>
+        <li>待收金额为 0 时不允许记该笔款项。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">时间</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li>预约时间必须是合法的本地日期时间（回读校验，拒绝 2 月 30 日这类值）。</li>
+        <li>里程碑时间一律取「现在」，不允许手填（避免伪造时间线）。</li>
+        <li>预计到账日选日期即可，内部按当天 10:00 存储。</li>
+        <li>备忘时间固定为「N 天后 09:00」，与每日汇总时间一致。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">出片要求</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li>正片/副片至少勾选一项，否则交付线永远无法完成。</li>
+        <li>改配置后进度条节点即时增减；已标记过但新配置不要求的节点不显示。</li>
+        <li>「已交付」判定严格按配置，不按「有任意片」。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">账号</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li>昵称必填；手机号、抖音号、头像、色号选填。</li>
+        <li>多账号新建订单必须至少选一个账号；单账号自动归属。</li>
+        <li>删除账号后，其订单转为「未指定」，可通过批量改挂恢复归属。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>8.4 空态与错误态</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:22%">场景</th><th>呈现</th></tr></thead>
+      <tbody>
+        <tr><td>今日无拍摄</td><td>「🌙 今日无拍摄安排 / 去「行程」页看看接下来的档期」</td></tr>
+        <tr><td>无待发片</td><td>「没有待发片的订单 🎉」</td></tr>
+        <tr><td>当日无档期</td><td>「📭 这一天暂无拍摄安排」</td></tr>
+        <tr><td>搜索无结果</td><td>「🔍 没有符合条件的订单」</td></tr>
+        <tr><td>区间无待收</td><td>「✅ 该区间暂无待收款」</td></tr>
+        <tr><td>无账号</td><td>统计页显示引导行「添加账号」，说明多账号能做什么</td></tr>
+        <tr><td>存储异常</td><td>底部琥珀提示条：说明 + 「重试保存/读取」「导出备份」「导出替换前备份」三个出口；写入类动作被拦截并提示，绝不在只读状态假装成功</td></tr>
+        <tr><td>通知权限被拒</td><td>静默降级：不排通知，App 内角标与列表提示照常工作</td></tr>
+        <tr><td>定位失败</td><td>「定位失败，请确认已允许「使用 App 期间」定位」；不影响其他字段</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 09 ================= -->
+<section id="s9">
+  <div class="sec-head"><span class="sec-no">09</span><h2>提醒与通知<span class="en">NOTIFICATIONS</span></h2></div>
+  <p class="sec-desc">三类通知，全部为本地通知（无推送服务器）。设计原则：只在用户需要动手时打扰，且每条通知都能对应 App 内一个可操作入口。</p>
+
+  <div class="grid g3">
+    <div class="card">
+      <div class="tag t-p0" style="margin-bottom:8px">每天 09:00</div>
+      <h4 style="margin-top:0">逾期催收汇总</h4>
+      <p style="font-size:12.8px;margin-bottom:6px">「探记 · 尾款催收」<br/>「N 笔尾款已逾期，最长 M 天 —— 今日安排一次跟进」</p>
+      <p style="font-size:12px;color:#6D6D75;margin-bottom:0">重复通知；仅报条数与最长天数，<b>不含金额</b>（可能在锁屏被旁人看到）；可在统计页关闭。</p>
+    </div>
+    <div class="card">
+      <div class="tag t-p1" style="margin-bottom:8px">拍摄 +24h</div>
+      <h4 style="margin-top:0">出片提醒</h4>
+      <p style="font-size:12.8px;margin-bottom:6px">「探记 · 出片提醒」<br/>「「X」拍摄已超 24 小时，还有片子没出齐，记得跟进」</p>
+      <p style="font-size:12px;color:#6D6D75;margin-bottom:0">一次性；已超期的不再排（列表有红角标）；出齐/删单/清除拍摄时间后重新排程即撤销。</p>
+    </div>
+    <div class="card">
+      <div class="tag t-p1" style="margin-bottom:8px">用户设定</div>
+      <h4 style="margin-top:0">单笔催收备忘</h4>
+      <p style="font-size:12.8px;margin-bottom:6px">「探记 · 催收跟进」<br/>「「X」尾款该跟进了（3 天前设置的提醒）」</p>
+      <p style="font-size:12px;color:#6D6D75;margin-bottom:0">一次性；每单同时只有一条；清除备忘只撤这一条，不影响同单的出片提醒。</p>
+    </div>
+  </div>
+
+  <h3>9.1 排程与隔离规则</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:26%">规则</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><b>id 分段</b></td><td>汇总 = <code>base+1</code>；单笔备忘 = <code>base+100000+订单号</code>；出片提醒 = <code>base+300000+订单号</code>。三段互不覆盖，订单号上限 99999 保证不越界。</td></tr>
+        <tr><td><b>模式隔离</b></td><td>工作数据 <code>base=0</code>，演示数据 <code>base=500000</code>；演示模式<b>不排真实通知</b>（否则演示单会真的弹提醒）。</td></tr>
+        <tr><td><b>日切重排</b></td><td>汇总 body 在排程时冻结，而「逾期」是随时间推移发生的。因此跨零点或从后台回前台时按自然日节流重排一次，保证 09:00 响的是当天口径。</td></tr>
+        <tr><td><b>权限时机</b></td><td>只在真的有通知要排时才申请权限，不在首次启动就弹——保存一笔普通订单时弹通知授权会让用户莫名其妙。</td></tr>
+        <tr><td><b>失败静默</b></td><td>排程失败仅打日志，不阻断业务；App 内角标、列表标红、首页告警卡始终可用。</td></tr>
+        <tr><td><b>关闭语义</b></td><td>「关闭每日催收提醒」只撤汇总，不动用户自设的备忘与出片提醒 —— 连带取消会让用户明确设置的提醒静默消失。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <b>与「日程线」的边界：</b>本产品不发「明天 10 点去某店拍摄」的预约提醒。
+    理由是达人本身就以日历/服务商群为主要排期入口，重复推送会削弱通知的可信度；
+    这里只提醒三类「不做就会有损失」的事：该催的钱、该交的片、用户自己要求记住的跟进。
+  </div>
+</section>
+
+<!-- ================= 10 ================= -->
+<section id="s10">
+  <div class="sec-head"><span class="sec-no">10</span><h2>数据与备份<span class="en">DATA &amp; BACKUP</span></h2></div>
+  <p class="sec-desc">单机存储意味着「数据安全 = 用户是否备份」。因此备份不是设置里的一个功能，而是产品承诺的一部分：能导出、能校验、能撤回。</p>
+
+  <h3>10.1 实体模型</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:16%">表</th><th style="width:34%">关键字段</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><b>orders</b></td><td>store / category / contact / price / deposit / appt_at / shot_at / submitted_at / short_sent_at / long_sent_at / published_at / settle_via / channel / partner / location / gps_place / deliver_main / deliver_sub / review_result / account_id / remind_at / remind_log / expect_pay_at / deposit_paid_at / final_paid_at / note</td><td>一笔订单的全部事实。里程碑时间为空即「未发生」，不引入额外状态枚举；<code>remind_log</code> 以 JSON 存催收痕迹。</td></tr>
+        <tr><td><b>payments</b></td><td>order_id / kind（定金·尾款）/ amount / paid_at / method / note</td><td>只记录，不发起支付。<code>kind</code> 与订单上的时间戳必须一致，导入时强校验。</td></tr>
+        <tr><td><b>accounts</b></td><td>name / phone / douyin / color（0–7）/ avatar（dataURL）/ created_at</td><td>多账号的一等对象；头像存裁剪后的 128×128 小图，原图不落库。</td></tr>
+        <tr><td><b>settings</b></td><td>threshold（7/15/30/45）/ notifyEnabled / appVersion / providers（自定义服务商预设）</td><td>跟数据一起备份，换机后口径不丢。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>10.2 存储与一致性</h3>
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0">双端持久化</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li><b>iOS 原生：</b>App 沙盒内 SQLite（真实 .db 文件），每次改动即写盘。</li>
+        <li><b>Web：</b>IndexedDB + localStorage 双副本，按 revision 取新。</li>
+        <li>两套数据（工作/演示）在同一库内以 <code>mode</code> 隔离，主键为 <code>(mode, id)</code>，互不覆盖。</li>
+        <li>切后台/关页前排干待写队列 —— 点完「确认收款」立刻杀 App 也不能丢。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">异常保护</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li><b>只读保护：</b>检测到读库异常时进入只读态，所有写动作被拦截并提示，避免覆盖原数据。</li>
+        <li><b>替换前备份：</b>导入/清空/恢复前自动留一份快照（仅保留最近一份），可一键撤回或导出。</li>
+        <li><b>不确定性提示：</b>备份读取不完整时暂停恢复，引导先导出再处理。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>10.3 三种导出与各自用途</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:14%">格式</th><th style="width:34%">内容</th><th style="width:22%">典型用途</th><th>注意</th></tr></thead>
+      <tbody>
+        <tr><td><b>CSV</b></td><td>订单 29 列（含工作状态、收款状态、待收、欠款天数、催收次数、预计到账等派生列）+ 收款流水 7 列</td><td>交给会计 / 自己做年度汇总</td><td>带 UTF-8 BOM，Excel/Numbers 直接打开不乱码；开头的 = + - @ 会被转义，防公式注入</td></tr>
+        <tr><td><b>JSON</b></td><td>订单 + 流水 + 账号 + 设置（含随手拍缩略图）</td><td>换机搬运 / 长期归档</td><td>唯一推荐的跨设备格式；导入前预览并强校验流水一致性，上限 10MB</td></tr>
+        <tr><td><b>.db</b></td><td>真实 SQLite 文件（单数据集视图）</td><td>归档取证 / 用 SQL 深挖</td><td>App 内库含 mode 双数据集，<b>不要</b>直接对拷 .db 当迁移手段</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout gray">
+    <b>产品口径：</b>「导出是归档，不是同步」。同一条信息不允许存在两个会自动分叉的副本 ——
+    所以不做 .db 直连迁移、不做双向同步，跨设备一律走 JSON 的「导出 → 导入（替换）」。
+  </div>
+</section>
+
+<!-- ================= 11 ================= -->
+<section id="s11">
+  <div class="sec-head"><span class="sec-no">11</span><h2>隐私与合规<span class="en">PRIVACY</span></h2></div>
+  <p class="sec-desc">隐私在这里不是合规成本，而是核心卖点：达人手里最敏感的是「谁家给了多少钱」。</p>
+
+  <div class="grid g2">
+    <div class="card">
+      <h4 style="margin-top:0">四条硬承诺</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li><b>不收集：</b>无埋点上报、无崩溃上报、无设备信息采集。</li>
+        <li><b>不上传：</b>无服务端、无账号体系；断网可用。</li>
+        <li><b>不申请多余权限：</b>相册（选头像/随手拍）、相机（拍摄）、定位（到店记录，可拒绝）、通知（可关闭）。</li>
+        <li><b>可彻底删除：</b>清空数据 + 删除 App 即无残留；也提供导出后再清空的标准路径。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">产品内的隐私设计</h4>
+      <ul style="font-size:13px;margin-bottom:0">
+        <li><b>隐私模式：</b>顶栏眼睛一键隐藏全站金额，用于当面给对方看屏幕或录屏。</li>
+        <li><b>分享图不含金额：</b>对外分享物天然脱敏，避免「发给搭档结果泄露报价」。</li>
+        <li><b>通知不含金额：</b>锁屏可见区域只有条数与天数。</li>
+        <li><b>定位只存坐标：</b>不反查地址、不上传；仅用于「看位置 / 导航」。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>11.1 上架相关</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:24%">事项</th><th>当前结论</th></tr></thead>
+      <tbody>
+        <tr><td>数据收集声明</td><td>App Store 隐私标签可全部选「不收集数据」—— 这是纯本地架构带来的直接优势。</td></tr>
+        <tr><td>隐私政策 / 支持页</td><td>静态页面内置，App 内「关于」可直接打开；内容需与「不收集不上传」严格一致。</td></tr>
+        <tr><td>商业模式</td><td>iOS 原生版买断（一次性付费），不设订阅、不做广告、不做内购数据托管。</td></tr>
+        <tr><td>权限文案</td><td>相册/相机/定位/通知四项均需说明「仅用于本地功能」，拒绝后功能降级而非阻断。</td></tr>
+        <tr><td>备份责任告知</td><td>统计页页脚 + 支持页明确「数据仅存本机，请定期导出备份」，降低丢数据的预期落差。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 12 ================= -->
+<section id="s12">
+  <div class="sec-head"><span class="sec-no">12</span><h2>非功能与体验原则<span class="en">NFR &amp; PRINCIPLES</span></h2></div>
+  <p class="sec-desc">这类工具的口碑几乎全部来自「手感」：打开快不快、点一下有没有反应、数据会不会丢。</p>
+
+  <h3>12.1 非功能要求</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:18%">维度</th><th style="width:30%">要求</th><th>实现约束</th></tr></thead>
+      <tbody>
+        <tr><td>启动</td><td>冷启动到可交互 ≤1.5s（数百单量级）</td><td>首屏只渲染当前 Tab；统计数据按需计算；SQLite 加载与 UI 并行</td></tr>
+        <tr><td>写盘</td><td>任意改动 ≤200ms 内落盘</td><td>写入队列串行；切后台前强制排干</td></tr>
+        <tr><td>容量</td><td>1000 单 + 5000 流水仍流畅</td><td>随手拍只存约 3KB 缩略图；列表虚拟化非必需但需分页渲染上限</td></tr>
+        <tr><td>离线</td><td>100% 功能离线可用</td><td>无任何网络请求参与主流程（仅隐私/支持页为外链）</td></tr>
+        <tr><td>手感</td><td>无双击缩放、无长按气泡、无整页橡皮筋；滚动只发生在容器内</td><td>CSS <code>touch-action:manipulation</code> + <code>overscroll-behavior:contain</code> + 局部放开选中</td></tr>
+        <tr><td>安全区</td><td>刘海/灵动岛/底部指示条不遮挡内容</td><td>原生壳按 <code>env(safe-area-inset-*)</code> 排版，撤掉模拟状态栏</td></tr>
+        <tr><td>可访问性</td><td>按钮有 aria-label；焦点可见；纯图标按钮必须有文字替代</td><td>编辑/关闭/复制等图标按钮统一处理</td></tr>
+        <tr><td>双端一致</td><td>Web 与原生共用同一套页面与规则</td><td>资产指纹锁 + 漂移校验，避免两版行为分叉</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>12.2 六条体验原则（后续迭代的判定尺）</h3>
+  <div class="grid g2">
+    <div class="card"><h4 style="margin-top:0">① 一屏一决策</h4><p style="font-size:13px;margin-bottom:0">首页只回答「今天拍什么」和「谁欠我钱」。新信息要么进告警卡，要么进速览格，不许无限堆区块。</p></div>
+    <div class="card"><h4 style="margin-top:0">② 高频动作 ≤2 tap</h4><p style="font-size:13px;margin-bottom:0">能在行内做的绝不放详情页。打卡、提审、发片、收款全部行内可达。</p></div>
+    <div class="card"><h4 style="margin-top:0">③ 录单零键盘</h4><p style="font-size:13px;margin-bottom:0">能默认就默认、能点选就点选（服务商芯片、账号卡、相对日标签）；次要字段可空。</p></div>
+    <div class="card"><h4 style="margin-top:0">④ 状态尽量自动推进</h4><p style="font-size:13px;margin-bottom:0">拍照即「已拍摄」；收款即清备忘；结清即退出催收池。少让用户维护状态。</p></div>
+    <div class="card"><h4 style="margin-top:0">⑤ 钱必须可逆</h4><p style="font-size:13px;margin-bottom:0">任何一键记账都要有一步撤销；撤销不成立时明确说明原因，不做静默回滚。</p></div>
+    <div class="card"><h4 style="margin-top:0">⑥ 信息随手能拿走</h4><p style="font-size:13px;margin-bottom:0">地址能导航、账号资料能拷贝、账单能导出、行程能分享 —— 数据不属于 App。</p></div>
+  </div>
+</section>
+
+<!-- ================= 13 ================= -->
+<section id="s13">
+  <div class="sec-head"><span class="sec-no">13</span><h2>度量与版本路线<span class="en">METRICS &amp; ROADMAP</span></h2></div>
+  <p class="sec-desc">纯本地产品拿不到服务端埋点，因此指标体系必须建立在「用户自己能算出来」的代理指标上，或通过本地自评问卷收集，绝不上报数据。</p>
+
+  <h3>13.1 北极星与代理指标</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:20%">层级</th><th style="width:26%">指标</th><th>定义与取数方式（本地）</th></tr></thead>
+      <tbody>
+        <tr><td><b>北极星</b></td><td>周活跃达人数<br/>（周内 ≥3 天有操作）</td><td>本地记录最近操作日；仅用于自评看板，不外传</td></tr>
+        <tr><td>效率</td><td>单笔录单耗时</td><td>可用「弹层打开 → 保存」的本地耗时统计（P50 目标 ≤40s）</td></tr>
+        <tr><td>效率</td><td>行内动作占比</td><td>行内推进次数 /（行内 + 详情内）总推进次数，目标 ≥60%</td></tr>
+        <tr><td>履约</td><td>24h 出片达标率</td><td>24h 内出齐的单 / 拍摄完成的单</td></tr>
+        <tr><td>回款</td><td>平均回款天数</td><td>尾款到账日 − 拍摄日 的均值</td></tr>
+        <tr><td>回款</td><td>逾期占比</td><td>月末处于逾期状态的私收单 / 有尾款的私收单</td></tr>
+        <tr><td>安全</td><td>备份完成率</td><td>近 30 天内导出过 JSON 的用户比例（本地标记）</td></tr>
+        <tr><td>口碑</td><td>App Store 评分</td><td>外部渠道</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>13.2 版本演进</h3>
+  <div class="timeline">
+    <div class="tl done"><h5>v0.1 · 原型</h5><p>单页 HTML 原型，验证「行程 + 记账同屏」的信息密度是否成立。</p></div>
+    <div class="tl done"><h5>v0.5 · 工作流成型</h5><p>引入正/副片可配置、提审与送审结果、24h 未出片提醒、地点与到店定位、常驻保存条。</p></div>
+    <div class="tl done"><h5>v0.6 · 多账号（当前）</h5><p>账号作为一等对象：五页筛选、建单拆单、资料拷贝、批量改挂、头像裁剪；催收痕迹与平台预计到账；未来 7 天；原生手感修正。</p></div>
+    <div class="tl"><h5>v0.7 候选 · 备份与批量</h5><p>每周首次启动提醒导出；批量标记提审/发片；对外「接单确认单」分享图。</p></div>
+    <div class="tl"><h5>v0.8 候选 · 对账能力</h5><p>抖音商单 / 服务商结算表导入（需先定表头与去重规则）；月度对账视图。</p></div>
+    <div class="tl"><h5>v1.0 候选 · 视觉统一</h5><p>落地已归档的六套配色与详情 v2 版式，做一次整体视觉收敛。</p></div>
+  </div>
+
+  <h3>13.3 风险清单</h3>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th style="width:22%">风险</th><th style="width:12%">等级</th><th>应对</th></tr></thead>
+      <tbody>
+        <tr><td>换机/丢机导致数据全失</td><td><span class="tag t-p0">高</span></td><td>导出入口做成多处可达 + 页脚常驻提示；下一步做「定期备份提醒」与「导出到文件 App」引导</td></tr>
+        <tr><td>用户误解为「App 管钱/代收」</td><td><span class="tag t-p1">中</span></td><td>收款页与确认弹层反复写「仅作入账记录」；不接支付通道</td></tr>
+        <tr><td>逾期口径与商家认知不一致</td><td><span class="tag t-p1">中</span></td><td>详情横幅明示「起算日 + 天数 + 阈值」，可配置阈值，可设备忘暂停催收</td></tr>
+        <tr><td>Web 与原生行为漂移</td><td><span class="tag t-p1">中</span></td><td>共用页面与规则层 + 资产指纹锁 + 回归测试，改动须同步校验</td></tr>
+        <tr><td>通知过多导致整体关闭</td><td><span class="tag t-p2">低</span></td><td>只发三类必要提醒；默认不含金额；关闭语义精确到单类</td></tr>
+        <tr><td>单机性能随数据增长退化</td><td><span class="tag t-p2">低</span></td><td>缩略图体积上限、统计按窗口计算、必要时分页渲染</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 14 ================= -->
+<section id="s14">
+  <div class="sec-head"><span class="sec-no">14</span><h2>附录<span class="en">APPENDIX</span></h2></div>
+
+  <details open>
+    <summary>术语表</summary>
+    <div class="dbody">
+      <ul>
+        <li><b>工作线：</b>交付进度（待拍摄 / 后期中 / 发片中 / 已交付），由里程碑时间戳推导。</li>
+        <li><b>资金线：</b>回款进度（待定金 / 待尾款 / 平台结算 / 已结清）。</li>
+        <li><b>正片 / 副片：</b>即长片与短片，交付物的两种形态；每单可单独配置是否需要。</li>
+        <li><b>里程碑：</b>拍摄、提审、副片发出、正片发出、发布五个可标记节点。</li>
+        <li><b>平台单：</b>抖音商单，由平台结算给达人，不经商家付款，因此不进催收池。</li>
+        <li><b>备忘 / snooze：</b>用户主动设置的「N 天后再提醒」，用于暂时抑制催收提示。</li>
+        <li><b>单日勋章：</b>⭐ 忙碌日（≥3 单）/ 🔥 爆单（≥5 单）/ 💰 千元日（≥¥1,000）/ 💎 王牌日（≥¥2,500）。</li>
+        <li><b>演示数据：</b>与工作数据物理隔离的一套样例数据，用于试用与演示，不排真实通知。</li>
+      </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>验收走查清单（提测前逐项过）</summary>
+    <div class="dbody">
+      <ul>
+        <li>新建：只填商家 + 总价能保存；定金 &gt; 总价被拦；正副片都不勾被拦；多账号不选被拦。</li>
+        <li>冲突：同日 ±2h 出现横幅并列出时间/店名/地点；不阻止保存；换日期后横幅实时更新。</li>
+        <li>拍摄：打卡写时间；随手拍同时写图与时间；GPS 失败不影响状态；金额格出现底图。</li>
+        <li>推进：跳步点击有提示；未出齐不能发布；清除上游会连带清下游并确认。</li>
+        <li>提醒：拍摄 +24h 出片通知到达；出齐后通知消失；1/3/7 天备忘到点提醒；关闭汇总不动单笔备忘。</li>
+        <li>收款：记一笔后金额、统计、流水三处同步；Toast 可撤销；重复收款被拦；已有收款后总价锁定。</li>
+        <li>催收：痕迹按时间倒序、最近 4 条、超 50 条提示；设备忘后首页转琥珀、到期前不再红。</li>
+        <li>多账号：1 个账号时无筛选条；≥2 时五页筛选生效且角标随筛选变；删号后订单转未指定。</li>
+        <li>数据：CSV/JSON/.db 三种导出均成功（原生走分享面板）；JSON 导入校验失败有明确原因；清空后可恢复。</li>
+        <li>体验：弹层可下拉关闭；表单只从头部拖；双击不缩放；长按不弹气泡；保存条常驻。</li>
+        <li>隐私：眼睛一按全站金额隐藏；隐藏态编辑金额只读并给说明；分享图不含金额。</li>
+      </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>本文档的取证来源</summary>
+    <div class="dbody">
+      <ul>
+        <li>页面与组件结构：<code>www/index.html</code>（样式与弹层骨架）、<code>src/app/views/*.js</code>（首页/行程/订单/收款/统计渲染）。</li>
+        <li>业务规则（唯一真源）：<code>www/logic.js</code>（工作线/资金线/逾期/出片/统计/排期重叠）。</li>
+        <li>交互动作：<code>src/app/actions.js</code>（动作注册表）、<code>order-actions.js</code>（状态与收款）、<code>order-forms.js</code>（表单与复制）。</li>
+        <li>通知：<code>src/app/notify.js</code>（三类排程与 id 分段）。</li>
+        <li>数据与导出：<code>src/app/storage.js</code>、<code>export.js</code>（表结构、CSV 列、导入校验）。</li>
+        <li>产品定位与历史：<code>README.md</code>、<code>docs/creator-workflow-review.md</code>、<code>docs/native-app-notes.md</code>。</li>
+      </ul>
+      <p style="font-size:12.5px;color:var(--sub);margin:8px 0 0">
+        说明：本文件为「由实现反推的产品设计文档」，用于对齐与走查；与代码不一致时以代码为准，并回头修正本文档。
+      </p>
+    </div>
+  </details>
+
+  <details>
+    <summary>开放问题（待产品决策）</summary>
+    <div class="dbody">
+      <ul>
+        <li><b>备份提醒的打扰度：</b>每周首次启动弹一次导出提醒，还是仅在「30 天未导出」时提示？需要真机用户反馈。</li>
+        <li><b>批量标记的粒度：</b>按「同一天所有单」还是「勾选多单」？前者快但易误伤，后者慢但可控。</li>
+        <li><b>接单确认单分享图：</b>是否需要包含金额（对外报价确认）？若包含，需与「分享不含金额」原则做例外说明。</li>
+        <li><b>账单导入的表头规范：</b>抖音商单与服务商结算表格式不统一，去重键用「商家 + 日期 + 金额」是否足够。</li>
+        <li><b>多账号上限：</b>当前无显式限制，8 档色板循环后如何区分（是否需要色板扩展或改用图标）。</li>
+      </ul>
+    </div>
+  </details>
+
+  <footer>
+    <span>探记 TanJi · 产品设计文档 v1.0 · 对应产品 v0.6</span>
+    <span>纯本地 · 无服务端 · 数据只在你的设备上</span>
+  </footer>
+</section>
+
+</div><!-- /wrap -->
+</main>
+</div>
+
+<script>
+(function(){
+  var links=[].slice.call(document.querySelectorAll('#nav a'));
+  var targets=links.map(function(a){return document.querySelector(a.getAttribute('href'))}).filter(Boolean);
+  function setActive(id){
+    links.forEach(function(a){a.classList.toggle('on',a.getAttribute('href')==='#'+id)});
+  }
+  if('IntersectionObserver' in window){
+    var seen={};
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(en){seen[en.target.id]=en.isIntersecting?en.intersectionRatio:0});
+      var best=null,bestV=0;
+      targets.forEach(function(t){var v=seen[t.id]||0;if(v>bestV){bestV=v;best=t.id}});
+      if(best)setActive(best);
+    },{rootMargin:'-10% 0px -70% 0px',threshold:[0,.15,.4,.75]});
+    targets.forEach(function(t){io.observe(t)});
+  }
+  links.forEach(function(a){
+    a.addEventListener('click',function(){setActive(a.getAttribute('href').slice(1))});
+  });
+})();
+</script>
+</body>
+</html>

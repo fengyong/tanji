@@ -15,7 +15,7 @@ function app({mockDisk=true}={}){
   class Clock extends Date{constructor(...args){super(...(args.length?args:[time]))}static now(){return time}}
   const elements=new Map(),events={},local=new Map(),disk=new Map(),texts=[];
   const element=selector=>{
-    if(!elements.has(selector))elements.set(selector,{value:'',checked:false,innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
+    if(!elements.has(selector))elements.set(selector,{value:'',checked:false,innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setAttribute(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
     return elements.get(selector);
   };
   const context=vm.createContext({console,Date:Clock,Blob,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},File:class{},document:{querySelector:element,querySelectorAll:()=>[],createElement:tag=>element('created:'+tag),addEventListener:(name,fn)=>{events[name]=fn},visibilityState:'visible'},window:{},navigator:{},location:{hostname:'localhost',protocol:'http:',reload(){}},localStorage:{getItem:key=>local.get(key)??null,setItem:(key,value)=>local.set(key,value)},setTimeout:()=>1,clearTimeout(){},setInterval(){},clearInterval(){},addEventListener(){},confirm:()=>true,indexedDB:{open(){throw new Error('test must supply IDB')}},elements,texts});
@@ -102,6 +102,27 @@ test('new payment is counted after the application has been open',()=>{
 test('seven-day summary and bars share natural-day boundaries',()=>{
   const a=app();setState(a,[order()],[{oid:1,kind:'定金',amount:100,at:'2026-11-14T18:00',method:'微信'},{oid:1,kind:'尾款',amount:200,at:'2026-11-15T00:00',method:'微信'}]);assert.equal(a.run('statsFor("7").paidSum'),200);a.run('renderStats()');assert.match(a.element('#v-stats').innerHTML,/¥200/);
 });
+test('统计页只保留业务内容与设置入口',()=>{
+  const a=app();setState(a);a.run('db.accounts=[{id:2,name:"账号甲",color:0},{id:3,name:"账号乙",color:1}];renderAll()');
+  const stats=a.element('#v-stats').innerHTML;
+  assert.match(stats,/data-act="open-settings"/);
+  assert.match(stats,/data-act="acc-filter"/);
+  for(const act of ['open-account','import-json','export-json','export-db','export-csv','restore-backup','switch-mode','clear-data','app-store-soon'])assert.ok(!stats.includes(`data-act="${act}"`),`统计页不应再包含低频动作 ${act}`);
+});
+test('设置页集中收纳账号、数据、提醒、模式与关于',()=>{
+  const a=app();setState(a);a.run('ui.privacy=true;renderSettings()');
+  const html=a.element('#v-settings').innerHTML;
+  for(const text of ['我的账号','数据与备份','提醒与隐私','数据模式','危险操作','关于与支持'])assert.ok(html.includes(text),`设置页缺少分组 ${text}`);
+  for(const act of ['open-account','import-json','export-json','export-db','export-csv','restore-backup','privacy','th','switch-mode','clear-data','app-store-soon'])assert.ok(html.includes(`data-act="${act}"`),`设置页缺少动作 ${act}`);
+  assert.match(html,/隐私模式[\s\S]*已开启/);
+});
+test('设置页从统计进入并返回统计,不改变业务周期与账号筛选',()=>{
+  const a=app();setState(a);a.run('showTab("stats");ui.period="30";ui.accFilter=2;openSettings()');
+  assert.equal(a.run('ui.settingsOpen'),true);assert.equal(a.run('ui.tab'),'stats');
+  a.run('closeSettings()');
+  assert.equal(a.run('ui.settingsOpen'),false);assert.equal(a.run('ui.period'),'30');assert.equal(a.run('ui.accFilter'),2);
+  a.run('openSettings();showTab("home")');assert.equal(a.run('ui.settingsOpen'),false);assert.equal(a.run('ui.tab'),'home');
+});
 test('clock crosses midnight without forcing a manually selected day',()=>{
   const a=app();a.tick(86400000);a.run('refreshClock()');assert.equal(a.run('TODAY'),'2026-11-22');assert.equal(a.run('ui.selDay'),'2026-11-22');a.run('ui.selDay="2026-10-01"');a.tick(86400000);a.run('refreshClock()');assert.equal(a.run('ui.selDay'),'2026-10-01');
 });
@@ -109,8 +130,8 @@ test('home header keeps the date and summary without a decorative greeting',()=>
   const a=app();setState(a);a.run('renderHome()');
   const html=a.element('#v-home').innerHTML;
   assert.doesNotMatch(html,/达人|早上好|中午好|下午好|晚上好/);
-  assert.match(html,/11月21日 周六/);
-  assert.match(html,/今日 0 单/);
+  assert.match(html,/11月21日 · 周六/);
+  assert.match(html,/0\/0 已拍/);
 });
 test('HTML text and attributes are escaped, including search input',()=>{
   const a=app();setState(a,[order({store:'<img src=x onerror=alert(1)>',channel:'" onclick="bad'})]);assert.doesNotMatch(a.run('orderRowTrip(db.orders[0])'),/<img/);assert.match(a.run('orderRowTrip(db.orders[0])'),/&lt;img/);a.run('ui.q=\'" autofocus onfocus="bad\';renderOrders()');assert.match(a.element('#v-orders').innerHTML,/&quot;/);

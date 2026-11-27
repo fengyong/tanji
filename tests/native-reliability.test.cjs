@@ -35,10 +35,7 @@ function newDevice(options={}){
     cancelled:[],
     scheduled:[],
     written:[],
-    connections:new Map(),
-    createCount:0,
-    openCount:0,
-    closeCount:0,
+    tabStates:[],
   };
 }
 
@@ -49,23 +46,11 @@ function makeCap(device){
   class SQLiteConnection{
     constructor(plugin){this.plugin=plugin}
     async createConnection(name){
-      if(device.connections.has(name))throw new Error(`Connection ${name} already exists`);
       const db=device.db;
       const conn={
         db,
-        closed:false,
-        async open(){
-          if(this.closed)throw new Error('connection is closed');
-          device.openCount++;
-          if(device.options.failNextOpen){device.options.failNextOpen=false;throw new Error('open failed')}
-        },
-        async close(){
-          this.closed=true;
-          if(device.connections.get(name)===conn)device.connections.delete(name);
-        },
+        async open(){},
         async execute(sql){
-          if(this.closed)throw new Error('connection is closed');
-          if(device.options.failNextAlter){device.options.failNextAlter=false;throw new Error('database is locked')}
           if(singleStatementExecute){
             // 只取第一条语句，模拟 sqlite3_prepare_v2 的行为
             const first=String(sql).split(';').map(s=>s.trim()).find(Boolean);
@@ -75,8 +60,6 @@ function makeCap(device){
           }
         },
         async executeSet(set){
-          if(this.closed)throw new Error('connection is closed');
-          if(device.options.failNextInit){device.options.failNextInit=false;throw new Error('init failed')}
           if(device.options.failWrites)throw new Error('disk is full');
           // 复刻 iOS 端的真实契约：每一项都必须同时含 statement 与 values 两个键，
           // 缺 values 会被整批 reject(OS-PLUG-SQLITE executeSet: Must provide a set
@@ -96,18 +79,10 @@ function makeCap(device){
           }
         },
         async query(sql,values){
-          if(this.closed)throw new Error('connection is closed');
           return {values:db.prepare(sql).all(...(values||[]))};
         },
       };
-      device.createCount++;
-      device.connections.set(name,conn);
       return conn;
-    }
-    async closeConnection(name){
-      const conn=device.connections.get(name);
-      if(conn)await conn.close();
-      device.closeCount++;
     }
   }
 
@@ -134,7 +109,13 @@ function makeCap(device){
 
   return {
     cap:{
-      Capacitor:{isNativePlatform:()=>true},
+      Capacitor:{
+        isNativePlatform:()=>true,
+        registerPlugin(name){
+          if(name!=='NativeTabs')throw new Error('未知原生插件：'+name);
+          return {async setState(value){device.tabStates.push({...value});return {bottomInset:96};}};
+        },
+      },
       SQLiteConnection,
       LocalNotifications,
       Filesystem:{async writeFile(opts){device.written.push(opts);return {uri:'file:///tmp/'+opts.path};}},
@@ -156,15 +137,15 @@ function app(device=newDevice()){
   }
   const elements=new Map(),events={},local=device.local,texts=[];
   const element=selector=>{
-    if(!elements.has(selector))elements.set(selector,{value:'',checked:false,innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
+    if(!elements.has(selector))elements.set(selector,{value:'',checked:false,innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setAttribute(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
     return elements.get(selector);
   };
   const context=vm.createContext({
     console,Date:Clock,Blob,
     FileReader:class{readAsDataURL(){this.result='data:application/octet-stream;base64,TVQ=';if(this.onload)this.onload();}},
     URL:{createObjectURL:()=>'blob:test',revokeObjectURL(){}},
-    document:{querySelector:element,querySelectorAll:()=>[],createElement:tag=>element('created:'+tag),addEventListener:(name,fn)=>{events[name]=fn},visibilityState:'visible'},
-    window:{},navigator:{},location:{hostname:'localhost',protocol:'http:',reload(){}},
+    document:{querySelector:element,querySelectorAll:()=>[],createElement:tag=>element('created:'+tag),addEventListener:(name,fn)=>{events[name]=fn},documentElement:{style:{setProperty(){}}},visibilityState:'visible'},
+    window:{addEventListener:(name,fn)=>{events['window:'+name]=fn}},navigator:{},location:{hostname:'localhost',protocol:'http:',reload(){}},
     localStorage:{getItem:key=>local.get(key)??null,setItem:(key,value)=>local.set(key,value)},
     setTimeout:()=>1,clearTimeout(){},setInterval(){},clearInterval(){},addEventListener(){},confirm:()=>true,
     indexedDB:{open(){throw new Error('native 路径不应依赖 IndexedDB')}},
@@ -198,6 +179,57 @@ const OVERDUE=order({shotAt:'2026-01-01T11:00'});
 const setState=(a,orders=[order()],payments=[])=>a.run(`__replaceDb(${JSON.stringify({orders,payments,threshold:15})})`);
 const tick=()=>new Promise(r=>setImmediate(r));
 
+/* ---------- 原生底栏桥接 ---------- */
+
+test('原生底栏：状态、角标、命令 ACK 与无效 Tab 过滤',()=>{
+  const a=app();
+  a.run('initNativeTabs(showTab)');
+  assert.equal(a.device.tabStates.length,1);
+  assert.deepEqual(a.device.tabStates[0],{ready:false,tab:'home',badge:0,overlay:'none',appliedCommandId:null});
+
+  a.run("syncNativeTabs({tab:'stats',badge:2})");
+  assert.equal(a.device.tabStates.at(-1).tab,'stats');
+  assert.equal(a.device.tabStates.at(-1).badge,2);
+
+  const count=a.device.tabStates.length;
+  a.events['window:tanjiNativeTab']({tab:'not-a-tab',commandId:6});
+  assert.equal(a.device.tabStates.length,count,'非法 Tab 不应回传状态');
+  a.events['window:tanjiNativeTab']({tab:'orders',commandId:7});
+  assert.equal(a.run('ui.tab'),'orders');
+  assert.equal(a.device.tabStates.at(-1).appliedCommandId,7);
+  assert.equal(a.device.tabStates.at(-1).tab,'orders');
+  a.events['window:tanjiNativeLayout']({bottomInset:83.4});
+});
+
+test('原生底栏：弹层关闭等待动画，重开取消旧恢复定时器',()=>{
+  const a=app();
+  let nextTimer=0;
+  a.device.tabTimers=[];
+  a.context.setTimeout=(fn,ms)=>{const timer={id:++nextTimer,fn,ms};a.device.tabTimers.push(timer);return timer.id};
+  a.context.clearTimeout=id=>{a.device.tabTimers=a.device.tabTimers.filter(timer=>timer.id!==id)};
+  a.run('initNativeTabs(showTab)');
+
+  a.run('setNativeSheetOpen(true)');
+  assert.equal(a.device.tabStates.at(-1).overlay,'sheet');
+  a.run('setNativeSheetOpen(false)');
+  assert.equal(a.device.tabStates.at(-1).overlay,'sheet','关闭动画期间不能提前发送 none');
+  assert.equal(a.device.tabTimers.at(-1).ms,360);
+
+  a.run('setNativeSheetOpen(true)');
+  assert.equal(a.device.tabTimers.length,0,'重开弹层必须取消旧恢复定时器');
+  a.run('setNativeSheetOpen(false)');
+  assert.equal(a.device.tabTimers.length,1);
+  a.device.tabTimers.shift().fn();
+  assert.equal(a.device.tabStates.at(-1).overlay,'none');
+
+  a.run('setNativeSheetOpen(true);setNativeSheetOpen(false);setNativeCropOpen(true)');
+  assert.equal(a.device.tabStates.at(-1).overlay,'crop','裁剪层优先于正在关闭的弹层');
+  a.run('setNativeCropOpen(false)');
+  assert.equal(a.device.tabStates.at(-1).overlay,'none');
+  a.device.tabTimers.shift()?.fn();
+  assert.equal(a.device.tabStates.at(-1).overlay,'none');
+});
+
 /* ---------- 原生持久化 ---------- */
 
 test('原生持久化：写入后可重新读回',async()=>{
@@ -207,59 +239,6 @@ test('原生持久化：写入后可重新读回',async()=>{
   assert.equal(await a.run('loadState()'),true);
   assert.equal(a.run('db.orders.length'),1);
   assert.equal(a.run('db.orders[0].store'),'测试店');
-});
-
-test('原生连接：WebContent 重载后关闭残留连接并重新打开',async()=>{
-  const device=newDevice();
-  const a=app(device);
-  setState(a);
-  assert.equal(await a.run('save()'),true);
-  const b=app(device);
-  assert.equal(await b.run('loadState()'),true);
-  assert.equal(b.run('Store.blocked'),false,'重载后不应进入写入保护');
-  assert.equal(b.run('db.orders[0].store'),'测试店');
-  assert.equal(device.createCount,2);
-  assert.equal(device.closeCount,1);
-});
-
-test('原生连接：并发 nativeOpen 只创建和打开一次',async()=>{
-  const device=newDevice();
-  const a=app(device);
-  const conns=await a.run('Promise.all([nativeOpen(),nativeOpen(),nativeOpen()])');
-  assert.equal(conns[0],conns[1]);
-  assert.equal(conns[1],conns[2]);
-  assert.equal(device.createCount,1);
-  assert.equal(device.openCount,1);
-});
-
-test('原生连接：open 失败后清理残留，重试可以恢复',async()=>{
-  const device=newDevice({failNextOpen:true});
-  const a=app(device);
-  await assert.rejects(()=>a.run('nativeOpen()'),/open failed/);
-  assert.equal(device.connections.size,0,'失败连接必须从原生连接表移除');
-  assert.equal(device.closeCount,1);
-  assert.ok(await a.run('nativeOpen()'));
-  assert.equal(device.createCount,2);
-});
-
-test('原生连接：建表失败后清理残留，重试可以恢复',async()=>{
-  const device=newDevice({failNextInit:true});
-  const a=app(device);
-  await assert.rejects(()=>a.run('nativeOpen()'),/init failed/);
-  assert.equal(device.connections.size,0,'初始化失败也必须移除连接');
-  assert.equal(device.closeCount,1);
-  await a.run('nativeOpen()');
-  assert.equal(device.createCount,2);
-});
-
-test('原生连接：ALTER 的非重复列错误必须抛出并清理连接',async()=>{
-  const device=newDevice({failNextAlter:true});
-  const a=app(device);
-  await assert.rejects(()=>a.run('nativeOpen()'),/database is locked/);
-  assert.equal(device.connections.size,0,'迁移失败不能缓存坏连接');
-  assert.equal(device.closeCount,1);
-  await a.run('nativeOpen()');
-  assert.equal(device.createCount,2);
 });
 
 test('原生持久化：orders/payments/settings 三张表都建出来了',async()=>{
@@ -1191,7 +1170,7 @@ test('备忘时间一过(提醒已响完),详情页不再显示「已设提醒�
   assert.equal(a.run('snoozed(db.orders[0])'),false,'前置:备忘已过期');
   assert.equal(a.run(`$('#detail-body').innerHTML`).includes('已设提醒:'),false,'过期的备忘不该再写「已设提醒:MM-DD 再催收」');
   a.run("db.orders[0].remindAt='2026-11-25T09:00';openDetail(1)");
-  assert.equal(a.run(`$('#detail-body').innerHTML`).includes('已设提醒:11-25'),true,'未到期的备忘照常显示');
+  assert.match(a.run(`$('#detail-body').innerHTML`),/已设提醒[:：]11-25/,'未到期的备忘照常显示');
 });
 
 /* ---------- 第八轮深度 review:账号头像与校验 ---------- */

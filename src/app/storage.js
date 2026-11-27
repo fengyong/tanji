@@ -366,27 +366,15 @@ export function accountCopyText(account){
 /* --- 原生:Capacitor SQLite(双数据集:mode 列;settings 以 mode:suffix 为键) --- */
 const NATIVE_DB='tanji';
 const ORD_COLS=['id','store','category','contact','price','deposit','appt_at','shot_at','submitted_at','short_sent_at','long_sent_at','deposit_paid_at','final_paid_at','settle_via','remind_at','channel','partner','location','gps_place','deliver_main','deliver_sub','review_result','published_at','account_id','note','remind_log','expect_pay_at','created_at','updated_at'];
-let nativeOpening=null;
 export async function nativeOpen(){
   if(Store.conn)return Store.conn;
-  if(nativeOpening)return nativeOpening;
-  nativeOpening=(async()=>{
-    const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
-    let conn;
-    try{
-      conn=await sqlite.createConnection(NATIVE_DB,false,'no-encryption',1,false);
-    }catch(error){
-      if(!/already exists/i.test(String(error?.message||error)))throw error;
-      console.warn('[TanJi] SQLite 存在页面重载前的残留连接，关闭后重建',error);
-      await sqlite.closeConnection(NATIVE_DB,false);
-      conn=await sqlite.createConnection(NATIVE_DB,false,'no-encryption',1,false);
-    }
-    try{
-      await conn.open();
-      // @capacitor-community/sqlite 的 iOS 实现要求 executeSet 的每一项都同时带
-      // statement 与 values 两个键，缺 values 会整批 reject；DDL 用空数组占位。
-      await conn.executeSet([
-        {statement:`CREATE TABLE IF NOT EXISTS orders(
+  const sqlite=new CAP.SQLiteConnection(CAP.CapacitorSQLite);
+  const conn=await sqlite.createConnection(NATIVE_DB,false,'no-encryption',1,false);
+  await conn.open();
+  // @capacitor-community/sqlite 的 iOS 实现要求 executeSet 的每一项都同时带
+  // statement 与 values 两个键，缺 values 会整批 reject；DDL 用空数组占位。
+  await conn.executeSet([
+    {statement:`CREATE TABLE IF NOT EXISTS orders(
   mode TEXT NOT NULL,
   id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
   price REAL NOT NULL, deposit REAL DEFAULT 0,
@@ -398,40 +386,32 @@ export async function nativeOpen(){
   account_id INTEGER,
   note TEXT, remind_log TEXT, expect_pay_at TEXT, created_at TEXT, updated_at TEXT,
   PRIMARY KEY(mode,id))`,values:[]},
-        {statement:`CREATE TABLE IF NOT EXISTS payments(
+    {statement:`CREATE TABLE IF NOT EXISTS payments(
   mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`,values:[]},
-        {statement:`CREATE TABLE IF NOT EXISTS accounts(
+    {statement:`CREATE TABLE IF NOT EXISTS accounts(
   mode TEXT NOT NULL,
   id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
   color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
   PRIMARY KEY(mode,id))`,values:[]},
-        {statement:`CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`,values:[]},
-      ],true);
-      // 旧库升级:v0.5 及之前的库没有工作流/账号新列与新表。重复 ADD COLUMN 会报 duplicate
-      // column,逐条吞掉即可;新库建表已含这些列,ALTER 同样报重复,一起吞。
-      for(const stmt of [
-        'ALTER TABLE orders ADD COLUMN location TEXT',
-        'ALTER TABLE orders ADD COLUMN gps_place TEXT',
-        'ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1',
-        // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
-        'ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1',
-        `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
-        'ALTER TABLE orders ADD COLUMN published_at TEXT',
-        'ALTER TABLE orders ADD COLUMN account_id INTEGER',
-        'ALTER TABLE orders ADD COLUMN remind_log TEXT',
-        'ALTER TABLE orders ADD COLUMN expect_pay_at TEXT',
-      ]){try{await conn.execute(stmt,false)}catch(e){if(!/duplicate column name/i.test(String(e?.message||e)))throw e}}
-    }catch(error){
-      try{await sqlite.closeConnection(NATIVE_DB,false)}
-      catch(cleanupError){console.error('[TanJi] SQLite 失败连接清理失败',cleanupError)}
-      throw error;
-    }
-    Store.conn=conn;
-    return conn;
-  })();
-  try{return await nativeOpening}
-  finally{nativeOpening=null}
+    {statement:`CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`,values:[]},
+  ],true);
+  // 旧库升级:v0.5 及之前的库没有工作流/账号新列与新表。重复 ADD COLUMN 会报 duplicate
+  // column,逐条吞掉即可;新库建表已含这些列,ALTER 同样报重复,一起吞。
+  for(const stmt of [
+    'ALTER TABLE orders ADD COLUMN location TEXT',
+    'ALTER TABLE orders ADD COLUMN gps_place TEXT',
+    'ALTER TABLE orders ADD COLUMN deliver_main INTEGER DEFAULT 1',
+    // 缺省必须是 1:v0.4 前的旧单语义是正副片都要(DEFAULT 0 会把老单的副片要求静默关掉)
+    'ALTER TABLE orders ADD COLUMN deliver_sub INTEGER DEFAULT 1',
+    `ALTER TABLE orders ADD COLUMN review_result TEXT DEFAULT ''`,
+    'ALTER TABLE orders ADD COLUMN published_at TEXT',
+    'ALTER TABLE orders ADD COLUMN account_id INTEGER',
+    'ALTER TABLE orders ADD COLUMN remind_log TEXT',
+    'ALTER TABLE orders ADD COLUMN expect_pay_at TEXT',
+  ]){try{await conn.execute(stmt,false)}catch(e){/* 列已存在,忽略 */}}
+  Store.conn=conn;
+  return conn;
 }
 export function parseRemindLog(raw){
   if(raw==null||raw==='')return [];

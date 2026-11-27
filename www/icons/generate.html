@@ -2,29 +2,57 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>icon</title>
-<style>html,body{margin:0;padding:0;background:#f00}</style>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>探记 HG · 图标与启动图</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;padding:40px;background:#DCE2D7;color:#17352F;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+  main{max-width:920px;margin:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:28px}
+  section{padding:22px;border:1px solid rgba(23,53,47,.13);border-radius:22px;background:#FFFCF6}
+  h1{grid-column:1/-1;margin:0 0 4px;font-family:"Songti SC","STSong",serif;font-size:32px}
+  p{grid-column:1/-1;margin:0;color:#626D65;line-height:1.7}
+  canvas{display:block;width:100%;height:auto;border-radius:18px;box-shadow:0 12px 30px rgba(42,55,43,.1)}
+  h2{margin:18px 0 4px;font-size:14px}
+  small{color:#626D65}
+</style>
 </head>
 <body>
-<canvas id="c" width="512" height="512" style="display:block"></canvas>
+<main>
+  <h1>探记 HG · Brand assets</h1>
+  <p>暖纸、青墨与珊瑚行动色。图标和启动图由同一套矢量规则生成，导出时不依赖外部字体文件。</p>
+  <section><canvas id="icon" width="1024" height="1024"></canvas><h2>App Icon · 1024</h2><small>iOS / PWA 通用源图</small></section>
+  <section><canvas id="splash" width="1024" height="1024"></canvas><h2>Splash · 2732</h2><small>启动图按相同 1024 逻辑画布缩放</small></section>
+</main>
 <script>
-const c=document.getElementById('c'),g=c.getContext('2d');
-const gr=g.createLinearGradient(0,0,512,512);
-gr.addColorStop(0,'#FF8A3D');gr.addColorStop(1,'#E8352A');
-g.fillStyle=gr;g.fillRect(0,0,512,512);
-// 高光弧线
-g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=10;
-g.beginPath();g.arc(256,300,190,Math.PI*1.05,Math.PI*1.95);g.stroke();
-// 主字
-g.fillStyle='#fff';g.textAlign='center';g.textBaseline='middle';
-g.font='800 190px -apple-system,BlinkMacSystemFont,PingFang SC,sans-serif';
-g.fillText('探记',256,232);
-g.font='700 64px -apple-system,BlinkMacSystemFont,PingFang SC,sans-serif';
-g.fillStyle='rgba(255,255,255,.9)';
-g.fillText('TanJi',256,382);
-g.font='600 26px -apple-system,PingFang SC,sans-serif';
-g.fillStyle='rgba(255,255,255,.65)';
-g.fillText('探店达人的行程与收款',256,442);
+const INK='#17352F',PAPER='#F4F1E8',CARD='#FFFCF6',CORAL='#E9683C',SAGE='#DCE2D7';
+const icon=document.getElementById('icon'),splash=document.getElementById('splash');
+function rounded(g,x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r);g.fill()}
+function paperBackground(g){
+  g.fillStyle=PAPER;g.fillRect(0,0,1024,1024);
+  let glow=g.createRadialGradient(140,90,10,140,90,720);glow.addColorStop(0,'rgba(255,255,255,.9)');glow.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=glow;g.fillRect(0,0,1024,1024);
+  glow=g.createRadialGradient(930,960,10,930,960,680);glow.addColorStop(0,'rgba(182,197,176,.42)');glow.addColorStop(1,'rgba(182,197,176,0)');g.fillStyle=glow;g.fillRect(0,0,1024,1024)
+}
+function mark(g,x,y,size){
+  g.save();g.translate(x,y);g.scale(size/768,size/768);
+  g.fillStyle=INK;rounded(g,0,0,768,768,184);
+  g.strokeStyle='rgba(255,252,246,.13)';g.lineWidth=3;g.beginPath();g.roundRect(18,18,732,732,168);g.stroke();
+  g.fillStyle=PAPER;g.textAlign='center';g.textBaseline='middle';g.font='600 408px "Songti SC","STSong","Noto Serif CJK SC",serif';g.fillText('探',384,386);
+  g.fillStyle=CORAL;g.beginPath();g.arc(584,184,34,0,Math.PI*2);g.fill();
+  g.font='750 62px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';g.fillStyle='rgba(255,252,246,.76)';g.fillText('HG',384,652);
+  g.restore()
+}
+function drawIcon(canvas,size){
+  canvas.width=canvas.height=size;const g=canvas.getContext('2d');g.scale(size/1024,size/1024);paperBackground(g);mark(g,128,128,768)
+}
+function drawSplash(canvas,size){
+  canvas.width=canvas.height=size;const g=canvas.getContext('2d');g.scale(size/1024,size/1024);paperBackground(g);
+  g.fillStyle=INK;g.textAlign='center';g.textBaseline='middle';g.font='600 82px "Songti SC","STSong","Noto Serif CJK SC",serif';g.fillText('探记 HG',512,744);
+  g.fillStyle='#626D65';g.font='500 28px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';g.fillText('把每一趟拍摄，安排得刚刚好',512,824);
+  g.fillStyle=CORAL;rounded(g,468,892,88,8,4);
+  mark(g,352,236,320)
+}
+window.drawHgIcon=drawIcon;window.drawHgSplash=drawSplash;
+drawIcon(icon,1024);drawSplash(splash,1024);
 </script>
 </body>
 </html>

@@ -14,3 +14,10 @@ ios/DerivedData/
 *.ipa
 *.dSYM.zip
 tests/.harness.bundle.js
+
+# Watchdog runtime artifacts
+watchdog/heartbeat.json
+watchdog/daemon-status.json
+watchdog/watchdog.log
+watchdog/review/
+watchdog/*.tmp

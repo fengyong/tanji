@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, native-app]
+    branches: [main, native-app, tanji-native-hg]
   pull_request:
-    branches: [main, native-app]
+    branches: [main, native-app, tanji-native-hg]
   workflow_dispatch:
 
 jobs:
@@ -30,12 +30,10 @@ jobs:
         run: node tests/browser-smoke.cjs
 
   native:
-    name: Native (iOS) 回归 + main/native 漂移校验
+    name: Native (iOS) 回归 + 分支对应校验
     runs-on: ubuntu-latest
-    # push 到 native-app，或 PR 的目标分支是 native-app 时都要跑。
-    # PR 事件下 github.ref_name 是 "123/merge" 而不是分支名，只判 ref_name 会让
-    # PR 阶段的原生回归与漂移校验被静默跳过。
-    if: github.ref_name == 'native-app' || github.base_ref == 'native-app'
+    # PR 事件下 github.ref_name 是 "123/merge" 而不是分支名，必须同时判断 base_ref。
+    if: github.ref_name == 'native-app' || github.base_ref == 'native-app' || github.ref_name == 'tanji-native-hg' || github.base_ref == 'tanji-native-hg'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,13 +61,18 @@ jobs:
         run: node tests/browser-smoke.cjs
 
       - name: main / native 漂移校验
+        if: github.ref_name == 'native-app' || github.base_ref == 'native-app'
         run: node scripts/check-web-sync.cjs --main-ref origin/main
+
+      - name: HG 构建产物校验
+        if: github.ref_name == 'tanji-native-hg' || github.base_ref == 'tanji-native-hg'
+        run: node scripts/check-web-sync.cjs --artifact-only
 
   privacy:
     name: iOS 隐私清单合规
     runs-on: ubuntu-latest
-    # 同 native job：PR 目标为 native-app 时也要查，否则上架合规检查只在合入后才跑
-    if: github.ref_name == 'native-app' || github.base_ref == 'native-app'
+    # HG 与原 TanJi native-app 都需要检查；PR 阶段同样不能跳过。
+    if: github.ref_name == 'native-app' || github.base_ref == 'native-app' || github.ref_name == 'tanji-native-hg' || github.base_ref == 'tanji-native-hg'
     steps:
       - uses: actions/checkout@v4
 

@@ -2,6 +2,7 @@
 import {$,esc} from './util.js';
 import {ui} from './ui.js';
 import {Store} from './storage.js';
+import {setNativeSheetOpen} from './native-tabs.js';
 
 /* ================= 弹层 / Toast ================= */
 export function showSheet(id){
@@ -10,7 +11,10 @@ export function showSheet(id){
   const target=$('#'+id);
   // 上次关闭时锁上的指针事件,打开必须恢复(与 #mask 的 .show→pointer-events:auto 同一套路)
   target.style.pointerEvents='';
+  target.setAttribute('role','dialog');target.setAttribute('aria-modal','true');target.tabIndex=-1;
   target.classList.add('show');
+  target.focus({preventScroll:true});
+  setNativeSheetOpen(true);
 }
 export function closeSheets(){
   $('#mask').classList.remove('show');
@@ -24,6 +28,7 @@ export function closeSheets(){
     s.style.pointerEvents='none';
   });
   ui.detail=null;ui.payCtx=null;ui.editId=null;ui.remindOid=null;ui.expectOid=null;Store.pending=null;
+  setNativeSheetOpen(false);
 }
 /**
  * 弹层下拉关闭。

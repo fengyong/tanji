@@ -137,32 +137,27 @@ export function openEdit(oid){
   const cats=['咖啡','餐饮','烧烤','火锅','茶饮','甜品','烘焙','美发','健身','民宿','零售','体验馆','露营','服饰','快餐','其他'];
   const catOpts=[...new Set([o.cat||'其他',...cats])];
   $('#edit-body').innerHTML=`
+    <div class="form-section-title">店铺与账号</div>
     <div class="frow"><label>品名/商家</label><input id="e-store" value="${esc(o.store||'')}"></div>
     <div class="frow"><label>类型</label><select id="e-cat">${catOpts.map(c=>`<option ${c===o.cat?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
-    <div class="frow"><label>结算方式</label><select id="e-settle"><option value="private" ${o.settleVia!=='douyin'?'selected':''}>私收(微信/支付宝/银行卡)</option><option value="douyin" ${o.settleVia==='douyin'?'selected':''}>抖音商单(平台结算)</option></select></div>
-    <div id="e-acc-block"></div>
-    <div id="e-prov-block"></div>
-    <div class="frow"><label>组队</label><input id="e-partner" value="${esc(o.partner||'')}" placeholder="组队/出镜搭档,单人拍摄可空"></div>
-    <div class="frow"><label>地点</label><input id="e-location" value="${esc(o.location||'')}" placeholder="如:万象城 3 层"></div>
+    <div class="frow"><label>结算方式</label><select id="e-settle"><option value="private" ${o.settleVia!=='douyin'?'selected':''}>私收（微信 / 支付宝 / 银行卡）</option><option value="douyin" ${o.settleVia==='douyin'?'selected':''}>抖音商单（平台结算）</option></select></div>
+    <div id="e-acc-block"></div><div id="e-prov-block"></div>
+    <div class="frow"><label>组队</label><input id="e-partner" value="${esc(o.partner||'')}" placeholder="组队 / 出镜搭档，单人拍摄可空"></div>
+    <div class="frow"><label>地点</label><input id="e-location" value="${esc(o.location||'')}" placeholder="如：万象城 3 层"></div>
+    <div class="form-section-title" style="margin-top:20px">预约与交付</div>
     <div class="frow date-row"><label>预约时间</label><input id="e-date" type="date" value="${esc((o.appt||'').slice(0,10))}"><input id="e-time" type="time" value="${esc((o.appt||'').slice(11,16))}"><span class="date-relative" id="e-date-relative" aria-live="polite"></span></div>
-    <div class="frow"><label>出片要求</label><div style="display:flex;gap:22px;align-items:center;padding:6px 2px">
-      <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="e-need-main" ${needMain(o)?'checked':''} style="width:17px;height:17px;accent-color:var(--brand)"> 正片</label>
-      <label style="display:flex;gap:7px;align-items:center;font-size:14px"><input type="checkbox" id="e-need-sub" ${needSub(o)?'checked':''} style="width:17px;height:17px;accent-color:var(--brand)"> 副片</label>
-    </div></div>
-    <div class="frow"><label>送审结果</label><select id="e-review">
-      <option value="" ${!o.reviewResult?'selected':''}>未送审/待审</option>
-      <option value="pass" ${o.reviewResult==='pass'?'selected':''}>合格</option>
-      <option value="fail" ${o.reviewResult==='fail'?'selected':''}>不合格</option>
-    </select></div>
-    <div class="frow"><label>总价(¥)</label><input id="e-price" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy?'':esc(o.price)}"${ui.privacy?' placeholder="¥✱✱✱" data-masked="1" readonly':''}></div>
-    <div class="frow"><label>定金(¥)</label><input id="e-deposit" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy?'':esc(o.deposit)}"${ui.privacy?' placeholder="¥✱✱✱" data-masked="1" readonly':''}></div>
+    <div class="banner-amber" id="e-conflict"></div>
+    <div class="frow"><label>出片要求</label><div style="display:flex;gap:22px;align-items:center;padding:6px 2px"><label class="check-opt"><input type="checkbox" id="e-need-main" ${needMain(o)?'checked':''} style="width:17px;height:17px;accent-color:var(--brand)"> 正片</label><label class="check-opt"><input type="checkbox" id="e-need-sub" ${needSub(o)?'checked':''} style="width:17px;height:17px;accent-color:var(--brand)"> 副片</label></div></div>
+    <div class="frow"><label>送审结果</label><select id="e-review"><option value="" ${!o.reviewResult?'selected':''}>未送审 / 待审</option><option value="pass" ${o.reviewResult==='pass'?'selected':''}>合格</option><option value="fail" ${o.reviewResult==='fail'?'selected':''}>不合格</option></select></div>
+    <div class="form-section-title" style="margin-top:20px">金额与联系</div>
+    <div class="frow"><label>总价（¥）</label><input id="e-price" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy?'':esc(o.price)}"${ui.privacy?' placeholder="¥✱✱✱" data-masked="1" readonly':''}></div>
+    <div class="frow"><label>定金（¥）</label><input id="e-deposit" type="number" inputmode="decimal" min="0" step="0.01" value="${ui.privacy?'':esc(o.deposit)}"${ui.privacy?' placeholder="¥✱✱✱" data-masked="1" readonly':''}></div>
     <div class="rsub" id="e-money-help" style="margin:6px 0;line-height:1.5"></div>
     <div class="frow"><label>联系方式</label><input id="e-contact" value="${esc(o.contact||'')}"></div>
     <div class="frow"><label>备注</label><textarea id="e-note" rows="2">${esc(o.note||'')}</textarea></div>
-    <div class="banner-amber" id="e-conflict"></div>
-    <div class="sec-title">收款记录(可撤销 / 补记)</div>
+    <div class="form-section-title" style="margin-top:20px">收款记录 · 可撤销 / 补记</div>
     <div class="btn2" id="e-payments"></div>
-    <div class="rsub" style="margin-top:6px;line-height:1.5">补记前请先保存修改；按已保存金额记一笔，平台单使用抖音商单，私收默认微信。撤销仅用于纠正错误收款，会同时移除对应流水。</div>`;
+    <div class="rsub" style="margin-top:7px;line-height:1.5">补记前请先保存修改。撤销仅用于纠正错误收款，会同时移除对应流水。</div>`;
   // 多账号时「未指定」的单不被兜底成第一个账号(那是一次静默改挂);
   // 单账号时预览自动归属的账号,与保存口径一致
   ui.draftProv=o.channel||'直客';ui.draftAccId=o.accountId??(accMulti()?null:(ACCS().length?ACCS()[0].id:null));

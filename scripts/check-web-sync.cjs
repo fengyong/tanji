@@ -27,14 +27,19 @@
  * 只有显式跑 `npm run check:update` 重写锁文件，CI 才会放行。
  * 这样"同步"从一个靠记性的动作，变成一个 CI 可验证的状态。
  *
+ * tanji-native-hg 是独立产品线，默认只校验构建产物，不参与这套漂移锁；
+ * CI 的 detached HEAD 用 --artifact-only 显式选择同一模式。
+ *
  * 另外还校验：
  *   - www/cap-plugins.js 必须等于 src/cap-plugins.js 的 esbuild 产物
+ *   - www/app.js 必须等于 src/app/main.js 的 esbuild 产物
  *     （否则手改过构建产物，或改了 src 却忘了重新打包）
  *
  * 用法
  * ----
- *   node scripts/check-web-sync.cjs                 # 校验（CI 用）
- *   node scripts/check-web-sync.cjs --update        # 同步完成后重写锁文件
+ *   node scripts/check-web-sync.cjs                 # HG 校验产物；其他分支校验漂移
+ *   node scripts/check-web-sync.cjs --artifact-only # 任意分支仅校验构建产物
+ *   node scripts/check-web-sync.cjs --update        # native-app 同步完成后重写锁文件
  *   node scripts/check-web-sync.cjs --main-ref <ref>
  */
 
@@ -134,15 +139,24 @@ function readLock() {
 }
 
 function parseArgs(argv) {
-  const args = { update: false, mainRef: null };
+  const args = { update: false, artifactOnly: false, mainRef: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--update') args.update = true;
+    else if (argv[i] === '--artifact-only') args.artifactOnly = true;
     else if (argv[i] === '--main-ref') args.mainRef = argv[++i];
     else if (argv[i].startsWith('--main-ref=')) args.mainRef = argv[i].split('=')[1];
     else if (argv[i] === '--ref') args.mainRef = argv[++i];
     else if (argv[i].startsWith('--ref=')) args.mainRef = argv[i].split('=')[1];
   }
   return args;
+}
+
+function currentBranch() {
+  try {
+    return git(['branch', '--show-current']).trim();
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -232,11 +246,26 @@ function checkBuiltArtifact({ src, built, format, minify, mtimeSources, rebuildH
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const mainRef = resolveMainRef(args.mainRef);
+  const independentHg = !args.mainRef && currentBranch() === 'tanji-native-hg';
+  const mainRef = args.artifactOnly || independentHg ? null : resolveMainRef(args.mainRef);
 
-  if (!mainRef) {
-    console.error('✗ 找不到 main 分支引用。请用 --main-ref <ref> 指定，或先 fetch origin/main。');
-    process.exit(1);
+  if (args.artifactOnly || independentHg) {
+    if (args.update) {
+      console.error('✗ HG 独立分支不更新 main / native 漂移锁；请提交构建产物校验结果。');
+      process.exit(1);
+    }
+    const checks = [checkBuiltPlugin(), checkBuiltApp()];
+    const failed = checks.filter(result => !result.ok);
+    if (failed.length) {
+      for (const result of failed) console.error(`✗ ${result.message}`);
+      process.exit(1);
+    }
+    console.log('✓ HG 独立副本：www 构建产物与源码一致');
+    console.log('  HG 独立演进，跳过 main / native 跨版本漂移校验');
+    for (const result of checks) {
+      if (result.skipped && result.message) console.log(`  （${result.message}）`);
+    }
+    process.exit(0);
   }
 
   const mainCommit = git(['rev-parse', `${mainRef}^{commit}`]).trim();

@@ -1,106 +1,108 @@
-# 探记 TanJi · iOS 本地 App(native-app 分支)
+# 探记 HG · iOS 本地 App
 
-探店达人的行程 + 记账工具。本分支用 **Capacitor 壳复用 Web UI** 的路线做 iOS 本地 App:同一套页面/状态机,持久化按平台切换——Web 走 IndexedDB + localStorage,iOS 原生走 App 沙盒内 SQLite(@capacitor-community/sqlite)。
+探店达人的行程、交付与收款工具。HG 是独立发展的 iOS 产品线：重做信息结构、视觉与交互，保留原 TanJi 的 SQLite 表、`settings` JSON 快照、`tanji_v3_*` 键和 JSON 备份格式。
 
-技术决策与完整研发记录见 [docs/native-app-notes.md](docs/native-app-notes.md)。
-达人工作流还原、交互评估与功能缺口优先级见 [docs/creator-workflow-review.md](docs/creator-workflow-review.md);
-视觉探索产物(六套配色 / 首页卡片 / 金额格 / 详情 v2)归档在 `docs/design-preview/`,排在功能之后落地。
+## 当前身份与状态
 
-> **`native-app` 是 iOS 原生版的独立开发主线**:需求从它切短分支(`fix/*` / `feat/*`),完成后快进合回
-> `native-app` 并推送,不再绕道 `main` 走 PR(详见 `docs/git-push-guide.md`)。`main` 只保留 Web / PWA 版。
-> 代码、App 内页脚、导出 `.db`、备份文档与本文档的版本号统一为 **v0.6**。
+| 项 | 值 |
+|---|---|
+| 分支 | `tanji-native-hg` |
+| 显示名 | 探记 HG |
+| Bundle ID | `com.tanji.hg` |
+| App 版本 | `1.0 (1)` |
+| 技术路线 | Capacitor 8 + 单一 WKWebView + UIKit 原生底栏 |
+| 数据 | 纯本地；iOS 使用 App 沙盒内 SQLite，无服务器、无云同步 |
+| 基线 | `native-app@534e88b`；HG 不反向修改原 TanJi App |
+
+2026-11-27：Release `1.0 (1)` 已安装并启动到 iPhone 15 Pro，用户已确认原生底栏质感。真机权限、持久化、导入导出与日常业务验收仍待用户完成；当前未上架。
+
+## 产品结构
+
+- **首页**：今日拍摄、待发片、本月速览与逾期风险。
+- **行程**：月历、未来 7 天、单日订单与行程分享。
+- **订单**：搜索筛选、工作线状态、行内推进与详情工作台。
+- **收款**：定金/尾款、逾期分桶、平台到账与流水。
+- **统计**：业务指标与账号筛选；右上角齿轮进入独立设置页。
+- **设置**：我的账号、数据与备份、提醒与隐私、数据模式、危险操作、关于与支持。
+
+原生底栏在 iOS 26+ 使用系统 Liquid Glass，旧系统使用 blur 降级。单一 `AppBridgeViewController` / 单一 WKWebView 负责全部 Tab；原生层同步实际底栏高度、收款角标和 Tab 命令 ACK。弹层打开时隐藏底栏，关闭 360ms 后恢复；键盘只有实际覆盖底栏时才触发避让。
+
+## 数据兼容与迁移
+
+HG 使用独立 Bundle ID 与独立沙盒，**不会自动共享原 TanJi App 的数据**。旧数据通过「设置 → 数据与备份 → 从旧版探记导入」选择 JSON 备份迁移，导入前预览并自动保留恢复点。
+
+- 保留 `orders`、`payments`、`accounts`、`settings` 表与既有备份格式。
+- 工作/演示两套数据继续独立保存。
+- JSON 用于跨 App、跨设备迁移；SQLite `.db` 用于完整数据库存档。
+- 升级 App 时覆盖安装，不要卸载；卸载会删除沙盒数据。
 
 ## 目录结构
 
+```text
+www/                     Web 资源与构建产物
+  app.js                  src/app/main.js 的 esbuild 产物
+  cap-plugins.js          src/cap-plugins.js 的 esbuild 产物
+src/app/                 页面、状态、存储、业务动作与原生 Tab 桥
+src/cap-plugins.js        Capacitor 插件桥源码
+ios/App/                  Xcode 工程、原生 Tab 容器与 UI Tests
+scripts/                 构建、校验、装机与 watchdog 脚本
+tests/                   node:test 回归与浏览器冒烟
+docs/                    设计资料、装机指南、发布清单与历史研发笔记
+watchdog/                 持久化进度；运行时文件已忽略
 ```
-www/                Web 资源(与 main 分支 Web 版同源;纯资产同步,index.html/storage.js 含原生适配层与 v0.5/v0.6 专属改动)
-  index.html        UI + 页面状态 + 平台自适应持久化 + 原生桥接
-  logic.js          业务规则纯函数层(工作线/资金线/逾期/出片/统计/排期),不碰 DOM,可单测
-  imaging.js        图像处理模块(裁切/压缩/烘焙淡化 + 体积上限),头像与随手拍共用
-  geo.js            到店定位与地图跳转(GPS 记录 / 手填地点导航),原生与 Web 同一套入口
-  cap-plugins.js    esbuild 打包的 Capacitor 插件桥(window.TanjiCap)
-  vendor/           sql.js WASM(导出真 .db 字节)
-src/cap-plugins.js  插件桥源文件
-ios/App/            cap add ios 生成的 Xcode 工程(SPM,Capacitor 8)
-AGENTS.md           项目必读文档(动手前先读,含两条提交推送硬规则)
-docs/               v0.1 原型归档 + 研发笔记 + 交互评估 + 上架清单 + 多账号原型(docs/proto) + 视觉探索(design-preview)
-```
-
-## 环境要求
-
-- **Node ≥ 22**(Capacitor 8 CLI 硬性要求;本机 homebrew node 26 已满足)
-- **Xcode 16+**(构建 iOS;2026-11-22 起 Xcode 27.2 已装并实测通过,模拟器 GUI 在 `Xcode.app/Contents/Applications/DeviceHub.app`)
-- 无需 CocoaPods:Capacitor 8 默认 Swift Package Manager
-
-## 提交与推送（必读）
-
-**两条硬规则**，任何一次提交和推送都必须满足，完整版见 [`AGENTS.md`](AGENTS.md)：
-
-1. **提交标题必须以 agent 名称 / 模型名称开头**
-
-   ```bash
-   git commit -m "mimocode/M31.1-flash feat(native): 一句话说清做了什么"
-   ```
-
-   格式：`<agent名称>/<模型名称> <类型>(<作用域>): <一句话摘要>`。前缀取值 `mimocode/M31.1-flash`
-   （MiniMax Code / MiniMax-M3.1-Flash，本项目当前在用）；换 agent 或换模型就写当次实际用的那个。
-   前缀必须在标题行**开头**，不能写成 `feat(native): mimocode/M31.1-flash ...`。
-
-2. **推送一律用 `fengyong` 账号**
-
-   ```bash
-   git push git@github-fengyong:fengyong/tanji.git HEAD:refs/heads/<分支>
-   ```
-
-   `origin` 在本机是 `drax-ola` 身份、对 `fengyong/tanji` 无写权限；HTTPS 到 github.com 不通；
-   本机 `~/.gitconfig` 的 `insteadOf` 全局改写让「改 remote / 换 HTTPS / 加 `-u」全部无效。
-   `~/.ssh/config` 里已配好 `Host github-fengyong` 别名，用 `ssh -T git@github-fengyong` 校验
-   应回 `Hi fengyong!`。
-
-首次配置、提交前自检、PR 目标分支、CI 触发条件与四类 push 报错的排查见
-[docs/git-push-guide.md](docs/git-push-guide.md)。
 
 ## 常用命令
 
 ```bash
-npm run build:plugins   # esbuild 打包 src/cap-plugins.js → www/cap-plugins.js
-npm run sync            # 打包插件桥 + cap sync ios(www → ios/App/App/public)
-npm run sync:web        # 从 main 同步 Web 资产(纯资产自动拷;index.html/storage.js 只检测漂移,人工合并)
-npm run check           # main/native 漂移校验(指纹锁 scripts/web-sync.lock.json + esbuild 产物比对)
-npm run check:update    # 人工合并/有意改动后重新登记锁基线(只做这一件事,不碰文件)
-npm test                # 回归测试(node --test:原生 53 + Web 52 + 导出表结构 5 + 规则 12 + 定位 5 + 接线 8,共 135)
-npm run test:smoke      # 浏览器端到端冒烟(需本机 Chrome,可用 CHROME_BIN 指定)
-npm run serve           # 本地起 Web 版预览(python3 http.server,http://localhost:8765)
-npm run build:ios       # 先 npm run sync 再 xcodebuild 模拟器构建(不签名),避免纯 checkout 缺生成物
-npm run build:ios:device# xcodebuild 真机 Release 构建(不签名,产物不能装机)
-npm run install:ios:device # 免费 Apple ID 真机安装(需 DEVELOPMENT_TEAM/DEVICE_UDID,7 天有效)
-npm run open:ios        # 用 Xcode 打开 iOS 工程
+npm test                   # 186 项回归
+npm run test:smoke         # 320×568、390×844、1280×900 浏览器冒烟
+npm run check              # 校验 www/app.js、www/cap-plugins.js 与源码一致
+npm run build:app          # 只重建 www/app.js
+npm run build:plugins      # 只重建 www/cap-plugins.js
+npm run sync               # 重建产物 + cap sync ios
+npm run build:ios          # 同步后构建 iPhone 模拟器版本
+npm run install:ios:device # 真机签名、安装并启动
 ```
 
-## 功能(native v0.6,多账号版)
+HG 已独立重做 UI 与交互，不再执行 `main → native` 漂移锁。在 `tanji-native-hg` 分支上，`npm run check` 只校验构建产物；CI detached HEAD 使用 `--artifact-only`。不要用 `npm run check:update` 把 HG 重新锁回原 TanJi App。
 
-- **多账号体系**:录入多个达人账号(昵称/手机号/抖音账号/**头像**/标识色),订单挂账号;首页/订单/**收款**/统计四页可「全部合并看 / 按账号拆开」;订单/流水行首带 **3px 账号色条**+迷你头像小标(不再整行铺底色,避免白卡片里套色块);账号资料**一键拷贝**(昵称+抖音+手机,去报名/给服务商);≥2 账号时建单出**单选卡**选号(不是下拉),单账号全程零打扰自动归属
-- 服务商:预设芯片点选(蜂向/小爱/金城/食物/直客)+ 直接输入,自定义过的自动记入预设
-- 品名/商家、**地点**、时间、**组队**、费用、联系方式、备注
-- **地点一键导航**:详情页地点行直接跳地图 App(按手填的中文地址查,最准);**到店定位**:打卡/随手拍时自动记一次当时 GPS(`gps_place` 新列,与手填地点并存),详情页可回看位置或手动补记
-- **保存按钮常驻**:新建/编辑弹层的保存条固定在底部,不用滚到最下面才看得见
-- **原生手感**:禁用双击缩放、长按选中/气泡、整页橡皮筋;弹层支持**下拉关闭**(跟手位移,超 110px 松手关闭,列表滚到顶才接管),详情页另有 ✕;表单弹层只从头部拖,避免误丢输入
-- **行内推进**:首页「今日拍摄」可直接打卡、首页/订单页「待发片」行内直接提审/发片/发布;订单搜索覆盖商家/地点/联系人/备注
-- 预约 → 拍摄 → 提审 → 出片(**按单配置正片/副片要求,两个多选**)→ **送审(合格/不合格)** → **发布** → 收款;时间线顺序不变,新增送审/发布两个可标记可清除的状态
-- **24 小时未出片提醒**:拍摄完成 +24h 仍未出齐(按该单正/副片配置)→ 本地通知 + 列表红色「超24h」角标
-- 定金/尾款双轨收款,渠道仅作记录标签(微信/支付宝/银行卡/抖音商单/其他);抖音商单=平台结算,豁免催收
-- 逾期催收:阈值可配(7/15/30/45 天,默认 15),逾期列表 + 1/3/7 天后提醒备忘
-- **原生增强**:每日 09:00 催收汇总本地通知(不含金额,可关);snooze 备忘升级为真·本地通知
-- 隐私模式(隐藏金额)、预约时段冲突提醒(不禁止)、今日行程分享图
-- 导出:CSV / JSON / **SQLite .db**——原生端全部经系统分享面板。导出件是归档用途:表结构沿用 Web 版(单数据集),而 App 内库按 `mode` 分工作/演示两套,两者不通用;**跨设备搬运请用 JSON 备份**(统计页可导入)
-- 数据仅存本机(iOS 沙盒 / 浏览器 IndexedDB),无服务器
+## 验证记录
 
-## 数据表(orders / payments / settings)
+2026-11-27 已通过：
 
-见 `docs/native-app-notes.md` 第四节,或 App 内「统计 → 数据结构」页。v0.5 工作流字段:`location` / `deliver_main` / `deliver_sub` / `review_result` / `published_at`;v0.6 新增 `accounts` 表与 orders.`account_id`、orders.`gps_place`(旧库启动时自动迁移)。
+- `npm test`：186/186。
+- `npm run test:smoke`：320×568、390×844、1280×900，控制台零错误。
+- `npm run check`：HG 独立副本构建产物与源码一致。
+- `npm run build:ios`：模拟器构建成功。
+- 原生 XCUITest：3/3，覆盖 Tab/设置路由、弹层避让、键盘避让。
+- 模拟器 SQLite 重启后保留：orders 17、payments 18、accounts 0、settings 1。
+- 真机 Release 构建、签名、安装、启动与设备元数据核验。
 
-## 已知状态
+模拟器和自动化测试不能替代真机验收。待用户确认：相机、相册、定位、通知权限，SQLite 持久化与重启，JSON 导入导出，离线，安全区、Liquid Glass、键盘和弹层实际手感。
 
-- 2026-11-22:模拟器构建闭环打通——`xcodebuild` BUILD SUCCEEDED,安装/启动/渲染正常;SQLite 落盘与读取回环(抹镜像+直改库→UI 显示改后值)实测通过;通知权限弹窗正常。实测记录见研发笔记六·五节。
-- 剩余人工点验项(snooze 通知到达、每日汇总、四种导出分享面板、真机签名)见研发笔记第七节。
-- `xcodebuild` 命令:`xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData build`(`build/` 已入 gitignore)。
+## 真机安装
+
+完整步骤见 [docs/device-install.md](docs/device-install.md)。默认 Bundle ID 已是 `com.tanji.hg`：
+
+```bash
+DEVELOPMENT_TEAM=<TEAM_ID> DEVICE_UDID=<DEVICE_UDID> \
+CONFIGURATION=Release npm run install:ios:device
+```
+
+Team ID、UDID、证书和私钥只放在本机环境变量中，不写入仓库。签名有效期取决于 Team 与 provisioning profile；付费开发者团队不统一按 7 天计算。
+
+## 提交与推送
+
+开始改动前先读 [AGENTS.md](AGENTS.md)，提交前再读 [docs/git-push-guide.md](docs/git-push-guide.md)。
+
+- 提交标题格式：`<agent>/<model> <type>(<scope>): <摘要>`；当前会话使用 `qoder/undisclosed`，不披露底层模型。
+- 使用显式路径暂存，禁止 `git add -A` / `git add .`。
+- 推送使用 `git@github-fengyong:fengyong/tanji.git` 别名地址。
+- 不 force push、不 merge、不修改 `main` / `native-app`、不删除旧 App 数据。
+
+## 资料索引
+
+- [docs/requirements.html](docs/requirements.html)：HG 设计反推与交互方向资料。
+- [docs/product-design-v0.6.html](docs/product-design-v0.6.html)：继承的 v0.6 产品设计基线。
+- [docs/native-app-notes.md](docs/native-app-notes.md)：原 TanJi Native 历史研发笔记；旧分支、旧 Bundle ID 与旧签名记录不代表 HG 当前状态。
+- [docs/appstore-release-checklist.md](docs/appstore-release-checklist.md)：未来上架对账清单；当前尚未发布。

@@ -17,30 +17,29 @@ export function buildTodayImage(day=TODAY){
   const H=headH+rows*(rowH+gap)+footH;
   const c=document.createElement('canvas');c.width=W*S;c.height=H*S;
   const g=c.getContext('2d');g.scale(S,S);
-  g.fillStyle='#F2F2F7';g.fillRect(0,0,W,H);
-  const gr=g.createLinearGradient(0,0,W,headH);gr.addColorStop(0,'#FF8A3D');gr.addColorStop(1,'#E8352A');
-  g.fillStyle=gr;g.fillRect(0,0,W,headH-28);
-  g.fillStyle='rgba(255,255,255,.9)';g.font='600 26px -apple-system,PingFang SC,sans-serif';
-  g.fillText('探记 TanJi · 拍摄行程',pad,62);
+  g.fillStyle='#F4F1E8';g.fillRect(0,0,W,H);
+  g.fillStyle='#17352F';g.fillRect(0,0,W,headH-28);
+  g.fillStyle='rgba(255,252,246,.72)';g.font='600 26px -apple-system,PingFang SC,sans-serif';
+  g.fillText('探记 HG · 拍摄行程',pad,62);
   g.fillStyle='#fff';g.font='800 58px -apple-system,PingFang SC,sans-serif';
   g.fillText(`${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日 周${dowOf(day)}`,pad,136);
   g.font='600 26px -apple-system,PingFang SC,sans-serif';g.fillStyle='rgba(255,255,255,.88)';
   g.fillText(list.length?`${list.length} 个拍摄安排`:'当天暂无拍摄安排',pad,186);
   let y=headH;
-  const WT={'待拍摄':['#007AFF'],'后期中':['#AF52DE'],'发片中':['#FF9500'],'已交付':['#239648']};
-  if(!list.length){g.fillStyle='#8E8E93';g.font='500 30px -apple-system,PingFang SC';g.fillText('🌙 休息,明天再战',pad,y+66);y+=rowH+gap}
+  const WT={'待拍摄':['#E9683C'],'后期中':['#4B7092'],'发片中':['#B87924'],'已交付':['#2F6F58']};
+  if(!list.length){g.fillStyle='#7B837B';g.font='500 30px -apple-system,PingFang SC';g.fillText('今天不排片，给自己留点余量。',pad,y+66);y+=rowH+gap}
   for(const o of list){
-    g.fillStyle='#fff';rr(g,pad,y,W-pad*2,rowH,20);g.fill();
-    g.fillStyle='#FF6A2B';g.font='800 40px -apple-system,PingFang SC';g.fillText(fmtHM(o.appt),pad+30,y+56);
-    g.fillStyle='#1C1C1E';g.font='700 34px -apple-system,PingFang SC';
+    g.fillStyle='#FFFCF6';g.strokeStyle='rgba(23,53,47,.14)';g.lineWidth=1;rr(g,pad,y,W-pad*2,rowH,20);g.fill();g.stroke();
+    g.fillStyle='#E9683C';g.font='800 40px -apple-system,PingFang SC';g.fillText(fmtHM(o.appt),pad+30,y+56);
+    g.fillStyle='#17352F';g.font='700 34px -apple-system,PingFang SC';
     g.fillText(o.store,pad+156,y+46,W-pad*2-320);
     const st=WT[workOf(o)][0];
     g.fillStyle=st;g.font='700 24px -apple-system,PingFang SC';g.fillText('● '+workOf(o),pad+158,y+88);
-    g.fillStyle='#8E8E93';g.font='500 24px -apple-system,PingFang SC';g.fillText(o.cat,pad+300,y+88,W-pad*2-300);
+    g.fillStyle='#7B837B';g.font='500 24px -apple-system,PingFang SC';g.fillText(o.cat,pad+300,y+88,W-pad*2-300);
     y+=rowH+gap;
   }
-  g.fillStyle='#B9B9C0';g.font='500 24px -apple-system,PingFang SC';
-  g.fillText('由「探记」生成 · 不含金额信息',pad,y+34);
+  g.fillStyle='#7B837B';g.font='500 24px -apple-system,PingFang SC';
+  g.fillText('由「探记 HG」生成 · 不含金额信息',pad,y+34);
   return new Promise(res=>c.toBlob(b=>res(b),'image/png'));
 }
 export async function shareToday(){

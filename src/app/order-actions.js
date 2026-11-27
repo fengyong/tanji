@@ -76,16 +76,12 @@ export function openPay(oid,kind,keepMethod){
   const amt=m[kind]/100;
   ui.payCtx={oid,kind,method};
   $('#pay-body').innerHTML=`
-    <div style="text-align:center;padding:6px 0 2px">
-      <div style="font-size:14px;font-weight:700">${esc(o.store)}</div>
-      <div style="font-size:34px;font-weight:800;margin:8px 0 2px">${esc(fmtMoney(amt))}</div>
-      <div style="font-size:12px;color:var(--sub)">${spec.label} · ${o.settleVia==='douyin'?'约定抖音商单结算':'私收款项'} · 仅作入账记录</div>
-    </div>
-    <div class="sec-title" style="justify-content:center">收款方式(记录用)</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+    <div class="money-hero" style="margin-bottom:18px"><div class="section-kicker">${esc(spec.label)} / 本次入账</div><div class="money-total">${esc(fmtMoney(amt))}</div><div class="rsub" style="color:rgba(255,252,246,.68)">${esc(o.store)} · ${o.settleVia==='douyin'?'约定抖音商单结算':'私收款项'} · 仅作入账记录</div></div>
+    <div class="detail-section-title"><h3>收款方式</h3><span class="rsub">记一笔，不会自动转账</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px">
       ${METHODS.map(m=>`<button class="mchip ${ui.payCtx.method===m?'on':''}" data-act="pay-method" data-m="${esc(m)}">${esc(m)}</button>`).join('')}
     </div>
-    <div style="padding:18px 0 4px"><button class="btn green" data-act="confirm-pay">确认收款 ${esc(fmtMoney(amt))}</button></div>`;
+    <div style="padding:20px 0 4px"><button class="btn green" data-act="confirm-pay">确认收款 ${esc(fmtMoney(amt))}</button></div>`;
   showSheet('sheet-pay');
 }
 
