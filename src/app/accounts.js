@@ -1,6 +1,6 @@
 /* ================= 多账号体系 v0.6 + 单日勋章(P0 §3) ================= */
 import {$,esc,nowStr} from './util.js';
-import {db,save} from './storage.js';
+import {db,save,ACCOUNT_LEVELS,DEFAULT_MEDAL_RULES,validateMedalRules} from './storage.js';
 import {ui,renderAll} from './ui.js';
 import {showSheet,closeSheets,toast} from './sheets.js';
 
@@ -19,6 +19,7 @@ export const PRESET_PROVIDERS=['蜂向','小爱','金城','食物','直客'];
 export const ACCS=()=>db.accounts||[];
 export const accMulti=()=>ACCS().length>=2;
 export const accById=id=>ACCS().find(a=>a.id===+id);
+export const accLevel=a=>ACCOUNT_LEVELS.includes(a?.level)?a.level:'Lv.5';
 export const accColor=a=>ACC_COLORS[(a&&a.color!=null?a.color:0)%8];
 export const providerList=()=>[...new Set([...PRESET_PROVIDERS,...(db.providers||[])])];
 /*
@@ -88,11 +89,12 @@ export function openAccount(id){
   const a=id!=null?accById(id):null;
   ui.draftAvatar=a&&a.avatar||null;
   ui.draftColor=a?a.color:ACCS().length%8;
+  ui.draftLevel=accLevel(a);
   $('#account-title').textContent=a?'编辑账号':'新建账号';
   $('#a-name').value=a?a.name:'';$('#a-phone').value=a?a.phone||'':'';$('#a-douyin').value=a?a.douyin||'':'';
   $('#a-err').style.display='none';
   $('#a-delete').style.display=a?'':'none';
-  renderAvatarPreview();renderPal();
+  renderAvatarPreview();renderPal();renderAccountLevels();
   showSheet('sheet-account');
 }
 export function renderAvatarPreview(){
@@ -109,12 +111,25 @@ export function renderPal(){
   const label=$('#a-pal-name');
   if(label)label.innerHTML=`当前标识色：<b>${cur.name}</b> · 列表色条与行内小标同步跟随`;
 }
+export function renderAccountLevels(){
+  const el=$('#a-level');if(!el)return;
+  const current=accLevel({level:ui.draftLevel});
+  el.innerHTML=ACCOUNT_LEVELS.map(level=>`<button type="button" class="level-chip${level===current?' on':''}" data-act="account-level" data-v="${level}" aria-pressed="${level===current}">${level}</button>`).join('');
+}
+export function saveMedalRules(){
+  const input={busyOrders:Number($('#medal-busy').value),salesAmount:Number($('#medal-sales').value),hotOrders:Number($('#medal-hot').value),aceAmount:Number($('#medal-ace').value)};
+  const err=$('#medal-err');
+  try{
+    db.medalRules=validateMedalRules(input);
+    err.style.display='none';save();renderAll();toast('勋章门槛已保存');
+  }catch(error){err.textContent=error.message;err.style.display='block'}
+}
 export function saveAccount(){
   const name=$('#a-name').value.trim();
   const err=$('#a-err');
   if(!name){err.textContent='请填写昵称';err.style.display='block';return}
   err.style.display='none';
-  const base={name,phone:$('#a-phone').value.trim(),douyin:$('#a-douyin').value.trim(),color:ui.draftColor%8};
+  const base={name,level:accLevel({level:ui.draftLevel}),phone:$('#a-phone').value.trim(),douyin:$('#a-douyin').value.trim(),color:ui.draftColor%8};
   if(ui.draftAvatar)base.avatar=ui.draftAvatar;
   if(ui.editAccountId!=null){
     const target=accById(ui.editAccountId);
@@ -141,14 +156,13 @@ export function deleteAccount(){
 }
 
 /* ================= 单日勋章(激励) =================
- * ⭐ 忙碌日 ≥3 单 · 🔥 爆单 ≥5 单(点封顶 6)
- * 💰 千元日 ≥¥1,000 · 💎 王牌日 ≥¥2,500
- * 同日多枚只显示最高档:💎 > 🔥 > 💰 > ⭐
- * 阈值按大王 11 月真实峰值(单日 5 单 / ¥2,630)校准,确保可达 */
+ * 四项门槛由设置页统一维护，所有账号与历史日期共用当前规则。
+ * 同日多枚只显示最高档:💎 > 🔥 > 💰 > ⭐ */
 export function dayBadge(n,sum){
-  if(sum>=2500)return {e:'💎',t:'王牌日'};
-  if(n>=5)return {e:'🔥',t:'爆单'};
-  if(sum>=1000)return {e:'💰',t:'千元日'};
-  if(n>=3)return {e:'⭐',t:'忙碌日'};
+  const rules=db.medalRules||DEFAULT_MEDAL_RULES;
+  if(sum>=rules.aceAmount)return {e:'💎',t:'王牌日'};
+  if(n>=rules.hotOrders)return {e:'🔥',t:'爆单'};
+  if(sum>=rules.salesAmount)return {e:'💰',t:'千元日'};
+  if(n>=rules.busyOrders)return {e:'⭐',t:'忙碌日'};
   return null;
 }

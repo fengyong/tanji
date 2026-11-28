@@ -2,7 +2,7 @@
 import {$,now,TODAY,tickClock} from './util.js';
 import {db,Store,setStorageStatus} from './storage.js';
 
-export const ui={tab:'home',settingsOpen:false,chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1},accFilter:null,editAccountId:null,draftAvatar:null,draftColor:0,draftProv:'',draftAccId:null,draftAccIds:[],assignAcc:null,remindOid:null,expectOid:null};
+export const ui={tab:'home',settingsOpen:false,settingsPage:'main',chip:'all',bucket:'all',period:'7',selDay:TODAY,q:'',detail:null,payCtx:null,privacy:false,shareUrl:null,shareBlob:null,vMon:{y:now.getFullYear(),m:now.getMonth()+1},accFilter:null,editAccountId:null,draftAvatar:null,draftColor:0,draftLevel:'Lv.5',draftProv:'',draftAccId:null,draftAccIds:[],assignAcc:null,remindOid:null,expectOid:null};
 
 /* 每日 09:00 催收汇总是一条 repeats:true 的重复通知,body 在排程那一刻就冻结了。
    订单跨过催收阈值是「时间推移」而不是「数据变化」,没有任何数据事件会触发重排 ——
@@ -40,7 +40,7 @@ export function showTab(t){
 }
 export function openSettings(){
   refreshClock();
-  ui.settingsOpen=true;
+  ui.settingsOpen=true;ui.settingsPage='main';
   RENDERERS.settings();
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('#v-settings').classList.add('active');

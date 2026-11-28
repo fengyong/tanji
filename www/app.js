@@ -437,7 +437,27 @@ function demoSeed() {
 }
 
 // src/app/storage.js
-var db = { orders: [], payments: [], threshold: 15 };
+var ACCOUNT_LEVELS = ["Lv.5", "Lv.6", "Lv.7"];
+var DEFAULT_MEDAL_RULES = { busyOrders: 3, salesAmount: 1e3, hotOrders: 5, aceAmount: 2500 };
+var isMoneyAmount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && Number.isSafeInteger(Math.round(value * 100)) && Math.abs(value * 100 - Math.round(value * 100)) < 1e-5;
+function validateMedalRules(input = DEFAULT_MEDAL_RULES) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("\u52CB\u7AE0\u95E8\u69DB\u683C\u5F0F\u65E0\u6548");
+  const count = (key, label) => {
+    const value = input[key] ?? DEFAULT_MEDAL_RULES[key];
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${label}\u5FC5\u987B\u662F\u5927\u4E8E 0 \u7684\u6574\u6570`);
+    return value;
+  };
+  const money = (key, label) => {
+    const value = input[key] ?? DEFAULT_MEDAL_RULES[key];
+    if (!isMoneyAmount(value) || value <= 0) throw new Error(`${label}\u5FC5\u987B\u662F\u5927\u4E8E 0 \u7684\u91D1\u989D`);
+    return Math.round(value * 100) / 100;
+  };
+  const rules = { busyOrders: count("busyOrders", "\u5FD9\u788C\u65E5\u5355\u6570"), salesAmount: money("salesAmount", "\u5343\u5143\u65E5\u91D1\u989D"), hotOrders: count("hotOrders", "\u7206\u5355\u5355\u6570"), aceAmount: money("aceAmount", "\u738B\u724C\u65E5\u91D1\u989D") };
+  if (rules.hotOrders <= rules.busyOrders) throw new Error("\u7206\u5355\u5355\u6570\u5FC5\u987B\u5927\u4E8E\u5FD9\u788C\u65E5\u5355\u6570");
+  if (rules.aceAmount < rules.salesAmount) throw new Error("\u738B\u724C\u65E5\u91D1\u989D\u4E0D\u80FD\u4F4E\u4E8E\u5343\u5143\u65E5\u91D1\u989D");
+  return rules;
+}
+var db = { orders: [], payments: [], threshold: 15, medalRules: { ...DEFAULT_MEDAL_RULES } };
 var Store = { sqlite3: null, mode: "demo", revision: 0, queue: Promise.resolve(), ready: false, busy: false, blocked: false, lockedOut: false, backup: null, status: "\u6B63\u5728\u8BFB\u53D6\u672C\u673A\u6570\u636E\u2026", pending: null };
 var afterLoad = null;
 var bytesBuilder = null;
@@ -547,7 +567,8 @@ function validateState(input) {
   if (input.v !== void 0 && input.v !== 2 && input.v !== 3) throw new Error("\u6682\u4E0D\u652F\u6301\u8FD9\u4E2A\u6570\u636E\u7248\u672C");
   const threshold = input.threshold ?? input.collectThresholdDays ?? 15;
   if (![7, 15, 30, 45].includes(threshold)) throw new Error("\u50AC\u6536\u9608\u503C\u5E94\u4E3A 7\u300115\u300130 \u6216 45 \u5929");
-  const amount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && Number.isSafeInteger(Math.round(value * 100)) && Math.abs(value * 100 - Math.round(value * 100)) < 1e-5;
+  const amount = isMoneyAmount;
+  const medalRules = validateMedalRules(input.medalRules);
   const text = (value, label, fallback = "") => {
     if (value == null) return fallback;
     if (typeof value !== "string") throw new Error(`${label}\u5FC5\u987B\u662F\u6587\u672C`);
@@ -560,10 +581,12 @@ function validateState(input) {
     const label = `\u7B2C ${index + 1} \u4E2A\u8D26\u53F7`;
     if (!account || !Number.isSafeInteger(account.id) || account.id < 1 || accountIds.has(account.id)) throw new Error(`${label}\u7684 ID \u65E0\u6548\u6216\u91CD\u590D`);
     if (typeof account.name !== "string" || !account.name.trim()) throw new Error(`${label}\u7F3A\u5C11\u6635\u79F0`);
+    if (account.level != null && !ACCOUNT_LEVELS.includes(account.level)) throw new Error(`${label}\u7684\u7B49\u7EA7\u5E94\u4E3A Lv.5\u3001Lv.6 \u6216 Lv.7`);
     accountIds.add(account.id);
     const clean = {
       id: account.id,
       name: account.name,
+      level: ACCOUNT_LEVELS.includes(account.level) ? account.level : "Lv.5",
       phone: text(account.phone, `${label}\u7684\u624B\u673A\u53F7`),
       douyin: text(account.douyin, `${label}\u7684\u6296\u97F3\u8D26\u53F7`),
       color: Number.isSafeInteger(account.color) ? Math.max(0, Math.min(7, account.color)) : index % 8,
@@ -636,7 +659,7 @@ function validateState(input) {
     return { oid: payment.oid, kind: payment.kind, amount: Math.round(payment.amount * 100) / 100, at: payment.at, method: payment.method, ...payment.note != null ? { note: text(payment.note, `${label}\u5907\u6CE8`) } : {} };
   });
   const notifyEnabled = input.notifyEnabled === void 0 ? true : input.notifyEnabled !== false;
-  return { orders, payments, threshold, notifyEnabled, accounts, providers };
+  return { orders, payments, threshold, notifyEnabled, accounts, providers, medalRules };
 }
 function setStorageStatus(message) {
   if (Store.lockedOut) message = "\u5F53\u524D\u4E3A\u53EA\u8BFB\uFF1A\u8BF7\u5173\u95ED\u5176\u4ED6\u63A2\u8BB0\u6807\u7B7E\u9875\u540E\u5237\u65B0\u91CD\u8BD5\uFF1B\u6D4F\u89C8\u5668\u987B\u652F\u6301\u5B89\u5168\u5199\u5165\u9501\u3002";
@@ -755,7 +778,7 @@ async function loadState() {
     Store.revision = Math.max(Store.revision, state2.value.revision);
     Store.backup = state2.value.previous;
   } else if (state2.uncertain) return blockLoad();
-  else db = mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
+  else db = mode === "work" ? { orders: [], payments: [], threshold: 15, notifyEnabled: true, accounts: [], providers: [], medalRules: { ...DEFAULT_MEDAL_RULES } } : { ...demoSeed(), notifyEnabled: true, accounts: [], providers: [], medalRules: { ...DEFAULT_MEDAL_RULES } };
   Store.ready = true;
   Store.blocked = Store.blocked || state2.uncertain;
   setStorageStatus(state2.uncertain ? "\u90E8\u5206\u672C\u673A\u526F\u672C\u4E0D\u53EF\u8BFB\uFF0C\u5F53\u524D\u4EC5\u4F9B\u67E5\u770B\uFF1B\u5DF2\u6682\u505C\u5199\u5165\uFF0C\u8BF7\u5148\u5BFC\u51FA\u5907\u4EFD\u5E76\u91CD\u8BD5\u8BFB\u53D6\u3002" : "");
@@ -764,7 +787,7 @@ async function loadState() {
 function blockLoad() {
   Store.blocked = true;
   Store.ready = true;
-  db = { orders: [], payments: [], threshold: 15 };
+  db = { orders: [], payments: [], threshold: 15, notifyEnabled: true, accounts: [], providers: [], medalRules: { ...DEFAULT_MEDAL_RULES } };
   setStorageStatus("\u672C\u673A\u6570\u636E\u8BFB\u53D6\u5931\u8D25\uFF0C\u5DF2\u6682\u505C\u5199\u5165\u4EE5\u4FDD\u62A4\u539F\u6570\u636E\u3002\u8BF7\u91CD\u8BD5\uFF0C\u6216\u5148\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\u7559\u5B58\u3002");
   return false;
 }
@@ -783,7 +806,7 @@ async function switchMode(mode) {
       return;
     }
     Store.mode = mode;
-    db = target.value ? validateState(target.value) : mode === "work" ? { orders: [], payments: [], threshold: 15 } : demoSeed();
+    db = target.value ? validateState(target.value) : mode === "work" ? { orders: [], payments: [], threshold: 15, notifyEnabled: true, accounts: [], providers: [], medalRules: { ...DEFAULT_MEDAL_RULES } } : { ...demoSeed(), notifyEnabled: true, accounts: [], providers: [], medalRules: { ...DEFAULT_MEDAL_RULES } };
     Store.revision = Math.max(Store.revision, target.value?.revision || 0);
     Store.backup = target.value?.previous || null;
     afterLoad && afterLoad.closeSheets();
@@ -800,6 +823,7 @@ async function replaceData(state2) {
   if (Store.busy || Store.blocked) return false;
   const validated = validateState(state2);
   if (!state2 || state2.notifyEnabled === void 0) validated.notifyEnabled = db.notifyEnabled !== false;
+  if (!state2 || state2.medalRules === void 0) validated.medalRules = { ...db.medalRules || DEFAULT_MEDAL_RULES };
   Store.busy = true;
   try {
     await Store.queue;
@@ -835,11 +859,12 @@ async function replaceData(state2) {
   }
 }
 function backupDocument(state2 = db) {
-  return { app: "\u63A2\u8BB0 TanJi", version: "0.6", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), threshold: state2.threshold, notifyEnabled: state2.notifyEnabled !== false, accounts: cloneState(state2.accounts || []), providers: cloneState(state2.providers || []), orders: cloneState(state2.orders), payments: cloneState(state2.payments) };
+  return { app: "\u63A2\u8BB0 TanJi", version: "0.6", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), threshold: state2.threshold, notifyEnabled: state2.notifyEnabled !== false, accounts: cloneState(state2.accounts || []), providers: cloneState(state2.providers || []), medalRules: cloneState(state2.medalRules || DEFAULT_MEDAL_RULES), orders: cloneState(state2.orders), payments: cloneState(state2.payments) };
 }
 function accountCopyText(account) {
   const lines = [];
   if (account.name) lines.push(`\u6635\u79F0:${account.name}`);
+  lines.push(`\u7B49\u7EA7:${ACCOUNT_LEVELS.includes(account.level) ? account.level : "Lv.5"}`);
   if (account.douyin) lines.push(`\u6296\u97F3:${account.douyin}`);
   if (account.phone) lines.push(`\u624B\u673A:${account.phone}`);
   return lines.join("\n");
@@ -881,7 +906,7 @@ async function nativeOpen() {
   order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`, values: [] },
         { statement: `CREATE TABLE IF NOT EXISTS accounts(
   mode TEXT NOT NULL,
-  id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
+  id INTEGER NOT NULL, name TEXT NOT NULL, level TEXT DEFAULT 'Lv.5', phone TEXT, douyin TEXT,
   color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
   PRIMARY KEY(mode,id))`, values: [] },
         { statement: `CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`, values: [] }
@@ -896,7 +921,8 @@ async function nativeOpen() {
         "ALTER TABLE orders ADD COLUMN published_at TEXT",
         "ALTER TABLE orders ADD COLUMN account_id INTEGER",
         "ALTER TABLE orders ADD COLUMN remind_log TEXT",
-        "ALTER TABLE orders ADD COLUMN expect_pay_at TEXT"
+        "ALTER TABLE orders ADD COLUMN expect_pay_at TEXT",
+        `ALTER TABLE accounts ADD COLUMN level TEXT DEFAULT 'Lv.5'`
       ]) {
         try {
           await conn.execute(stmt, false);
@@ -930,7 +956,7 @@ async function nativePersistSnapshot(payload) {
     ];
     payload.orders.forEach((o) => set.push({ statement: `INSERT INTO orders (mode,${ORD_COLS.join(",")}) VALUES (?,${ORD_COLS.map(() => "?").join(",")})`, values: [payload.mode, o.id, o.store, o.cat || null, o.contact || null, o.price, o.deposit || 0, o.appt || null, o.shotAt || null, o.submittedAt || null, o.shortAt || null, o.longAt || null, o.depositPaidAt || null, o.finalPaidAt || null, o.settleVia || "private", o.remindAt || null, o.channel || "\u76F4\u5BA2", o.partner || null, o.location || null, o.gpsPlace || null, o.deliverMain === false ? 0 : 1, o.deliverSub === false ? 0 : 1, o.reviewResult || "", o.publishedAt || null, o.accountId || null, o.note || null, o.remindLog && o.remindLog.length ? JSON.stringify(o.remindLog) : null, o.expectPayAt || null, ts, ts] }));
     set.push({ statement: "DELETE FROM accounts WHERE mode=?", values: [payload.mode] });
-    (payload.accounts || []).forEach((a) => set.push({ statement: "INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?)", values: [payload.mode, a.id, a.name, a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || ts] }));
+    (payload.accounts || []).forEach((a) => set.push({ statement: "INSERT INTO accounts (mode,id,name,level,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?,?)", values: [payload.mode, a.id, a.name, a.level || "Lv.5", a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || ts] }));
     payload.payments.forEach((p) => set.push({ statement: "INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)", values: [payload.mode, p.oid, p.kind, p.amount, p.at, p.method || null, p.note || null] }));
     const doc = { ...cloneState(payload), savedAt: ts };
     set.push({ statement: "INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)", values: [payload.mode, "json", JSON.stringify(doc)] });
@@ -987,7 +1013,7 @@ async function nativeReadSnapshot(mode, suffix = "json") {
 }
 
 // src/app/ui.js
-var ui = { tab: "home", settingsOpen: false, chip: "all", bucket: "all", period: "7", selDay: TODAY, q: "", detail: null, payCtx: null, privacy: false, shareUrl: null, shareBlob: null, vMon: { y: now.getFullYear(), m: now.getMonth() + 1 }, accFilter: null, editAccountId: null, draftAvatar: null, draftColor: 0, draftProv: "", draftAccId: null, draftAccIds: [], assignAcc: null, remindOid: null, expectOid: null };
+var ui = { tab: "home", settingsOpen: false, settingsPage: "main", chip: "all", bucket: "all", period: "7", selDay: TODAY, q: "", detail: null, payCtx: null, privacy: false, shareUrl: null, shareBlob: null, vMon: { y: now.getFullYear(), m: now.getMonth() + 1 }, accFilter: null, editAccountId: null, draftAvatar: null, draftColor: 0, draftLevel: "Lv.5", draftProv: "", draftAccId: null, draftAccIds: [], assignAcc: null, remindOid: null, expectOid: null };
 var lastDailySyncDay = "";
 var dailySyncFn = null;
 function registerDailySync(fn) {
@@ -1025,6 +1051,7 @@ function showTab(t) {
 function openSettings() {
   refreshClock();
   ui.settingsOpen = true;
+  ui.settingsPage = "main";
   RENDERERS.settings();
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   $("#v-settings").classList.add("active");
@@ -1490,7 +1517,7 @@ function buildSqliteBytes(state2 = db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL,
       paid_at TEXT, method TEXT, note TEXT);
     CREATE TABLE IF NOT EXISTS accounts(
-      id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT, douyin TEXT,
+      id INTEGER PRIMARY KEY, name TEXT NOT NULL, level TEXT DEFAULT 'Lv.5', phone TEXT, douyin TEXT,
       color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
     const so = d.prepare("INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
@@ -1530,9 +1557,9 @@ function buildSqliteBytes(state2 = db) {
       so.reset();
     });
     so.finalize();
-    const sa = d.prepare("INSERT INTO accounts VALUES (?,?,?,?,?,?,?)");
+    const sa = d.prepare("INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?)");
     (state2.accounts || []).forEach((a) => {
-      sa.bind([a.id, a.name, a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || null]);
+      sa.bind([a.id, a.name, a.level || "Lv.5", a.phone || null, a.douyin || null, a.color ?? 0, a.avatar || null, a.createdAt || null]);
       sa.step();
       sa.reset();
     });
@@ -1546,6 +1573,9 @@ function buildSqliteBytes(state2 = db) {
     sp.finalize();
     const ss = d.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)");
     ss.bind(["collect_threshold_days", String(state2.threshold)]);
+    ss.step();
+    ss.reset();
+    ss.bind(["medal_rules", JSON.stringify(state2.medalRules || DEFAULT_MEDAL_RULES)]);
     ss.step();
     ss.reset();
     ss.bind(["app_version", "0.6"]);
@@ -1591,6 +1621,7 @@ var PRESET_PROVIDERS = ["\u8702\u5411", "\u5C0F\u7231", "\u91D1\u57CE", "\u98DF\
 var ACCS = () => db.accounts || [];
 var accMulti = () => ACCS().length >= 2;
 var accById = (id) => ACCS().find((a) => a.id === +id);
+var accLevel = (a) => ACCOUNT_LEVELS.includes(a?.level) ? a.level : "Lv.5";
 var accColor = (a) => ACC_COLORS[(a && a.color != null ? a.color : 0) % 8];
 var providerList = () => [.../* @__PURE__ */ new Set([...PRESET_PROVIDERS, ...db.providers || []])];
 var accTint = (o) => o && accMulti() && o.accountId != null ? `--acc:${accColor(accById(o.accountId)).ink}` : "";
@@ -1666,6 +1697,7 @@ function openAccount(id) {
   const a = id != null ? accById(id) : null;
   ui.draftAvatar = a && a.avatar || null;
   ui.draftColor = a ? a.color : ACCS().length % 8;
+  ui.draftLevel = accLevel(a);
   $("#account-title").textContent = a ? "\u7F16\u8F91\u8D26\u53F7" : "\u65B0\u5EFA\u8D26\u53F7";
   $("#a-name").value = a ? a.name : "";
   $("#a-phone").value = a ? a.phone || "" : "";
@@ -1674,6 +1706,7 @@ function openAccount(id) {
   $("#a-delete").style.display = a ? "" : "none";
   renderAvatarPreview();
   renderPal();
+  renderAccountLevels();
   showSheet("sheet-account");
 }
 function renderAvatarPreview() {
@@ -1686,6 +1719,26 @@ function renderPal() {
   const label = $("#a-pal-name");
   if (label) label.innerHTML = `\u5F53\u524D\u6807\u8BC6\u8272\uFF1A<b>${cur.name}</b> \xB7 \u5217\u8868\u8272\u6761\u4E0E\u884C\u5185\u5C0F\u6807\u540C\u6B65\u8DDF\u968F`;
 }
+function renderAccountLevels() {
+  const el = $("#a-level");
+  if (!el) return;
+  const current = accLevel({ level: ui.draftLevel });
+  el.innerHTML = ACCOUNT_LEVELS.map((level) => `<button type="button" class="level-chip${level === current ? " on" : ""}" data-act="account-level" data-v="${level}" aria-pressed="${level === current}">${level}</button>`).join("");
+}
+function saveMedalRules() {
+  const input = { busyOrders: Number($("#medal-busy").value), salesAmount: Number($("#medal-sales").value), hotOrders: Number($("#medal-hot").value), aceAmount: Number($("#medal-ace").value) };
+  const err = $("#medal-err");
+  try {
+    db.medalRules = validateMedalRules(input);
+    err.style.display = "none";
+    save();
+    renderAll();
+    toast("\u52CB\u7AE0\u95E8\u69DB\u5DF2\u4FDD\u5B58");
+  } catch (error) {
+    err.textContent = error.message;
+    err.style.display = "block";
+  }
+}
 function saveAccount() {
   const name = $("#a-name").value.trim();
   const err = $("#a-err");
@@ -1695,7 +1748,7 @@ function saveAccount() {
     return;
   }
   err.style.display = "none";
-  const base = { name, phone: $("#a-phone").value.trim(), douyin: $("#a-douyin").value.trim(), color: ui.draftColor % 8 };
+  const base = { name, level: accLevel({ level: ui.draftLevel }), phone: $("#a-phone").value.trim(), douyin: $("#a-douyin").value.trim(), color: ui.draftColor % 8 };
   if (ui.draftAvatar) base.avatar = ui.draftAvatar;
   if (ui.editAccountId != null) {
     const target = accById(ui.editAccountId);
@@ -1727,10 +1780,11 @@ function deleteAccount() {
   toast("\u5DF2\u5220\u9664\u8D26\u53F7");
 }
 function dayBadge(n, sum) {
-  if (sum >= 2500) return { e: "\u{1F48E}", t: "\u738B\u724C\u65E5" };
-  if (n >= 5) return { e: "\u{1F525}", t: "\u7206\u5355" };
-  if (sum >= 1e3) return { e: "\u{1F4B0}", t: "\u5343\u5143\u65E5" };
-  if (n >= 3) return { e: "\u2B50", t: "\u5FD9\u788C\u65E5" };
+  const rules = db.medalRules || DEFAULT_MEDAL_RULES;
+  if (sum >= rules.aceAmount) return { e: "\u{1F48E}", t: "\u738B\u724C\u65E5" };
+  if (n >= rules.hotOrders) return { e: "\u{1F525}", t: "\u7206\u5355" };
+  if (sum >= rules.salesAmount) return { e: "\u{1F4B0}", t: "\u5343\u5143\u65E5" };
+  if (n >= rules.busyOrders) return { e: "\u2B50", t: "\u5FD9\u788C\u65E5" };
   return null;
 }
 
@@ -2753,6 +2807,7 @@ CREATE TABLE orders (
 CREATE TABLE accounts (
   id         INTEGER PRIMARY KEY,
   name       TEXT NOT NULL,  <span class="c">-- \u6635\u79F0(\u5FC5\u586B)</span>
+  level      TEXT DEFAULT 'Lv.5', <span class="c">-- \u5BF9\u5916\u767B\u8BB0\u7B49\u7EA7\uFF0C\u4E0D\u53C2\u4E0E\u52CB\u7AE0\u8BA1\u7B97</span>
   phone      TEXT,           <span class="c">-- \u624B\u673A\u53F7(\u9009\u586B,\u4E00\u952E\u62F7\u8D1D\u7528)</span>
   douyin     TEXT,           <span class="c">-- \u6296\u97F3\u8D26\u53F7(\u9009\u586B)</span>
   color      INTEGER DEFAULT 0, <span class="c">-- \u6807\u8BC6\u8272\u5E8F\u53F7(\u8F7B\u67D4\u8272\u677F 0-7,\u5217\u8868\u5E95\u8272\u968F\u5B83)</span>
@@ -2769,7 +2824,7 @@ CREATE TABLE payments (
 );
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
 <span class="c">-- \u5BFC\u51FA\u89C6\u56FE\uFF1BApp \u5185\u771F\u5B9E\u8868\u662F settings(scope,key)\uFF1Ascope=mode\uFF0Ckey=json / backup</span>
-<span class="c">-- collect_threshold_days = 15 \xB7 app_version = 0.6</span>
+<span class="c">-- collect_threshold_days = 15 \xB7 medal_rules = \u56DB\u9879\u52CB\u7AE0\u95E8\u69DB JSON \xB7 app_version = 0.6</span>
 
 <span class="c">-- \u5E38\u7528\u67E5\u8BE2:\u957F\u671F\u672A\u6536\u5C3E\u6B3E(\u79C1\u6536\u5355)</span>
 SELECT store, price - deposit AS due,
@@ -2796,7 +2851,8 @@ async function previewImport(file) {
   if (!file) return;
   try {
     if (file.size > 10 * 1024 * 1024) throw new Error("\u5907\u4EFD\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 10 MB");
-    const state2 = validateState(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
+    const parsed = JSON.parse((await file.text()).replace(/^\uFEFF/, ""));
+    const state2 = validateState(parsed);
     for (const order of state2.orders) {
       for (const [kind, key, expected] of [["\u5B9A\u91D1", "depositPaidAt", order.deposit], ["\u5C3E\u6B3E", "finalPaidAt", order.price - order.deposit]]) {
         const entries = state2.payments.filter((p) => p.oid === order.id && p.kind === kind);
@@ -2804,7 +2860,7 @@ async function previewImport(file) {
         if (entries.length > 1 || entries.length > 0 && !order[key] || total2 !== Math.round((order[key] ? expected : 0) * 100)) throw new Error(`\u8BA2\u5355\u300C${order.store}\u300D\u7684${kind}\u6D41\u6C34\u4E0E\u5DF2\u6536\u72B6\u6001\u4E0D\u4E00\u81F4\uFF0C\u8BF7\u5148\u6838\u5BF9\u5907\u4EFD`);
       }
     }
-    Store.pending = state2;
+    Store.pending = parsed.medalRules === void 0 ? { ...state2, medalRules: void 0 } : state2;
     const total = state2.payments.reduce((sum, p) => sum + p.amount, 0);
     document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state2.orders.length} \u7B14\u8BA2\u5355\u3001${state2.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state2.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
     showSheet("sheet-import");
@@ -3431,6 +3487,11 @@ registerAction("pal-pick", (t, oid) => {
   renderPal();
   renderAvatarPreview();
 });
+registerAction("account-level", (t, oid) => {
+  if (!["Lv.5", "Lv.6", "Lv.7"].includes(t.dataset.v)) return;
+  ui.draftLevel = t.dataset.v;
+  renderAccountLevels();
+});
 registerAction("open-account", (t, oid) => {
   openAccount(t.dataset.id != null ? +t.dataset.id : null);
 });
@@ -3689,6 +3750,19 @@ registerAction("export-db", (t, oid) => {
 registerAction("open-schema", (t, oid) => {
   showSheet("sheet-schema");
 });
+registerAction("open-medals", () => {
+  ui.settingsPage = "medals";
+  renderAll();
+  $("#v-settings").scrollTop = 0;
+});
+registerAction("settings-back", () => {
+  ui.settingsPage = "main";
+  renderAll();
+  $("#v-settings").scrollTop = 0;
+});
+registerAction("save-medals", () => {
+  saveMedalRules();
+});
 registerAction("th", (t, oid) => {
   const opts = [7, 15, 30, 45];
   let i = opts.indexOf(db.threshold);
@@ -3713,7 +3787,7 @@ registerAction("switch-mode", (t, oid) => {
   switchMode(Store.mode === "demo" ? "work" : "demo");
 });
 registerAction("clear-data", (t, oid) => {
-  if (confirm("\u6E05\u7A7A\u5F53\u524D\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [] }).then((ok) => {
+  if (confirm("\u6E05\u7A7A\u5F53\u524D\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [], medalRules: db.medalRules }).then((ok) => {
     if (ok) toast("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u8BBE\u7F6E\u9875\u6062\u590D");
   });
 });
@@ -3875,13 +3949,35 @@ function accountSectionHtml() {
   let html = "";
   for (const a of accs) {
     const n = db.orders.filter((o) => o.accountId === a.id).length;
-    html += `<div class="row" style="align-items:center;gap:12px">${accAvatarHTML(a)}<div style="flex:1;min-width:0"><div class="rname" style="font-size:14px">${esc(a.name)}</div><div class="rsub">\u6296\u97F3 ${esc(a.douyin || "\u2014")} \xB7 \u624B\u673A ${esc(a.phone || "\u2014")} \xB7 ${n} \u5355</div></div><div style="display:flex;gap:6px;flex-shrink:0"><button class="mini-btn" data-act="copy-account" data-id="${a.id}">\u62F7\u8D1D</button><button class="mini-btn" style="background:rgba(23,53,47,.06);color:var(--ink-2);border-color:transparent" data-act="open-account" data-id="${a.id}">\u7F16\u8F91</button></div></div>`;
+    html += `<div class="row" style="align-items:center;gap:12px">${accAvatarHTML(a)}<div style="flex:1;min-width:0"><div class="rname" style="font-size:14px">${esc(a.name)}</div><div class="rsub">${esc(accLevel(a))} \xB7 \u6296\u97F3 ${esc(a.douyin || "\u2014")} \xB7 \u624B\u673A ${esc(a.phone || "\u2014")} \xB7 ${n} \u5355</div></div><div style="display:flex;gap:6px;flex-shrink:0"><button class="mini-btn" data-act="copy-account" data-id="${a.id}">\u62F7\u8D1D</button><button class="mini-btn" style="background:rgba(23,53,47,.06);color:var(--ink-2);border-color:transparent" data-act="open-account" data-id="${a.id}">\u7F16\u8F91</button></div></div>`;
   }
   const unassigned = db.orders.filter((o) => o.accountId == null).length;
   if (unassigned) html += `<div class="row" style="align-items:center;gap:10px"><div class="rmain"><div class="rsub" style="color:var(--orange)">${unassigned} \u7B14\u8BA2\u5355\u672A\u6307\u5B9A\u8D26\u53F7</div></div><button class="mini-btn" data-act="assign-open">\u6279\u91CF\u6539\u6302</button></div>`;
   return html;
 }
+function medalSettingsHtml() {
+  const r = db.medalRules || DEFAULT_MEDAL_RULES;
+  return `<div class="app-header">
+      <button class="icon-btn" data-act="settings-back" aria-label="\u8FD4\u56DE\u8BBE\u7F6E"><svg class="ic" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div style="flex:1;min-width:0"><div class="eyebrow">Achievements / \u6BCF\u65E5\u52CB\u7AE0</div><h1 class="big">\u52CB\u7AE0\u95E8\u69DB</h1></div>
+    </div>
+    <div class="medal-note">\u6240\u6709\u8D26\u53F7\u5171\u7528\u8FD9\u4E00\u5957\u6807\u51C6\u3002\u91D1\u989D\u6309\u5F53\u5929\u8BA2\u5355\u603B\u4EF7\u8BA1\u7B97\uFF0C\u4E0D\u662F\u5B9E\u6536\uFF1B\u4FEE\u6539\u540E\u5386\u53F2\u65E5\u671F\u4F1A\u7ACB\u5373\u6309\u65B0\u95E8\u69DB\u91CD\u65B0\u5224\u5B9A\u3002</div>
+    <div class="sec-title">\u56DB\u9879\u95E8\u69DB</div>
+    <div class="card rows medal-card">
+      <div class="frow"><label for="medal-busy">\u2B50 \u5FD9\u788C\u65E5</label><div class="medal-value"><input id="medal-busy" type="number" inputmode="numeric" min="1" max="9999" step="1" value="${esc(r.busyOrders)}"><span>\u5355</span></div></div>
+      <div class="frow"><label for="medal-sales">\u{1F4B0} \u5343\u5143\u65E5</label><div class="medal-value"><span>\xA5</span><input id="medal-sales" type="number" inputmode="decimal" min="0.01" max="999999999.99" step="0.01" value="${esc(r.salesAmount)}"></div></div>
+      <div class="frow"><label for="medal-hot">\u{1F525} \u7206\u5355</label><div class="medal-value"><input id="medal-hot" type="number" inputmode="numeric" min="1" max="9999" step="1" value="${esc(r.hotOrders)}"><span>\u5355</span></div></div>
+      <div class="frow"><label for="medal-ace">\u{1F48E} \u738B\u724C\u65E5</label><div class="medal-value"><span>\xA5</span><input id="medal-ace" type="number" inputmode="decimal" min="0.01" max="999999999.99" step="0.01" value="${esc(r.aceAmount)}"></div></div>
+    </div>
+    <div class="ferr" id="medal-err"></div>
+    <div style="padding:16px 2px 4px"><button class="btn primary" style="width:100%" data-act="save-medals">\u4FDD\u5B58\u95E8\u69DB</button></div>
+    <div class="rsub" style="margin:10px 2px 0;line-height:1.6">\u7206\u5355\u5355\u6570\u9700\u5927\u4E8E\u5FD9\u788C\u65E5\uFF1B\u738B\u724C\u65E5\u91D1\u989D\u4E0D\u80FD\u4F4E\u4E8E\u5343\u5143\u65E5\u3002\u540C\u4E00\u5929\u6EE1\u8DB3\u591A\u9879\u65F6\uFF0C\u53EA\u663E\u793A \u{1F48E} > \u{1F525} > \u{1F4B0} > \u2B50 \u4E2D\u6700\u9AD8\u7684\u4E00\u679A\u3002</div>`;
+}
 function renderSettings() {
+  if (ui.settingsPage === "medals") {
+    $("#v-settings").innerHTML = medalSettingsHtml();
+    return;
+  }
   const privacyHelp = isNative ? "\u4EC5 Face ID \u53EF\u9690\u85CF\u6216\u663E\u793A\uFF0C\u91CD\u542F\u540E\u4FDD\u7559" : "\u9690\u85CF\u6240\u6709\u91D1\u989D\uFF0C\u9002\u5408\u622A\u56FE\u4E0E\u5BF9\u8D26";
   const importTitle = isNative ? "\u4ECE\u6587\u4EF6\u5BFC\u5165\u5907\u4EFD" : "\u4ECE\u65E7\u7248\u63A2\u8BB0\u5BFC\u5165";
   const importHelp = isNative ? "\u9ED8\u8BA4\u6253\u5F00\u300C\u6587\u4EF6 \u203A \u63A2\u8BB0 HG\u300D\uFF1B\u9884\u89C8\u540E\u66FF\u6362\uFF0C\u81EA\u52A8\u7559\u6062\u590D\u70B9" : "\u9009\u62E9 JSON \u5907\u4EFD\uFF1B\u9884\u89C8\u540E\u66FF\u6362\uFF0C\u81EA\u52A8\u7559\u6062\u590D\u70B9";
@@ -3912,6 +4008,9 @@ function renderSettings() {
       <div class="menu-row"><span class="menu-ic" style="background:var(--orange-soft);color:var(--orange)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg></span><div class="menu-t"><div class="menu-name">\u5C3E\u6B3E\u50AC\u6536\u9608\u503C</div><div class="menu-sub">\u8D85\u8FC7\u8BE5\u5929\u6570\u672A\u6536\u5C3E\u6B3E\u5373\u6807\u8BB0\u903E\u671F</div></div><div class="stepper"><button data-act="th" data-v="-1" aria-label="\u51CF\u5C11\u50AC\u6536\u9608\u503C">\u2212</button><span>${db.threshold} \u5929</span><button data-act="th" data-v="1" aria-label="\u589E\u52A0\u50AC\u6536\u9608\u503C">+</button></div></div>
       ${isNative ? `<div class="menu-row" data-act="notify-toggle" role="button" tabindex="0"><span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span><div class="menu-t"><div class="menu-name">\u903E\u671F\u50AC\u6536\u6BCF\u65E5\u63D0\u9192</div><div class="menu-sub">\u6BCF\u5929 09:00 \xB7 \u53EA\u62A5\u6761\u6570\u4E0E\u6700\u957F\u5929\u6570\uFF0C\u4E0D\u542B\u91D1\u989D</div></div><span class="tag-badge">${db.notifyEnabled === false ? "\u5DF2\u5173\u95ED" : "\u5DF2\u5F00\u542F"}</span></div>` : ""}
     </div>
+
+    <div class="sec-title">\u52CB\u7AE0\u4E0E\u6FC0\u52B1</div>
+    <div class="card rows"><div class="menu-row" data-act="open-medals" role="button" tabindex="0"><span class="menu-ic" style="background:var(--orange-soft);color:var(--orange)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M8.5 12.5 7 21l5-3 5 3-1.5-8.5"/></svg></span><div class="menu-t"><div class="menu-name">\u52CB\u7AE0\u95E8\u69DB</div><div class="menu-sub">\u5168\u8D26\u53F7\u7EDF\u4E00 \xB7 \u5FD9\u788C ${db.medalRules?.busyOrders ?? DEFAULT_MEDAL_RULES.busyOrders} \u5355 \xB7 \u5343\u5143 \xA5${db.medalRules?.salesAmount ?? DEFAULT_MEDAL_RULES.salesAmount} \xB7 \u7206\u5355 ${db.medalRules?.hotOrders ?? DEFAULT_MEDAL_RULES.hotOrders} \u5355 \xB7 \u738B\u724C \xA5${db.medalRules?.aceAmount ?? DEFAULT_MEDAL_RULES.aceAmount}</div></div>${chevron}</div></div>
 
     <div class="sec-title">\u6570\u636E\u7A7A\u95F4</div>
     <div class="card rows"><div class="menu-row" data-act="switch-mode" role="button" tabindex="0"><span class="menu-ic" style="background:var(--ink);color:var(--card)"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h12l-3-3M19 17H7l3 3M19 7l-3 3M5 17l3-3"/></svg></span><div class="menu-t"><div class="menu-name">\u5207\u6362\u6570\u636E\u7A7A\u95F4</div><div class="menu-sub">\u4E24\u5957\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u5207\u6362\u4E0D\u4F1A\u8986\u76D6\u53E6\u4E00\u5957</div></div>${chevron}</div></div>

@@ -109,6 +109,7 @@ CREATE TABLE orders (
 CREATE TABLE accounts (
   id         INTEGER PRIMARY KEY,
   name       TEXT NOT NULL,  <span class="c">-- 昵称(必填)</span>
+  level      TEXT DEFAULT 'Lv.5', <span class="c">-- 对外登记等级，不参与勋章计算</span>
   phone      TEXT,           <span class="c">-- 手机号(选填,一键拷贝用)</span>
   douyin     TEXT,           <span class="c">-- 抖音账号(选填)</span>
   color      INTEGER DEFAULT 0, <span class="c">-- 标识色序号(轻柔色板 0-7,列表底色随它)</span>
@@ -125,7 +126,7 @@ CREATE TABLE payments (
 );
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
 <span class="c">-- 导出视图；App 内真实表是 settings(scope,key)：scope=mode，key=json / backup</span>
-<span class="c">-- collect_threshold_days = 15 · app_version = 0.6</span>
+<span class="c">-- collect_threshold_days = 15 · medal_rules = 四项勋章门槛 JSON · app_version = 0.6</span>
 
 <span class="c">-- 常用查询:长期未收尾款(私收单)</span>
 SELECT store, price - deposit AS due,
@@ -147,7 +148,8 @@ export async function previewImport(file){
   if(!file)return;
   try{
     if(file.size>10*1024*1024)throw new Error('备份文件不能超过 10 MB');
-    const state=validateState(JSON.parse((await file.text()).replace(/^\uFEFF/,'')));
+    const parsed=JSON.parse((await file.text()).replace(/^\uFEFF/,''));
+    const state=validateState(parsed);
     for(const order of state.orders){
       for(const [kind,key,expected] of [['定金','depositPaidAt',order.deposit],['尾款','finalPaidAt',order.price-order.deposit]]){
         const entries=state.payments.filter(p=>p.oid===order.id&&p.kind===kind);
@@ -155,7 +157,8 @@ export async function previewImport(file){
         if(entries.length>1||(entries.length>0&&!order[key])||total!==Math.round((order[key]?expected:0)*100))throw new Error(`订单「${order.store}」的${kind}流水与已收状态不一致，请先核对备份`);
       }
     }
-    Store.pending=state;
+    // 保留“旧备份没有门槛字段”的信息,替换时沿用当前配置而不是回落默认值。
+    Store.pending=parsed.medalRules===undefined?{...state,medalRules:undefined}:state;
     const total=state.payments.reduce((sum,p)=>sum+p.amount,0);
     document.querySelector('#import-summary').textContent=`${file.name}：${state.orders.length} 笔订单、${state.payments.length} 笔流水、实收 ${fmtMoney(total,ui.privacy)}、催收阈值 ${state.threshold} 天。将替换当前数据，替换前自动保存一份本机备份。`;
     showSheet('sheet-import');

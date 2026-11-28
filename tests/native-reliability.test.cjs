@@ -245,7 +245,7 @@ const order=overrides=>({
 
 const OVERDUE=order({shotAt:'2026-01-01T11:00'});
 // ESM 后 db 是模块 live binding,不允许外部整体重赋值;__replaceDb 做清空+变异(见 harness-entry)
-const setState=(a,orders=[order()],payments=[])=>a.run(`__replaceDb(${JSON.stringify({orders,payments,threshold:15})})`);
+const setState=(a,orders=[order()],payments=[],extra={})=>a.run(`__replaceDb(${JSON.stringify({orders,payments,threshold:15,medalRules:{busyOrders:3,salesAmount:1000,hotOrders:5,aceAmount:2500},...extra})})`);
 const tick=()=>new Promise(r=>setImmediate(r));
 
 /* ---------- 金额隐私 / Face ID ---------- */
@@ -1084,17 +1084,57 @@ test('账号:资料与头像随备份往返,订单挂账号可读回',async()=>{
   const a=app();
   const av='data:image/jpeg;base64,/9j/4AAQSkZJRg==';
   setState(a,[order({accountId:1})]);
-  a.run(`db.accounts=[{id:1,name:'大王叫我逛深圳',phone:'13800006678',douyin:'dawang',color:0,avatar:'${av}',createdAt:'2026-11-22T10:00:00.000Z'}];db.providers=['自定义MCN'];`);
+  a.run(`db.accounts=[{id:1,name:'大王叫我逛深圳',level:'Lv.7',phone:'13800006678',douyin:'dawang',color:0,avatar:'${av}',createdAt:'2026-11-22T10:00:00.000Z'}];db.providers=['自定义MCN'];`);
   assert.equal(await a.run('save()'),true);
-  const accRow=a.run(`Store.conn.db.prepare("SELECT name,avatar FROM accounts WHERE mode='work'").all()`);
+  const accRow=a.run(`Store.conn.db.prepare("SELECT name,level,avatar FROM accounts WHERE mode='work'").all()`);
   assert.equal(accRow.length,1,'accounts 表应落一行');
   assert.equal(accRow[0].name,'大王叫我逛深圳');
+  assert.equal(accRow[0].level,'Lv.7','对外等级应写入独立列');
   assert.equal(accRow[0].avatar,av,'头像 dataURL 应原样落库');
   assert.equal(await a.run('loadState()'),true);
   assert.equal(a.run('db.accounts.length'),1);
+  assert.equal(a.run('db.accounts[0].level'),'Lv.7');
   assert.equal(a.run('db.accounts[0].avatar'),av);
   assert.equal(a.run('db.orders[0].accountId'),1);
   assert.equal(a.run("db.providers.includes('自定义MCN')"),true,'自定义服务商应记入预设');
+});
+
+test('勋章门槛:随数据空间独立保存,重启后保留自定义值',async()=>{
+  const device=newDevice(),a=app(device);
+  const workRules={busyOrders:2,salesAmount:800,hotOrders:4,aceAmount:1600};
+  const demoRules={busyOrders:4,salesAmount:1500,hotOrders:7,aceAmount:3200};
+  setState(a,[],[],{medalRules:workRules});
+  assert.equal(await a.run('save()'),true);
+  await a.run('switchMode("demo")');
+  assert.equal(a.run('Store.mode'),'demo');
+  assert.deepEqual(a.json('db.medalRules'),{busyOrders:3,salesAmount:1000,hotOrders:5,aceAmount:2500});
+  a.run(`db.medalRules=${JSON.stringify(demoRules)}`);assert.equal(await a.run('save()'),true);
+  await a.run('switchMode("work")');assert.deepEqual(a.json('db.medalRules'),workRules);
+  const b=app(device);await b.run('loadState()');assert.deepEqual(b.json('db.medalRules'),workRules);
+  await b.run('switchMode("demo")');assert.deepEqual(b.json('db.medalRules'),demoRules);
+});
+
+test('账号:旧 accounts 表自动补 level 列并写入自定义等级',async()=>{
+  const device=newDevice();
+  device.db.exec(`CREATE TABLE orders(
+    mode TEXT NOT NULL, id INTEGER NOT NULL, store TEXT NOT NULL, category TEXT, contact TEXT,
+    price REAL NOT NULL, deposit REAL DEFAULT 0,
+    appt_at TEXT, shot_at TEXT, submitted_at TEXT, short_sent_at TEXT, long_sent_at TEXT,
+    deposit_paid_at TEXT, final_paid_at TEXT, settle_via TEXT DEFAULT 'private', remind_at TEXT,
+    channel TEXT, partner TEXT, note TEXT, created_at TEXT, updated_at TEXT,
+    PRIMARY KEY(mode,id))`);
+  device.db.exec(`CREATE TABLE payments(mode TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`);
+  device.db.exec(`CREATE TABLE settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`);
+  device.db.exec(`CREATE TABLE accounts(mode TEXT NOT NULL,id INTEGER NOT NULL,name TEXT NOT NULL,phone TEXT,douyin TEXT,color INTEGER DEFAULT 0,avatar TEXT,created_at TEXT,PRIMARY KEY(mode,id))`);
+  device.db.exec(`INSERT INTO accounts(mode,id,name) VALUES('work',1,'旧账号')`);
+  const a=app(device);setState(a,[],[],{accounts:[{id:1,name:'旧账号',level:'Lv.6',color:0}]});
+  assert.equal(await a.run('save()'),true);
+  const cols=a.run(`Store.conn.db.prepare('PRAGMA table_info(accounts)').all().map(r=>r.name)`);
+  assert.ok(cols.includes('level'),'旧 accounts 表应补 level 列');
+  const levelColumn=a.run(`Store.conn.db.prepare('PRAGMA table_info(accounts)').all().find(r=>r.name==='level')`);
+  assert.equal(levelColumn.dflt_value,"'Lv.5'");
+  const row=a.run(`Store.conn.db.prepare("SELECT level FROM accounts WHERE mode='work' AND id=1").get()`);
+  assert.equal(row.level,'Lv.6');
 });
 
 test('账号:悬空 accountId 归一为未指定,非法资料被拒',()=>{
@@ -1126,10 +1166,11 @@ test('账号:旧库迁移后 accounts 表自动建出,orders 补 account_id 列'
   assert.ok(cols.includes('account_id'),'orders 应补 account_id 列');
 });
 
-test('账号:一键拷贝文本跳过空字段',()=>{
+test('账号:一键拷贝始终带对外等级并跳过其他空字段',()=>{
   const a=app();
-  assert.equal(a.run(`accountCopyText({name:'大西瓜',douyin:'daxigua',phone:''})`),'昵称:大西瓜\n抖音:daxigua');
-  assert.equal(a.run(`accountCopyText({name:'只有昵称'})`),'昵称:只有昵称');
+  assert.equal(a.run(`accountCopyText({name:'大西瓜',douyin:'daxigua',phone:''})`),'昵称:大西瓜\n等级:Lv.5\n抖音:daxigua');
+  assert.equal(a.run(`accountCopyText({name:'只有昵称'})`),'昵称:只有昵称\n等级:Lv.5');
+  assert.equal(a.run(`accountCopyText({name:'七级',level:'Lv.7',phone:'13800006678'})`),'昵称:七级\n等级:Lv.7\n手机:13800006678');
 });
 
 test('账号:备份文档包含 accounts/providers',async()=>{

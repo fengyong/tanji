@@ -2,7 +2,19 @@
 import {CAP,isNative} from './env.js';
 import {fmtMoney,validDateTime} from './util.js';
 import {demoSeed} from './demo.js';
-export let db={orders:[],payments:[],threshold:15};
+export const ACCOUNT_LEVELS=['Lv.5','Lv.6','Lv.7'];
+export const DEFAULT_MEDAL_RULES={busyOrders:3,salesAmount:1000,hotOrders:5,aceAmount:2500};
+const isMoneyAmount=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0&&Number.isSafeInteger(Math.round(value*100))&&Math.abs(value*100-Math.round(value*100))<0.00001;
+export function validateMedalRules(input=DEFAULT_MEDAL_RULES){
+  if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('勋章门槛格式无效');
+  const count=(key,label)=>{const value=input[key]??DEFAULT_MEDAL_RULES[key];if(!Number.isSafeInteger(value)||value<1)throw new Error(`${label}必须是大于 0 的整数`);return value};
+  const money=(key,label)=>{const value=input[key]??DEFAULT_MEDAL_RULES[key];if(!isMoneyAmount(value)||value<=0)throw new Error(`${label}必须是大于 0 的金额`);return Math.round(value*100)/100};
+  const rules={busyOrders:count('busyOrders','忙碌日单数'),salesAmount:money('salesAmount','千元日金额'),hotOrders:count('hotOrders','爆单单数'),aceAmount:money('aceAmount','王牌日金额')};
+  if(rules.hotOrders<=rules.busyOrders)throw new Error('爆单单数必须大于忙碌日单数');
+  if(rules.aceAmount<rules.salesAmount)throw new Error('王牌日金额不能低于千元日金额');
+  return rules;
+}
+export let db={orders:[],payments:[],threshold:15,medalRules:{...DEFAULT_MEDAL_RULES}};
 export const Store={sqlite3:null,mode:'demo',revision:0,queue:Promise.resolve(),ready:false,busy:false,blocked:false,lockedOut:false,backup:null,status:'正在读取本机数据…',pending:null};
 /* P1-T1 组合根注入(消除 globalThis 挂回):
    afterLoad = loadState/switchMode/replaceData 后的 UI 刷新(renderAll/showTab);
@@ -79,7 +91,8 @@ export function validateState(input){
   if(input.v!==undefined&&input.v!==2&&input.v!==3)throw new Error('暂不支持这个数据版本');
   const threshold=input.threshold??input.collectThresholdDays??15;
   if(![7,15,30,45].includes(threshold))throw new Error('催收阈值应为 7、15、30 或 45 天');
-  const amount=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0&&Number.isSafeInteger(Math.round(value*100))&&Math.abs(value*100-Math.round(value*100))<0.00001;
+  const amount=isMoneyAmount;
+  const medalRules=validateMedalRules(input.medalRules);
   const text=(value,label,fallback='')=>{if(value==null)return fallback;if(typeof value!=='string')throw new Error(`${label}必须是文本`);return value};
   const dates=['shotAt','submittedAt','shortAt','longAt','depositPaidAt','finalPaidAt','remindAt','publishedAt'];
   const ids=new Set();
@@ -90,8 +103,9 @@ export function validateState(input){
     const label=`第 ${index+1} 个账号`;
     if(!account||!Number.isSafeInteger(account.id)||account.id<1||accountIds.has(account.id))throw new Error(`${label}的 ID 无效或重复`);
     if(typeof account.name!=='string'||!account.name.trim())throw new Error(`${label}缺少昵称`);
+    if(account.level!=null&&!ACCOUNT_LEVELS.includes(account.level))throw new Error(`${label}的等级应为 Lv.5、Lv.6 或 Lv.7`);
     accountIds.add(account.id);
-    const clean={id:account.id,name:account.name,
+    const clean={id:account.id,name:account.name,level:ACCOUNT_LEVELS.includes(account.level)?account.level:'Lv.5',
       phone:text(account.phone,`${label}的手机号`),douyin:text(account.douyin,`${label}的抖音账号`),
       color:Number.isSafeInteger(account.color)?Math.max(0,Math.min(7,account.color)):index%8,
       createdAt:text(account.createdAt,`${label}的创建时间`)||null};
@@ -168,7 +182,7 @@ export function validateState(input){
   // notifyEnabled 是原生端的每日催收通知开关，必须跟着数据一起活过重启，
   // 否则用户关掉提醒后重启 App 又会被静默打开。
   const notifyEnabled=input.notifyEnabled===undefined?true:input.notifyEnabled!==false;
-  return {orders,payments,threshold,notifyEnabled,accounts,providers};
+  return {orders,payments,threshold,notifyEnabled,accounts,providers,medalRules};
 }
 export function setStorageStatus(message){
   if(Store.lockedOut)message='当前为只读：请关闭其他探记标签页后刷新重试；浏览器须支持安全写入锁。';
@@ -289,14 +303,14 @@ export async function loadState(){
   Store.mode=mode;
   if(state.value){db=validateState(state.value);Store.revision=Math.max(Store.revision,state.value.revision);Store.backup=state.value.previous}
   else if(state.uncertain)return blockLoad();
-  else db=mode==='work'?{orders:[],payments:[],threshold:15}:demoSeed();
+  else db=mode==='work'?{orders:[],payments:[],threshold:15,notifyEnabled:true,accounts:[],providers:[],medalRules:{...DEFAULT_MEDAL_RULES}}:{...demoSeed(),notifyEnabled:true,accounts:[],providers:[],medalRules:{...DEFAULT_MEDAL_RULES}};
   Store.ready=true;Store.blocked=Store.blocked||state.uncertain;
   setStorageStatus(state.uncertain?'部分本机副本不可读，当前仅供查看；已暂停写入，请先导出备份并重试读取。':'');
   return !!state.value;
 }
 function blockLoad(){
   Store.blocked=true;Store.ready=true;
-  db={orders:[],payments:[],threshold:15};
+  db={orders:[],payments:[],threshold:15,notifyEnabled:true,accounts:[],providers:[],medalRules:{...DEFAULT_MEDAL_RULES}};
   setStorageStatus('本机数据读取失败，已暂停写入以保护原数据。请重试，或先导出替换前备份留存。');
   return false;
 }
@@ -308,7 +322,7 @@ export async function switchMode(mode){
     const target=await readSnapshot(mode);
     if(target.uncertain){setStorageStatus('目标数据读取失败，未切换或覆盖数据。');return}
     if(!await rememberMode(mode)){setStorageStatus('无法保存切换状态，请导出备份后重试。');return}
-    Store.mode=mode;db=target.value?validateState(target.value):mode==='work'?{orders:[],payments:[],threshold:15}:demoSeed();
+    Store.mode=mode;db=target.value?validateState(target.value):mode==='work'?{orders:[],payments:[],threshold:15,notifyEnabled:true,accounts:[],providers:[],medalRules:{...DEFAULT_MEDAL_RULES}}:{...demoSeed(),notifyEnabled:true,accounts:[],providers:[],medalRules:{...DEFAULT_MEDAL_RULES}};
     Store.revision=Math.max(Store.revision,target.value?.revision||0);Store.backup=target.value?.previous||null;
     afterLoad&&afterLoad.closeSheets();afterLoad&&afterLoad.resetFilters();await save();afterLoad&&(afterLoad.renderAll(),afterLoad.showTab('home'));afterLoad&&(afterLoad.notify.syncDaily(),afterLoad.notify.syncDeliver());
     afterLoad&&afterLoad.toast('已切换数据空间，原数据未改动');
@@ -320,6 +334,7 @@ export async function replaceData(state){
   // 导入的备份若没带通知开关（比如别的机器导出的 Web 版备份），沿用本机当前设置，
   // 免得一次导入把用户明确关掉的每日催收提醒又打开。
   if(!state||state.notifyEnabled===undefined)validated.notifyEnabled=db.notifyEnabled!==false;
+  if(!state||state.medalRules===undefined)validated.medalRules={...(db.medalRules||DEFAULT_MEDAL_RULES)};
   Store.busy=true;
   try{
     await Store.queue;
@@ -354,11 +369,12 @@ export async function replaceData(state){
     return true;
   }finally{Store.busy=false}
 }
-export function backupDocument(state=db){return {app:'探记 TanJi',version:'0.6',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,accounts:cloneState(state.accounts||[]),providers:cloneState(state.providers||[]),orders:cloneState(state.orders),payments:cloneState(state.payments)}}
-/* 账号资料一键拷贝文本:昵称/抖音/手机三行,空字段自动跳过(报名表、给服务商用) */
+export function backupDocument(state=db){return {app:'探记 TanJi',version:'0.6',exportedAt:new Date().toISOString(),threshold:state.threshold,notifyEnabled:state.notifyEnabled!==false,accounts:cloneState(state.accounts||[]),providers:cloneState(state.providers||[]),medalRules:cloneState(state.medalRules||DEFAULT_MEDAL_RULES),orders:cloneState(state.orders),payments:cloneState(state.payments)}}
+/* 账号资料一键拷贝文本:昵称/等级/抖音/手机,空字段自动跳过。 */
 export function accountCopyText(account){
   const lines=[];
   if(account.name)lines.push(`昵称:${account.name}`);
+  lines.push(`等级:${ACCOUNT_LEVELS.includes(account.level)?account.level:'Lv.5'}`);
   if(account.douyin)lines.push(`抖音:${account.douyin}`);
   if(account.phone)lines.push(`手机:${account.phone}`);
   return lines.join('\n');
@@ -403,7 +419,7 @@ export async function nativeOpen(){
   order_id INTEGER, kind TEXT, amount REAL, paid_at TEXT, method TEXT, note TEXT)`,values:[]},
         {statement:`CREATE TABLE IF NOT EXISTS accounts(
   mode TEXT NOT NULL,
-  id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
+  id INTEGER NOT NULL, name TEXT NOT NULL, level TEXT DEFAULT 'Lv.5', phone TEXT, douyin TEXT,
   color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
   PRIMARY KEY(mode,id))`,values:[]},
         {statement:`CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))`,values:[]},
@@ -421,6 +437,7 @@ export async function nativeOpen(){
         'ALTER TABLE orders ADD COLUMN account_id INTEGER',
         'ALTER TABLE orders ADD COLUMN remind_log TEXT',
         'ALTER TABLE orders ADD COLUMN expect_pay_at TEXT',
+        `ALTER TABLE accounts ADD COLUMN level TEXT DEFAULT 'Lv.5'`,
       ]){try{await conn.execute(stmt,false)}catch(e){if(!/duplicate column name/i.test(String(e?.message||e)))throw e}}
     }catch(error){
       try{await sqlite.closeConnection(NATIVE_DB,false)}
@@ -460,7 +477,7 @@ async function nativePersistSnapshot(payload){
     ];
     payload.orders.forEach(o=>set.push({statement:`INSERT INTO orders (mode,${ORD_COLS.join(',')}) VALUES (?,${ORD_COLS.map(()=>'?').join(',')})`,values:[payload.mode,o.id,o.store,o.cat||null,o.contact||null,o.price,o.deposit||0,o.appt||null,o.shotAt||null,o.submittedAt||null,o.shortAt||null,o.longAt||null,o.depositPaidAt||null,o.finalPaidAt||null,o.settleVia||'private',o.remindAt||null,o.channel||'直客',o.partner||null,o.location||null,o.gpsPlace||null,o.deliverMain===false?0:1,o.deliverSub===false?0:1,o.reviewResult||'',o.publishedAt||null,o.accountId||null,o.note||null,(o.remindLog&&o.remindLog.length?JSON.stringify(o.remindLog):null),o.expectPayAt||null,ts,ts]}));
     set.push({statement:'DELETE FROM accounts WHERE mode=?',values:[payload.mode]});
-    (payload.accounts||[]).forEach(a=>set.push({statement:'INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?)',values:[payload.mode,a.id,a.name,a.phone||null,a.douyin||null,a.color??0,a.avatar||null,a.createdAt||ts]}));
+    (payload.accounts||[]).forEach(a=>set.push({statement:'INSERT INTO accounts (mode,id,name,level,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?,?)',values:[payload.mode,a.id,a.name,a.level||'Lv.5',a.phone||null,a.douyin||null,a.color??0,a.avatar||null,a.createdAt||ts]}));
     payload.payments.forEach(p=>set.push({statement:'INSERT INTO payments (mode,order_id,kind,amount,paid_at,method,note) VALUES (?,?,?,?,?,?,?)',values:[payload.mode,p.oid,p.kind,p.amount,p.at,p.method||null,p.note||null]}));
     const doc={...cloneState(payload),savedAt:ts};
     set.push({statement:'INSERT OR REPLACE INTO settings (scope,key,value) VALUES (?,?,?)',values:[payload.mode,'json',JSON.stringify(doc)]});

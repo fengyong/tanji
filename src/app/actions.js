@@ -6,7 +6,7 @@ import {ui,showTab,openSettings,closeSettings,renderAll,refreshClock} from './ui
 import {db,Store,save,switchMode,replaceData,loadState,accountCopyText} from './storage.js';
 import {Notify} from './notify.js';
 import {byId,isOver,snoozed,REVIEW_LABEL} from './derived.js';
-import {ACCS,accById,accColor,accAvatarHTML,renderAccPick,renderProvPick,renderPal,renderAvatarPreview,openAccount,saveAccount,deleteAccount} from './accounts.js';
+import {ACCS,accById,accColor,accAvatarHTML,renderAccPick,renderProvPick,renderPal,renderAvatarPreview,renderAccountLevels,openAccount,saveAccount,saveMedalRules,deleteAccount} from './accounts.js';
 import {openNew,saveOrder,duplicateOrder,openEdit,saveEdit,toggleReceipt,updateConflict} from './order-forms.js';
 import {mark,pay,openPay,capturePlace,openRemind,saveRemind,openExpect,saveExpect,clearExpect,MILE_ORDER} from './order-actions.js';
 import {openDetail,rerenderDetail,MILE_LABEL} from './detail.js';
@@ -147,6 +147,11 @@ registerAction('prov-pick',(t,oid)=>{
 
 registerAction('pal-pick',(t,oid)=>{
   ui.draftColor=+t.dataset.i;renderPal();renderAvatarPreview();
+});
+
+registerAction('account-level',(t,oid)=>{
+  if(!['Lv.5','Lv.6','Lv.7'].includes(t.dataset.v))return;
+  ui.draftLevel=t.dataset.v;renderAccountLevels();
 });
 
 registerAction('open-account',(t,oid)=>{
@@ -359,6 +364,18 @@ registerAction('open-schema',(t,oid)=>{
   showSheet('sheet-schema');
 });
 
+registerAction('open-medals',()=>{
+  ui.settingsPage='medals';renderAll();$('#v-settings').scrollTop=0;
+});
+
+registerAction('settings-back',()=>{
+  ui.settingsPage='main';renderAll();$('#v-settings').scrollTop=0;
+});
+
+registerAction('save-medals',()=>{
+  saveMedalRules();
+});
+
 registerAction('th',(t,oid)=>{
   const opts=[7,15,30,45];let i=opts.indexOf(db.threshold);
       i=Math.min(opts.length-1,Math.max(0,i+ +t.dataset.v));
@@ -385,7 +402,7 @@ registerAction('switch-mode',(t,oid)=>{
 registerAction('clear-data',(t,oid)=>{
   // 账号资料与服务商预设跟 notifyEnabled 一样随清空保留:用户"重新开始记账"
       // 不该把精心录好的账号资料一并抹掉(订单与流水才是"数据"的本体)
-      if(confirm('清空当前数据？订单与流水会清空，账号与设置保留，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold,notifyEnabled:db.notifyEnabled,accounts:db.accounts||[],providers:db.providers||[]}).then(ok=>{if(ok)toast('已清空，替换前数据可在设置页恢复')});
+      if(confirm('清空当前数据？订单与流水会清空，账号与设置保留，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold,notifyEnabled:db.notifyEnabled,accounts:db.accounts||[],providers:db.providers||[],medalRules:db.medalRules}).then(ok=>{if(ok)toast('已清空，替换前数据可在设置页恢复')});
 });
 
 registerAction('export-checkpoint',(t,oid)=>{

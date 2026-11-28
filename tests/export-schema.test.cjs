@@ -46,6 +46,9 @@ const storageSrc = fs.readFileSync(STORAGE, 'utf8');
 const sqlSrc = SPLIT
   ? fs.readFileSync(path.join(APP_DIR, 'sqlite-bytes.js'), 'utf8')
   : indexSrc;
+const exportSrc = SPLIT
+  ? fs.readFileSync(path.join(APP_DIR, 'export.js'), 'utf8')
+  : indexSrc;
 
 /** 按括号深度切分 SQL 片段 */
 function splitTopLevel(body) {
@@ -116,10 +119,10 @@ function insertStatements(src) {
 }
 
 // 说明页表定义在 index.html(markup),实际建表在 sqlSrc —— 两份必须一致
-const tables = createTableDefinitions(indexSrc + '\n' + sqlSrc);
+const tables = createTableDefinitions(indexSrc + '\n' + sqlSrc + '\n' + exportSrc);
 
-test('三张表都能被解析出来', () => {
-  for (const name of ['orders', 'payments', 'settings']) {
+test('四张表都能被解析出来', () => {
+  for (const name of ['orders', 'payments', 'accounts', 'settings']) {
     assert.ok(tables.has(name), `没找到 ${name} 表`);
     assert.ok(tables.get(name).length > 0, `${name} 表没有可用定义`);
   }
@@ -195,6 +198,14 @@ test('orders 表的列数与 v0.5/v0.6 新增字段符合预期', () => {
   if (hasAccounts) {
     assert.ok(tables.has('accounts'), 'v0.6 账号体系必须有 accounts 表(导出 .db 也要带)');
   }
+});
+
+test('accounts 导出结构包含对外等级,settings 导出包含勋章门槛', () => {
+  const accountNames = tables.get('accounts')[0].names;
+  assert.ok(accountNames.includes('level'), 'accounts 表缺少对外等级列 level');
+  assert.equal(accountNames.indexOf('level'), accountNames.indexOf('name') + 1, 'level 应紧跟昵称,与写入值顺序一致');
+  assert.match(sqlSrc, /ss\.bind\(\['medal_rules',JSON\.stringify\(state\.medalRules\|\|DEFAULT_MEDAL_RULES\)\]\)/, '导出的 .db 应保存四项勋章门槛');
+  assert.match(exportSrc, /medal_rules = 四项勋章门槛 JSON/, '结构说明页应注明勋章门槛设置');
 });
 
 test('storage.js 的 ORD_COLS 与 orders 表列一一对应(原生插件写入路径)', t => {

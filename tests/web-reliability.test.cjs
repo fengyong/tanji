@@ -30,7 +30,7 @@ function app({mockDisk=true}={}){
 }
 const order=overrides=>({id:1,store:'测试店',cat:'餐饮',contact:'',channel:'直客',partner:'',price:1000,deposit:200,settleVia:'private',appt:'2026-11-01T10:00',shotAt:'2026-11-01T11:00',submittedAt:null,shortAt:null,longAt:null,depositPaidAt:null,finalPaidAt:null,remindAt:null,location:'',deliverMain:true,deliverSub:true,reviewResult:'',publishedAt:null,accountId:null,note:'',...overrides});
 // ESM 后 db 是模块 live binding,不允许外部整体重赋值;__replaceDb 做清空+变异(见 harness-entry)
-function setState(a,orders=[order()],payments=[]){a.run(`__replaceDb(${JSON.stringify({orders,payments,threshold:15,notifyEnabled:true,accounts:[],providers:[]})})`)}
+function setState(a,orders=[order()],payments=[],extra={}){a.run(`__replaceDb(${JSON.stringify({orders,payments,threshold:15,notifyEnabled:true,accounts:[],providers:[],medalRules:{busyOrders:3,salesAmount:1000,hotOrders:5,aceAmount:2500},...extra})})`)}
 function seedForm(a,prefix,values={}){
   const base={store:'新店',cat:'餐饮',price:'1000',deposit:'200',date:'2026-11-22',time:'10:00',contact:'',note:'',channel:'直客',partner:'',settle:'private','need-main':true,'need-sub':false,...values};
   for(const [key,value] of Object.entries(base)){
@@ -45,7 +45,7 @@ test('newer synchronous snapshot wins before IndexedDB commit',async()=>{
   const a=app();setState(a);await a.run('save()');const old=a.disk.get('tanji_v3_work_json');a.run('db.orders[0].store="刚刚修改";save()');a.disk.set('tanji_v3_work_json',old);a.context.readDisk=async key=>({ok:true,value:key==='tanji_v3_work_json'?old:null});a.run('idb.get=readDisk');await a.run('loadState()');assert.equal(a.run('db.orders[0].store'),'刚刚修改');
 });
 test('legacy localStorage wins over stale legacy IDB and retains empty arrays',async()=>{
-  const a=app();a.local.set('tanji_v2',JSON.stringify({orders:[],payments:[],threshold:30}));a.disk.set('json',{orders:[order()],payments:[],threshold:15});await a.run('loadState()');assert.deepEqual(a.json('db'),{orders:[],payments:[],threshold:30,notifyEnabled:true,accounts:[],providers:[]});assert.equal(a.run('Store.mode'),'work');
+  const a=app();a.local.set('tanji_v2',JSON.stringify({orders:[],payments:[],threshold:30}));a.disk.set('json',{orders:[order()],payments:[],threshold:15});await a.run('loadState()');assert.deepEqual(a.json('db'),{orders:[],payments:[],threshold:30,notifyEnabled:true,accounts:[],providers:[],medalRules:{busyOrders:3,salesAmount:1000,hotOrders:5,aceAmount:2500}});assert.equal(a.run('Store.mode'),'work');
 });
 test('storage failure reports unsaved data and does not claim success',async()=>{
   const a=app();setState(a);a.run('localStorage.setItem=()=>{throw new Error("quota")};idb.setMany=async()=>false');assert.equal(await a.run('save()'),false);assert.match(a.run('Store.status'),/保存失败/);assert.equal(a.run('db.orders.length'),1);
@@ -67,6 +67,15 @@ test('failed pre-replacement backup preserves current data',async()=>{
 });
 test('JSON backup round trip preserves data and threshold',()=>{
   const a=app();setState(a);a.run('db.threshold=45');assert.deepEqual(a.json('validateState(backupDocument())'),a.json('db'));
+});
+test('旧备份导入保留当前勋章配置,新备份可恢复自己的配置',async()=>{
+  const a=app();const current={busyOrders:2,salesAmount:800,hotOrders:4,aceAmount:1600};
+  setState(a,[],[],{medalRules:current});
+  a.context.file={name:'old.json',size:100,text:async()=>JSON.stringify({version:'0.6',orders:[],payments:[],threshold:15})};
+  await a.run('previewImport(file)');await a.run('confirmImport()');assert.equal(a.run('Store.pending'),null);assert.deepEqual(a.json('db.medalRules'),current);
+  const imported={busyOrders:4,salesAmount:1500,hotOrders:6,aceAmount:3000};
+  a.context.file={name:'new.json',size:100,text:async()=>JSON.stringify({version:'0.6',orders:[],payments:[],threshold:15,medalRules:imported})};
+  await a.run('previewImport(file)');await a.run('confirmImport()');assert.deepEqual(a.json('db.medalRules'),imported);
 });
 test('old exported threshold is supported',()=>{
   const a=app();assert.equal(a.run('validateState({version:"0.2",orders:[],payments:[],collectThresholdDays:30}).threshold'),30);
@@ -125,6 +134,64 @@ test('设置页从统计进入并返回统计,不改变业务周期与账号筛�
   a.run('closeSettings()');
   assert.equal(a.run('ui.settingsOpen'),false);assert.equal(a.run('ui.period'),'30');assert.equal(a.run('ui.accFilter'),2);
   a.run('openSettings();showTab("home")');assert.equal(a.run('ui.settingsOpen'),false);assert.equal(a.run('ui.tab'),'home');
+});
+test('勋章门槛:旧状态补默认值,自定义值校验并归一到分',()=>{
+  const a=app();
+  assert.deepEqual(a.json('validateState({orders:[],payments:[]}).medalRules'),{busyOrders:3,salesAmount:1000,hotOrders:5,aceAmount:2500});
+  assert.deepEqual(a.json('validateMedalRules({busyOrders:2,salesAmount:800.1,hotOrders:4,aceAmount:1600.2})'),{busyOrders:2,salesAmount:800.1,hotOrders:4,aceAmount:1600.2});
+  for(const rules of [
+    {busyOrders:0,salesAmount:1000,hotOrders:5,aceAmount:2500},
+    {busyOrders:1.5,salesAmount:1000,hotOrders:5,aceAmount:2500},
+    {busyOrders:3,salesAmount:1.001,hotOrders:5,aceAmount:2500},
+    {busyOrders:3,salesAmount:0,hotOrders:5,aceAmount:2500},
+    {busyOrders:3,salesAmount:1000,hotOrders:3,aceAmount:2500},
+    {busyOrders:3,salesAmount:1000,hotOrders:5,aceAmount:999.99},
+  ])assert.throws(()=>a.run(`validateMedalRules(${JSON.stringify(rules)})`));
+  assert.deepEqual(a.json('validateMedalRules({busyOrders:2,salesAmount:800,hotOrders:4,aceAmount:800})'),{busyOrders:2,salesAmount:800,hotOrders:4,aceAmount:800});
+});
+test('勋章配置子页可保存,历史日期即时按新门槛重算',()=>{
+  const a=app();setState(a,[order({id:1,appt:'2026-11-01T10:00',price:1000}),order({id:2,appt:'2026-11-01T14:00',price:0}),order({id:3,appt:'2026-11-01T18:00',price:0})]);
+  a.run('ui.selDay="2026-11-01";renderTrip()');assert.match(a.element('#v-trip').innerHTML,/💰 千元日/);
+  a.run('ui.settingsOpen=true;renderSettings()');
+  assert.match(a.element('#v-settings').innerHTML,/data-act="open-medals"/);
+  a.events.click({target:{closest:()=>({dataset:{act:'open-medals'}})}});
+  assert.equal(a.run('ui.settingsPage'),'medals');
+  for(const [id,value] of [['busy','2'],['sales','2000'],['hot','4'],['ace','4000']])a.element('#medal-'+id).value=value;
+  a.events.click({target:{closest:()=>({dataset:{act:'save-medals'}})}});
+  assert.deepEqual(a.json('db.medalRules'),{busyOrders:2,salesAmount:2000,hotOrders:4,aceAmount:4000});
+  assert.match(a.element('#v-trip').innerHTML,/⭐ 忙碌日/,'历史行程应改用新门槛');
+  assert.doesNotMatch(a.element('#v-trip').innerHTML,/💰 千元日/);
+  a.events.click({target:{closest:()=>({dataset:{act:'settings-back'}})}});
+  assert.equal(a.run('ui.settingsPage'),'main');assert.match(a.element('#v-settings').innerHTML,/千元 ¥2000/);
+});
+test('勋章非法配置不覆盖原值,账号登记等级不影响勋章',()=>{
+  const a=app();setState(a,[],{},{accounts:[{id:1,name:'Lv.7账号',level:'Lv.7',color:0}]});
+  a.run('db.medalRules={busyOrders:2,salesAmount:800,hotOrders:4,aceAmount:1600};ui.settingsOpen=true;ui.settingsPage="medals";renderSettings()');
+  a.element('#medal-busy').value='4';a.element('#medal-sales').value='800';a.element('#medal-hot').value='4';a.element('#medal-ace').value='1600';
+  a.events.click({target:{closest:()=>({dataset:{act:'save-medals'}})}});
+  assert.deepEqual(a.json('db.medalRules'),{busyOrders:2,salesAmount:800,hotOrders:4,aceAmount:1600});
+  assert.match(a.element('#medal-err').textContent,/爆单单数必须大于忙碌日/);
+  assert.equal(a.json('dayBadge(3,800)').t,'千元日');
+  a.run('db.accounts=[]');assert.equal(a.json('dayBadge(3,800)').t,'千元日');
+  assert.equal(a.json('dayBadge(4,800)').e,'🔥');assert.equal(a.json('dayBadge(1,1600)').e,'💎');
+});
+test('账号对外等级:新建默认 Lv.5,可随时切换并随备份保存',()=>{
+  const a=app();setState(a,[]);
+  const clean=a.json('validateState({orders:[],payments:[],accounts:[{id:1,name:"旧账号"},{id:2,name:"七级",level:"Lv.7"}]})');
+  assert.equal(clean.accounts[0].level,'Lv.5');assert.equal(clean.accounts[1].level,'Lv.7');
+  assert.throws(()=>a.run('validateState({orders:[],payments:[],accounts:[{id:1,name:"x",level:"Lv.8"}]})'));
+  a.run('openAccount(null)');assert.equal(a.run('ui.draftLevel'),'Lv.5');
+  assert.equal((a.element('#a-level').innerHTML.match(/data-act="account-level"/g)||[]).length,3);
+  a.element('#a-name').value='新账号';
+  a.events.click({target:{closest:()=>({dataset:{act:'account-level',v:'Lv.7'}})}});
+  a.events.click({target:{closest:()=>({dataset:{act:'save-account'}})}});
+  assert.equal(a.run('db.accounts[0].level'),'Lv.7');
+  assert.equal(a.json('validateState(backupDocument()).accounts[0].level'),'Lv.7');
+  assert.match(a.run('accountCopyText(db.accounts[0])'),/^昵称:新账号\n等级:Lv.7/);
+  a.run('openAccount(1)');assert.equal(a.run('ui.draftLevel'),'Lv.7');
+  a.events.click({target:{closest:()=>({dataset:{act:'account-level',v:'Lv.6'}})}});
+  a.events.click({target:{closest:()=>({dataset:{act:'save-account'}})}});
+  assert.equal(a.run('db.accounts[0].level'),'Lv.6');
 });
 test('clock crosses midnight without forcing a manually selected day',()=>{
   const a=app();a.tick(86400000);a.run('refreshClock()');assert.equal(a.run('TODAY'),'2026-11-22');assert.equal(a.run('ui.selDay'),'2026-11-22');a.run('ui.selDay="2026-10-01"');a.tick(86400000);a.run('refreshClock()');assert.equal(a.run('ui.selDay'),'2026-10-01');
