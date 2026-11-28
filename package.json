@@ -20,7 +20,8 @@
     "build:test-harness": "esbuild tests/harness-entry.mjs --bundle --format=iife --outfile=tests/.harness.bundle.js",
     "ios:generate": "xcodegen generate --spec ios/TanjiNative/project.yml",
     "ios:build": "npm run ios:generate && xcodebuild -project ios/TanjiNative/TanjiNative.xcodeproj -scheme TanjiNative -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -disable-sandbox'",
-    "ios:test": "npm run ios:generate && xcodebuild test -project ios/TanjiNative/TanjiNative.xcodeproj -scheme TanjiNative -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -disable-sandbox'"
+    "ios:test": "npm run ios:generate && xcodebuild test -project ios/TanjiNative/TanjiNative.xcodeproj -scheme TanjiNative -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -disable-sandbox'",
+    "ios:install": "bash scripts/install-device-ios.sh"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",

@@ -61,7 +61,31 @@ xcodebuild test \
 npm run ios:generate     # 重新生成 Xcode 工程
 npm run ios:test         # 跑单元 + UI 测试
 npm run ios:build        # 模拟器构建
+npm run ios:install      # 构建 + 签名 + 安装到已连接的真机
 ```
+
+## 装到真机
+
+```bash
+npm run ios:install                          # 自动挑第一台已连接的真机
+DEVICE_UDID=00008130-... npm run ios:install # 指定设备
+```
+
+脚本 `scripts/install-device-ios.sh` 会自动选设备、选签名身份、挑一个覆盖该设备的
+provisioning profile，然后构建 → 手工 `codesign` → 嵌入 profile → `devicectl` 安装并启动。
+
+> **为什么手工签名而不是 Xcode 自动签名**：本机 Xcode 未登录开发者账号，
+> `-allowProvisioningUpdates` 会报 `No Accounts`。脚本改为复用本机已有的
+> 证书（`Apple Development: …`）与通配符 provisioning profile（`application-identifier` 为 `TEAM.*`，
+> 能签任意 bundle id），自己拼 entitlements 后用 `codesign` 签。
+
+> **Debug 构建必须带 `ENABLE_DEBUG_DYLIB=NO`**：Xcode 16+ 的 Debug 默认把代码拆进
+> `TanjiNative.debug.dylib`，主程序只是个壳。手工签名只签外层 bundle 时，内层 dylib
+> 没有签名，真机会直接启动失败：
+> `dyld: Library not loaded: @rpath/TanjiNative.debug.dylib … missing code signature`。
+> 加上 `ENABLE_DEBUG_DYLIB=NO` 后 dylib 不再生成，问题消失。
+
+> **覆盖安装保留沙盒数据；卸载会删除沙盒数据**（会丢本地记账），升级时不要卸载。
 
 ## 关键实现说明
 
@@ -94,6 +118,9 @@ npm run ios:build        # 模拟器构建
 - 通知授权与每日催收提醒的实际排程。
 - 相册选择头像、拍照打卡的真实流程。
 - `UIDocumentPickerViewController` 的默认目录与「文件」App 中的「探记 HG」文件夹在真机上的表现。
+
+> 已验证：真机安装与启动（iPhone 15 Pro / iOS 27.2.1，bundle `ord.tanji`，显示名「探记 HG」）。
+> 上面这些是 App 内部功能点，需要在真机上逐个点一遍确认。
 
 ## 与混合版的关系
 
