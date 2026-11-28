@@ -323,7 +323,7 @@ WrapLayout(spacing: 6, lineSpacing: 6) { ... }   // 标签行折行（Sources/De
 ## 6. 服务（`Sources/Services/`）
 
 ```swift
-// 导出：写进沙盒 Documents（「文件」App 里的「探记 HG」文件夹）
+// 导出：写进沙盒 Documents（「文件」App 里的「探记」文件夹）
 BackupService.exportJSON(AppData) throws -> URL        // 探记-备份-YYYY-MM-DD.json
 BackupService.exportCSV(AppData) throws -> URL         // 探记-导出-YYYY-MM-DD.csv
 BackupService.exportSQLite() throws -> URL              // 探记-YYYY-MM-DD.db
@@ -397,7 +397,7 @@ struct AssignAccountView: View {
     var onSaved: (() -> Void)?
 }
 
-// 系统原生文件选择器（导入用），默认定位到「探记 HG」文件夹
+// 系统原生文件选择器（导入用），默认定位到「探记」文件夹
 struct DocumentPicker: UIViewControllerRepresentable {
     var onPick: (URL) -> Void
 }

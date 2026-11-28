@@ -282,7 +282,7 @@ struct SettingsView: View {
                     checkpointRow(showsDivider: false)
                 }
             }
-            Text("导出的文件都存在「文件」App 的「探记 HG」文件夹里（我的 iPhone → 探记 HG）；导入时从同一个文件夹里选 JSON 备份。")
+            Text("导出的文件都存在「文件」App 的「探记」文件夹里（我的 iPhone → 探记）；导入时从同一个文件夹里选 JSON 备份。")
                 .font(Theme.body(10.5))
                 .foregroundStyle(Theme.sub)
                 .fixedSize(horizontal: false, vertical: true)
@@ -291,13 +291,13 @@ struct SettingsView: View {
         }
     }
 
-    /// 从文件导入备份：调起系统文件选择器，默认定位到「探记 HG」文件夹。
+    /// 从文件导入备份：调起系统文件选择器，默认定位到「探记」文件夹。
     private func importRow(showsDivider: Bool) -> some View {
         Button {
             showPicker = true
         } label: {
             SettingsMenuRow(title: "从文件导入备份",
-                           subtitle: "默认打开「文件 › 探记 HG」；预览后替换，自动留恢复点",
+                           subtitle: "默认打开「文件 › 探记」；预览后替换，自动留恢复点",
                            showsDivider: showsDivider,
                            leading: {
                                SettingsMenuIcon(systemName: "square.and.arrow.down",
@@ -372,7 +372,7 @@ struct SettingsView: View {
         do {
             let url = try BackupService.exportCheckpoint(payload)
             // 这一行没有展示文件名的地方，文件名只在提示里给。
-            model.showToast("已保存到「文件 › 探记 HG」：\(url.lastPathComponent)")
+            model.showToast("已保存到「文件 › 探记」：\(url.lastPathComponent)")
         } catch {
             model.showToast("导出失败：\(error.localizedDescription)")
         }
@@ -738,7 +738,7 @@ struct SettingsView: View {
             CardBox(padding: 2) {
                 VStack(spacing: 0) {
                     SettingsMenuRow(title: "版本",
-                                   subtitle: "探记 HG · 纯原生 iOS 版",
+                                   subtitle: "探记 · 纯原生 iOS 版",
                                    showsDivider: true,
                                    leading: {
                                        SettingsMenuIcon(systemName: "info.circle",
@@ -757,7 +757,7 @@ struct SettingsView: View {
                                                         ink: Theme.green)
                                    },
                                    trailing: { EmptyView() })
-                    Text("探记 HG · 数据仅存本机，请定期导出 JSON 备份")
+                    Text("探记 · 数据仅存本机，请定期导出 JSON 备份")
                         .font(Theme.body(10.5))
                         .foregroundStyle(Theme.sub)
                         .frame(maxWidth: .infinity)
@@ -996,7 +996,7 @@ struct SettingsSchemaView: View {
 
     /// 结构说明文本：与 `DataStore` 实际建表语句一致。
     static let schema = """
-    -- 探记 HG · 本机 SQLite 结构
+    -- 探记 · 本机 SQLite 结构
     -- 两套数据空间靠 mode 列区分（work / demo）；本页是去掉 mode 的单数据集视图。
     -- 跨设备搬运请用 JSON 备份，不要直接对拷 .db。
 

@@ -126,6 +126,89 @@ final class BackupValidationTests: XCTestCase {
         XCTAssertNil(state.orders[0].accountId, "指向不存在账号的 accountId 归一为未指定，不报错")
     }
 
+    // MARK: - 与混合版「探记 HG」备份的互通
+
+    /// 混合版（Capacitor，bundle `ord.tanji`）的 `backupDocument()` 产出的真实结构。
+    ///
+    /// 结构来源：src/app/storage.js 的
+    /// `backupDocument(){return {app:'探记 TanJi',version:'0.6',exportedAt:...,threshold:...,
+    /// notifyEnabled:...,accounts:...,providers:...,orders:...,payments:...}}`
+    /// 订单字段名来自 `validateState` 的 `clean` 对象（camelCase），
+    /// 这里刻意填满所有混合版会写出的字段，验证原生版能整份吃下。
+    func testImportsHybridAppBackup() throws {
+        let hybridBackup = """
+        {
+          "app": "探记 TanJi",
+          "version": "0.6",
+          "exportedAt": "2026-11-28T09:30:00.000Z",
+          "threshold": 15,
+          "notifyEnabled": true,
+          "accounts": [
+            {"id":1,"name":"大王","phone":"13800000000","douyin":"dawang","color":2,
+             "avatar":"","createdAt":"2026-11-01T10:00:00Z"}
+          ],
+          "providers": ["蜂向","小爱","金城"],
+          "orders": [
+            {"id":1,"store":"麓野日料","cat":"餐饮","contact":"王店长",
+             "price":1600,"deposit":500,"appt":"2026-11-22T14:00",
+             "shotAt":"2026-11-22T15:00","submittedAt":"2026-11-23T10:00",
+             "shortAt":"2026-11-24T10:00","longAt":"2026-11-25T10:00",
+             "depositPaidAt":"2026-11-23T12:00","finalPaidAt":"2026-11-26T12:00",
+             "settleVia":"private","remindAt":"2026-11-27T09:00","channel":"蜂向",
+             "partner":"花花","location":"万象城 L3","deliverMain":true,"deliverSub":true,
+             "reviewResult":"pass","publishedAt":"2026-11-27T18:00","accountId":1,
+             "note":"加急","remindLog":[{"at":"2026-11-26T09:00","note":"微信问了一次"}],
+             "expectPayAt":"2026-11-30T00:00","gpsPlace":"22.543096,114.057865"}
+          ],
+          "payments": [
+            {"oid":1,"kind":"定金","amount":500,"at":"2026-11-23T12:00","method":"微信","note":null},
+            {"oid":1,"kind":"尾款","amount":1100,"at":"2026-11-26T12:00","method":"支付宝","note":"结清"}
+          ]
+        }
+        """
+        let state = try BackupValidator.parse(json(hybridBackup))
+
+        XCTAssertEqual(state.orders.count, 1)
+        let order = try XCTUnwrap(state.orders.first)
+        XCTAssertEqual(order.store, "麓野日料")
+        XCTAssertEqual(order.price, 1600)
+        XCTAssertEqual(order.deposit, 500)
+        XCTAssertEqual(order.settleVia, "private")
+        XCTAssertEqual(order.channel, "蜂向")
+        XCTAssertEqual(order.partner, "花花")
+        XCTAssertEqual(order.location, "万象城 L3")
+        XCTAssertEqual(order.reviewResult, "pass")
+        XCTAssertEqual(order.accountId, 1)
+        XCTAssertEqual(order.deliverMain, true)
+        XCTAssertEqual(order.deliverSub, true)
+        XCTAssertEqual(order.shotAt, "2026-11-22T15:00")
+        XCTAssertEqual(order.remindEntries.count, 1)
+        XCTAssertEqual(order.remindEntries.first?.note, "微信问了一次")
+        // 到店定位：混合版存储格式是 `lat,lng`（英文逗号、无空格，
+        // 见 www/geo.js 的 format()）；带空格的是展示格式 label()，两版解析口径一致。
+        XCTAssertEqual(order.gpsPlace, "22.543096,114.057865")
+
+        XCTAssertEqual(state.payments.count, 2)
+        XCTAssertEqual(state.payments[0].kind, "定金")
+        XCTAssertEqual(state.payments[1].kind, "尾款")
+        XCTAssertEqual(state.payments[1].method, "支付宝")
+
+        XCTAssertEqual(state.accounts.count, 1)
+        XCTAssertEqual(state.accounts.first?.name, "大王")
+        XCTAssertEqual(state.providers, ["蜂向","小爱","金城"])
+        XCTAssertEqual(state.threshold, 15)
+        XCTAssertTrue(state.notifyEnabled)
+    }
+
+    /// 混合版导出带 UTF-8 BOM（`download()` 里给文本加了 `\ufeff`），
+    /// 原生版必须能剥掉 BOM 再解析。
+    func testImportsHybridBackupWithBOM() throws {
+        var data = Data("\u{FEFF}".utf8)
+        data.append(Data(minimalBackup.utf8))
+        let state = try BackupValidator.parse(data)
+        XCTAssertEqual(state.orders.count, 1)
+    }
+
     // MARK: - 往返
 
     func testExportImportRoundTrip() throws {

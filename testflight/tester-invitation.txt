@@ -1,12 +1,12 @@
-主题：探记 HG 内测邀请（TestFlight）
+主题：探记 内测邀请（TestFlight）
 
 你好，
 
-「探记 HG」的内测版本已上传 TestFlight，邀请你参加测试。
+「探记」的内测版本已上传 TestFlight，邀请你参加测试。
 
 1. 在 iPhone 上安装 App Store 官方 TestFlight App（App Store 搜「TestFlight」即可免费获取）。
 2. 打开 TestFlight，接受本邮件里的邀请链接，或在「邀请」中用你的 Apple ID 邮箱接受。
-3. 在 TestFlight 里选择「探记 HG」，点「安装」。
+3. 在 TestFlight 里选择「探记」，点「安装」。
 4. 首次启动后请按「What to Test」里的 8 个场景走一遍，尤其注意通知权限、Face ID 解锁和导入导出。
 
 注意事项：
@@ -16,4 +16,4 @@
 
 遇到任何问题，请回复本邮件，并附上：手机型号、系统版本、TestFlight 版本号、复现步骤和截图。
 
-—— 探记 HG
+—— 探记

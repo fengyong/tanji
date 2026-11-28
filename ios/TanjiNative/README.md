@@ -1,4 +1,4 @@
-# 探记 HG · 纯原生 iOS 版
+# 探记 · 纯原生 iOS 版
 
 > 本目录是**纯原生 SwiftUI** 实现，与仓库根目录的 Capacitor 混合版（`www/` + `ios/App/`）并存。
 > 两条路线各自独立发展，互不覆盖；本目录不使用任何 WebView、Capacitor 或第三方依赖。
@@ -10,7 +10,7 @@
 - **纯原生**：只用系统框架（SwiftUI / Swift Charts / SQLite3 / UserNotifications / LocalAuthentication / PhotosUI / UniformTypeIdentifiers），无三方依赖、无 WebView。
 - **逻辑与界面保持一致**：业务口径移植自 Web 版 `www/logic.js` 与 `www/app.js`，文案逐句对齐；`Sources/Logic/Logic.swift` 是移植后的业务核心。
 - **数据兼容**：沿用同样的四张表（`orders` / `payments` / `accounts` / `settings`）与同样的 JSON 备份格式，旧版导出的 JSON 可直接导入。
-- **导出落到「文件」App**：备份写成带日期的 JSON，直接进沙盒 Documents —— 即「文件」App 里的「探记 HG」文件夹；导入用系统文件选择器，默认定位到同一个文件夹。
+- **导出落到「文件」App**：备份写成带日期的 JSON，直接进沙盒 Documents —— 即「文件」App 里的「探记」文件夹；导入用系统文件选择器，默认定位到同一个文件夹。
 - **导入前自动留恢复点**：导入、清空前都会自动存一份快照，可在设置页「恢复替换前的数据」撤回。
 
 ## 目录结构
@@ -112,8 +112,8 @@ provisioning profile，然后构建 → 手工 `codesign` → 嵌入 profile →
 ### 导出与导入
 
 - 导出（JSON / CSV / SQLite）写进沙盒 Documents，文件名带日期且不覆盖旧文件。
-  `Info.plist` 里 `UIFileSharingEnabled = true`，所以「文件」App 里会出现「探记 HG」文件夹。
-- 导入用 `UIDocumentPickerViewController`（`DocumentPicker.swift`），默认定位到「探记 HG」文件夹。
+  `Info.plist` 里 `UIFileSharingEnabled = true`，所以「文件」App 里会出现「探记」文件夹。
+- 导入用 `UIDocumentPickerViewController`（`DocumentPicker.swift`），默认定位到「探记」文件夹。
 - 导入前自动留恢复点；导入后先预览再确认替换。
 
 ### 金额隐私
@@ -127,9 +127,10 @@ provisioning profile，然后构建 → 手工 `codesign` → 嵌入 profile →
 - Face ID 真实流程与系统弹窗。
 - 通知授权与每日催收提醒的实际排程。
 - 相册选择头像、拍照打卡的真实流程。
-- `UIDocumentPickerViewController` 的默认目录与「文件」App 中的「探记 HG」文件夹在真机上的表现。
+- `UIDocumentPickerViewController` 的默认目录与「文件」App 中的「探记」文件夹在真机上的表现。
 
-> 已验证：真机安装与启动（iPhone 15 Pro / iOS 27.2.1，bundle `com.ord.tanji`，显示名「探记 HG」）。
+> 已验证：真机安装与启动（iPhone 17 Pro / iOS 27.2.1，bundle `com.ord.tanji.app`，显示名「探记」，
+> 开发签名直装，2026-11-28 23:00）。
 > 上面这些是 App 内部功能点，需要在真机上逐个点一遍确认。
 
 ## 与混合版的关系

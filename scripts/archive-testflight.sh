@@ -19,6 +19,15 @@
 #   SKIP_TESTS=1       跳过 npm test / 单元与 UI 测试(正式对外构建不要跳过)
 #   SKIP_GENERATE=1    跳过 xcodegen generate(改了 project.yml 就别跳)
 #
+#   PROVISIONING_PROFILE_SPECIFIER
+#                      手动指定描述文件名(描述文件里的 Name,不是文件名)。
+#                      设了它就切到手动签名(CODE_SIGN_STYLE=Manual)并锁定
+#                      CODE_SIGN_IDENTITY="Apple Distribution"。
+#                      用于 Xcode 未登录开发者账号、只能靠后台手动创建的
+#                      App Store 分发描述文件的场景,例如:
+#                        PROVISIONING_PROFILE_SPECIFIER="探记 App Store" \
+#                        DEVELOPMENT_TEAM=YC9UFHH73D npm run archive:testflight
+#
 # 注意:本脚本不做任何签名证书创建与账号配置,那些必须在 Xcode / App Store Connect 后台完成。
 # ---------------------------------------------------------------------------
 set -euo pipefail
@@ -27,7 +36,7 @@ cd "$(dirname "$0")/.."
 TEAM="${DEVELOPMENT_TEAM:-}"
 VERSION="${MARKETING_VERSION:-1.0.0}"
 BUILD="${BUILD_NUMBER:-$(TZ=Asia/Shanghai date +%Y%m%d.%H%M%S)}"
-BUNDLE="${BUNDLE_ID:-com.ord.tanji}"
+BUNDLE="${BUNDLE_ID:-com.ord.tanji.app}"
 OUT="${OUTPUT_DIR:-build/testflight/TanjiNative-$VERSION-$BUILD}"
 ARCHIVE="$OUT/TanjiNative.xcarchive"
 EXPORT_DIR="$OUT/ipa"
@@ -75,6 +84,28 @@ fi
 printf '\n==> Xcode Archive（Apple Distribution）\n'
 # 本机 macOS 27 的 sandbox-exec 不可用，SwiftUI 宏展开需要关掉沙箱。
 # 与 scripts/install-device-ios.sh 保持一致，否则归档会在宏展开阶段失败。
+#
+# 签名模式：
+#   默认（CODE_SIGN_STYLE=Automatic）依赖 Xcode 已登录开发者账号，
+#   由 Xcode 自行挑选 Distribution 证书 + 分发描述文件。
+#   若 Xcode 未登录（账号数组为空），自动签名会回落到本机开发 profile，
+#   必须显式指定 PROVISIONING_PROFILE_SPECIFIER + CODE_SIGN_IDENTITY，
+#   即在后台手动创建的 App Store 分发描述文件路线。
+if [[ -n "${PROVISIONING_PROFILE_SPECIFIER:-}" ]]; then
+  printf '使用手动指定描述文件：%s\n' "$PROVISIONING_PROFILE_SPECIFIER"
+  SIGN_ARGS=(
+    CODE_SIGN_STYLE=Manual
+    "PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER"
+    "CODE_SIGN_IDENTITY=${CODE_SIGN_IDENTITY:-Apple Distribution}"
+  )
+  EXPORT_SIGNING_STYLE=manual
+else
+  SIGN_ARGS=(
+    CODE_SIGN_STYLE=Automatic
+  )
+  EXPORT_SIGNING_STYLE=automatic
+fi
+
 if ! xcodebuild \
   -project "$PROJECT" \
   -scheme TanjiNative \
@@ -86,10 +117,7 @@ if ! xcodebuild \
   PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE" \
   MARKETING_VERSION="$VERSION" \
   CURRENT_PROJECT_VERSION="$BUILD" \
-  CODE_SIGN_STYLE=Automatic \
-  # 不覆盖 CODE_SIGN_IDENTITY：自动签名模式下手动指定 identity 会与
-  # Xcode 的自动签名冲突（报 "conflicting provisioning settings"）。
-  # Release 归档时 Xcode 自动选用 Apple Distribution 证书。
+  "${SIGN_ARGS[@]}" \
   ENABLE_DEBUG_DYLIB=NO \
   OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -disable-sandbox' \
   archive >"$OUT/archive.log" 2>&1; then
@@ -112,7 +140,11 @@ actual_build="$(read_plist CFBundleVersion "$APP_PATH/Info.plist")"
 
 # 隐私清单缺失会被 App Store Connect 直接拒收（ITMS-91053），必须在导出前拦。
 [[ -f "$APP_PATH/PrivacyInfo.xcprivacy" ]] || { printf '归档缺少 PrivacyInfo.xcprivacy。\n' >&2; exit 1; }
-plutil -extract NSPrivacyAccessedAPICategoryUserDefaults raw "$APP_PATH/PrivacyInfo.xcprivacy" >/dev/null 2>&1 || {
+# NSPrivacyAccessedAPICategoryUserDefaults 是 NSPrivacyAccessedAPITypes 数组元素内部的键，
+# plutil -extract 按顶层键路径取不到（会误报缺失）。必须转 json 后再查。
+plutil -convert json -o - "$APP_PATH/PrivacyInfo.xcprivacy" 2>/dev/null \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print("yes" if any(t.get("NSPrivacyAccessedAPIType")=="NSPrivacyAccessedAPICategoryUserDefaults" for t in d.get("NSPrivacyAccessedAPITypes",[])) else "no")' 2>/dev/null \
+  | grep -q 'yes' || {
   printf '隐私清单未声明 NSPrivacyAccessedAPICategoryUserDefaults。\n' >&2
   exit 1
 }
@@ -136,8 +168,20 @@ cat >"$PLIST" <<EOF
 <plist version="1.0">
 <dict>
   <key>method</key><string>app-store-connect</string>
-  <key>signingStyle</key><string>automatic</string>
+  <key>signingStyle</key><string>$EXPORT_SIGNING_STYLE</string>
   <key>teamID</key><string>$TEAM</string>
+EOF
+# 手动签名模式下必须带上描述文件名与证书名，否则导出阶段报
+# "No profiles for 'com.ord.tanji.app' were found"。
+if [[ "$EXPORT_SIGNING_STYLE" == "manual" ]]; then
+  cat >>"$PLIST" <<EOF
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>$BUNDLE</key><string>$PROVISIONING_PROFILE_SPECIFIER</string>
+  </dict>
+EOF
+fi
+cat >>"$PLIST" <<EOF
   <key>uploadSymbols</key><true/>
   <key>stripSwiftSymbols</key><true/>
 </dict>

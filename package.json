@@ -26,6 +26,8 @@
     "archive:testflight": "bash scripts/archive-testflight.sh",
     "upload:testflight": "bash scripts/upload-testflight.sh",
     "testflight:ready": "bash scripts/check-testflight-ready.sh",
+    "asc:api": "node scripts/asc-api.mjs",
+    "asc:add-tester": "node scripts/add-internal-tester.mjs",
     "check:release": "node scripts/check-release-assets.cjs"
   },
   "dependencies": {

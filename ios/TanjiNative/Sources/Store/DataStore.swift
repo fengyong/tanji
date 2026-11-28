@@ -105,12 +105,12 @@ final class DataStore {
         return folder.appendingPathComponent("tanji.sqlite")
     }
 
-    /// 导出目录：沙盒 Documents（开启文件共享后即「文件」App 里的「探记 HG」文件夹）
+    /// 导出目录：沙盒 Documents（开启文件共享后即「文件」App 里的「探记」文件夹）
     var documentsURL: URL {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
-    /// 备份子目录：Documents/备份 —— 「探记 HG」文件夹内再分层，避免和实时库混在一起
+    /// 备份子目录：Documents/备份 —— 「探记」文件夹内再分层，避免和实时库混在一起
     var backupFolderURL: URL {
         let folder = documentsURL.appendingPathComponent("备份", isDirectory: true)
         if !fileManager.fileExists(atPath: folder.path) {

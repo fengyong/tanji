@@ -210,11 +210,19 @@ enum BackupValidator {
             }
             var avatar: String?
             if let raw = dict["avatar"], !(raw is NSNull) {
-                guard let avatarText = raw as? String,
-                      ImageStore.isValidStored(avatarText),
-                      avatarText.count <= ImageStore.avatarLimit
-                else { throw BackupError.invalid("\(label)的头像数据无效") }
-                avatar = avatarText
+                guard let avatarText = raw as? String else {
+                    throw BackupError.invalid("\(label)的头像数据无效")
+                }
+                // 空串是混合版账号没设头像时的默认值（`a.avatar||null` 入库，
+                // 导出时 cloneState 出来就是 ""），混合版 validateState 显式放行空串：
+                //   account.avatar !== '' && !TanJiImage.isValidStored(account.avatar)
+                // 原生版必须同口径，否则「混合版备份 → 纯原生版」会整份拒收。
+                if !avatarText.isEmpty {
+                    guard ImageStore.isValidStored(avatarText),
+                          avatarText.count <= ImageStore.avatarLimit
+                    else { throw BackupError.invalid("\(label)的头像数据无效") }
+                }
+                avatar = avatarText.isEmpty ? nil : avatarText
             }
             let createdAt = try text(dict["createdAt"], "\(label)的创建时间")
             // 对外等级：非法值直接报错（与混合版 validateState 同口径）；旧备份没有这个字段则留空。

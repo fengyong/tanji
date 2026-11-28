@@ -2,7 +2,9 @@
 # 用法：xcodegen generate --spec ios/TanjiNative/project.yml
 name: TanjiNative
 options:
-  bundleIdPrefix: com.ord
+  # 仅作测试 target 的 id 前缀；三个 target 都显式指定了 PRODUCT_BUNDLE_IDENTIFIER，
+  # 实际生效值以各 target 的设置为准（com.ord.tanji.app）。
+  bundleIdPrefix: com.ord.tanji.app
   createIntermediateGroups: true
   # 最低支持设备:iPhone 15 Pro(首发系统 iOS 17.0)。
   # 因此 deployment target 锁定 iOS 17.0,不再向下兼容更低机型/更低系统。
@@ -33,9 +35,13 @@ targets:
     info:
       path: Resources/Info.plist
       properties:
-        CFBundleDisplayName: 探记 HG
+        CFBundleDisplayName: 探记
         CFBundleDevelopmentRegion: zh_CN
-        # 让「文件」App 出现「探记 HG」文件夹：App 沙盒的 Documents 目录即以显示名呈现
+        # 版本号用变量引用，命令行 xcodebuild MARKETING_VERSION= / CURRENT_PROJECT_VERSION=
+        # 才能覆盖。写死字面量会导致 scripts/archive-testflight.sh 传入的版本号不生效。
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # 让「文件」App 出现「探记」文件夹：App 沙盒的 Documents 目录即以显示名呈现
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         UIApplicationSupportsIndirectInputEvents: true
@@ -44,13 +50,18 @@ targets:
           - UIInterfaceOrientationPortrait
         # 只支持 iPhone(TARGETED_DEVICE_FAMILY = 1),不配 iPad 专属方向。
         NSFaceIDUsageDescription: 用于确认是你本人后隐藏或显示探记中的金额。Face ID 信息由系统处理，不会提供给探记。
-        NSCameraUsageDescription: 拍一张店铺门口照片，作为「已到店」的标记。照片会压缩保存在本机，并包含在你主动导出的 JSON 备份中，不会上传。
         NSPhotoLibraryUsageDescription: 从相册选择店铺照片或账号头像。照片仅在本机压缩保存，不会上传。
-        NSLocationWhenInUseUsageDescription: 到店拍摄时记录一次当时的位置，方便事后回看「这单在哪拍的」并一键导航过去。位置只存本机、不上传，也不参与任何统计。
+        # 说明：本工程当前不采集定位、也不调用相机拍照，
+        # 故不声明 NSCameraUsageDescription / NSLocationWhenInUseUsageDescription。
+        # 原生版尚未实现「打卡记录当前地址」（混合版有，见 docs/testflight-release-runbook.md §4.3），
+        # 订单表的 gps_place 字段保留不动，用于兼容混合版导出的旧备份；
+        # 若将来补齐该功能，需同步加回定位权限声明。
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji
-        MARKETING_VERSION: "1.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji.app
+        # 默认值与 scripts/archive-testflight.sh 保持一致：
+        # 版本号三段式，构建号为一位数占位；归档时由脚本用命令行覆盖。
+        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -71,7 +82,7 @@ targets:
       - target: TanjiNative
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji.app.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: TanjiNative
 
@@ -85,5 +96,5 @@ targets:
       - target: TanjiNative
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji.app.tests
         GENERATE_INFOPLIST_FILE: YES

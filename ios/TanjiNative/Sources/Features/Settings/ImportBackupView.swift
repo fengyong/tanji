@@ -6,7 +6,7 @@ import SwiftUI
 ///   展示文件名、订单数、流水数、实收金额、催收阈值，确认后替换当前数据；
 ///   替换前自动留一份可恢复备份（由 `AppModel.replaceData` 内部维护恢复点）。
 /// - `BackupExportMenu`：设置页「数据与备份」分区的导出入口。
-///   三种导出全部写进沙盒 Documents ——「文件」App 里的「探记 HG」文件夹，
+///   三种导出全部写进沙盒 Documents ——「文件」App 里的「探记」文件夹，
 ///   导出后把文件名显示在界面上，用户知道去哪找。
 /// - `ImportPreview`：文件选择器读到的备份内容（已校验，未落库）。
 /// - `BackupPickerHost`：系统文件选择器的挂载点（单独一层，避免抢 sheet 槽位）。
@@ -152,7 +152,7 @@ struct ImportBackupView: View {
 
 /// 设置页「数据与备份」分区的导出入口：JSON / SQLite / CSV。
 ///
-/// 所有导出都写进沙盒 Documents ——「文件」App 里的「探记 HG」文件夹，
+/// 所有导出都写进沙盒 Documents ——「文件」App 里的「探记」文件夹，
 /// 不走系统分享面板：导完把文件名留在界面上，用户知道去哪找。
 struct BackupExportMenu: View {
     /// 要展示的导出方式，顺序与设置页一致（JSON → SQLite → CSV）。
@@ -211,7 +211,7 @@ struct BackupExportMenu: View {
             }
             let name = url.lastPathComponent
             exported[kind] = name
-            model.showToast("已保存到「文件 › 探记 HG」")
+            model.showToast("已保存到「文件 › 探记」")
         } catch {
             model.showToast("导出失败：\(exportErrorText(error))")
         }
@@ -264,7 +264,7 @@ enum BackupExportKind: CaseIterable {
 
     var subtitle: String {
         switch self {
-        case .json: return "直接存入「文件 › 探记 HG」；换机迁移选这个"
+        case .json: return "直接存入「文件 › 探记」；换机迁移选这个"
         case .csv: return "订单表 + 收款流水，Excel / Numbers 可直接打开"
         case .sqlite: return "完整数据库存档，可用 SQLite 工具打开"
         }

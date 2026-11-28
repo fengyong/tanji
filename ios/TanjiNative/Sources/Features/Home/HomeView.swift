@@ -841,7 +841,7 @@ enum ScheduleShare {
             .filter { $0.appt.hasPrefix(day) }
             .sorted { $0.appt < $1.appt }
         var lines: [String] = []
-        lines.append("探记 HG · 拍摄行程")
+        lines.append("探记 · 拍摄行程")
         lines.append("\(day) 周\(Format.dowOf(day))")
         lines.append(list.isEmpty ? "当天暂无拍摄安排" : "\(list.count) 个拍摄安排")
         lines.append("")
@@ -853,7 +853,7 @@ enum ScheduleShare {
             }
         }
         lines.append("")
-        lines.append("由「探记 HG」生成 · 不含金额信息")
+        lines.append("由「探记」生成 · 不含金额信息")
         return lines.joined(separator: "\n")
     }
 }

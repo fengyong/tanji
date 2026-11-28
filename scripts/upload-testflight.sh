@@ -16,7 +16,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BUNDLE="${BUNDLE_ID:-com.ord.tanji}"
+BUNDLE="${BUNDLE_ID:-com.ord.tanji.app}"
 
 if [[ $# -ne 1 ]]; then
   printf '用法：npm run upload:testflight -- <IPA 路径>\n\n认证二选一（均通过环境变量，不入库）：\n  App Store Connect API Key：ASC_API_KEY、ASC_API_ISSUER、ASC_PRIVATE_KEY_PATH\n  Apple ID：ASC_APPLE_ID、ASC_APP_SPECIFIC_PASSWORD\n' >&2

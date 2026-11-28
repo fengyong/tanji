@@ -26,16 +26,22 @@ else
   fail '隐私清单未声明 NSPrivacyTracking=false'
 fi
 # UserDefaults 是本工程实际命中的受限 API，缺失即拒收。
-# plutil -extract 取不到 NSPrivacyAccessedAPITypes 数组里的子键，改用 json 转换后读。
-if plutil -convert json -o - "$PRIVACY" 2>/dev/null | grep -q 'NSPrivacyAccessedAPICategoryUserDefaults'; then
+# NSPrivacyAccessedAPICategoryUserDefaults 是数组元素内部的键，plutil -extract 取不到，
+# 转 json 后精确匹配（避免子串误命中）。
+if plutil -convert json -o - "$PRIVACY" 2>/dev/null \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print("yes" if any(t.get("NSPrivacyAccessedAPIType")=="NSPrivacyAccessedAPICategoryUserDefaults" for t in d.get("NSPrivacyAccessedAPITypes",[])) else "no")' 2>/dev/null \
+  | grep -q 'yes'; then
   pass '隐私清单已声明 UserDefaults / CA92.1'
 else
   fail '隐私清单未声明 NSPrivacyAccessedAPICategoryUserDefaults'
 fi
-if plutil -extract NSPrivacyCollectedDataTypes raw "$PRIVACY" 2>/dev/null | grep -q 'dict'; then
-  fail '隐私清单声明了数据收集，与「不收集数据」口径冲突'
-else
+# 数据收集必须为空数组。用 json 转换后精确判断，避免 raw 输出格式差异导致漏判。
+privacy_json="$(plutil -convert json -o - "$PRIVACY" 2>/dev/null || echo '{}')"
+collected="$(printf '%s' "$privacy_json" | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("NSPrivacyCollectedDataTypes", [])))' 2>/dev/null || echo -1)"
+if [[ "$collected" == "0" ]]; then
   pass '隐私清单未声明任何数据收集'
+else
+  fail "隐私清单声明了 ${collected} 项数据收集，与「不收集数据」口径冲突"
 fi
 
 # ---------------------------------------------------------------- 图标
@@ -56,6 +62,85 @@ if security find-identity -v -p codesigning 2>/dev/null | grep -q 'Apple Distrib
   pass '本机存在 Apple Distribution 证书'
 else
   fail '本机缺少 Apple Distribution 证书；请在 Xcode Settings → Accounts → Manage Certificates 创建'
+fi
+
+# ---------------------------------------------------------------- 分发描述文件
+# 只有 get-task-allow=false 的 App Store profile 才能用于 TestFlight。
+# 本机可能存在多个开发 profile（com.tanji.app / site.zai.aifishing / *），
+# 必须精确匹配 com.ord.tanji.app，否则会误判成已就绪。
+PROFILE_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+BUNDLE="${BUNDLE_ID:-com.ord.tanji.app}"
+dist_profile=''
+dist_profile_name=''
+if [[ -d "$PROFILE_DIR" ]]; then
+  for f in "$PROFILE_DIR"/*.mobileprovision; do
+    [[ -f "$f" ]] || continue
+    tmp_plist="$(mktemp -d)"
+    if security cms -D -i "$f" >"$tmp_plist/p.plist" 2>/dev/null; then
+      app_id="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$tmp_plist/p.plist" 2>/dev/null || true)"
+      gta="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' "$tmp_plist/p.plist" 2>/dev/null || true)"
+      if [[ "$app_id" == *".$BUNDLE" && "$gta" == "false" ]]; then
+        dist_profile="$f"
+        dist_profile_name="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$tmp_plist/p.plist" 2>/dev/null || true)"
+        break
+      fi
+    fi
+    rm -rf "$tmp_plist"
+  done
+fi
+if [[ -n "$dist_profile" ]]; then
+  pass "存在 $BUNDLE 的 App Store 分发描述文件"
+else
+  fail "缺少 $BUNDLE 的 App Store 分发描述文件（get-task-allow=false）；需在 Xcode 登录账号让自动签名拉取，或在开发者后台手动创建，步骤见 docs/testflight-release-runbook.md §2.8"
+fi
+
+# ---------------------------------------------------------------- Xcode 登录态
+# 账号只显示在 Accounts 面板 ≠ 登录生效。真正生效的判据是
+# DVTDeveloperAccountManagerAppleIDLists 里的账号数组非空。
+# 结构：{ "IDE.Identifiers.Prod" => [ ...账号... ] }，空数组即未登录。
+#
+# 注意：这个 plist 用 plutil -convert json 会报
+# "Invalid object in plist for JSON format"，必须用 plistlib 读。
+xcode_accounts="$(python3 -c "
+import plistlib
+with open('$HOME/Library/Preferences/com.apple.dt.Xcode.plist','rb') as f:
+    d = plistlib.load(f)
+print(len(d.get('DVTDeveloperAccountManagerAppleIDLists',{}).get('IDE.Identifiers.Prod',[])))
+" 2>/dev/null || echo 0)"
+if [[ "$xcode_accounts" =~ ^[0-9]+$ ]] && [[ "$xcode_accounts" -gt 0 ]]; then
+  pass 'Xcode 已完成开发者身份登录'
+elif [[ -n "$dist_profile" ]]; then
+  # 已装好 App Store 分发描述文件时，走手动签名路线（脚本传
+  # PROVISIONING_PROFILE_SPECIFIER），不需要 Xcode 登录。
+  printf '! Xcode 未完成开发者身份登录，但已装好分发描述文件，可走手动签名路线：\n'
+  printf '  PROVISIONING_PROFILE_SPECIFIER="%s" DEVELOPMENT_TEAM=%s npm run archive:testflight\n' \
+    "$dist_profile_name" "${DEVELOPMENT_TEAM:-YC9UFHH73D}"
+else
+  fail 'Xcode 未完成开发者身份登录（Accounts 面板显示账号不算，实际账号数组为空）；自动签名因此无法拉取分发描述文件，步骤见 docs/testflight-release-runbook.md §2.8'
+fi
+
+# ---------------------------------------------------------------- 上传凭据
+# 凭据不入库：Key ID / Issuer ID 记录在 testflight/app-store-connect.json，
+# 私钥放在仓库外的 ~/.config/tanji/。这里只校验「是否就绪」，不读取密钥内容。
+ASC_ENV="${ASC_ENV:-$HOME/.config/tanji/asc.env}"
+if [[ -n "${ASC_API_KEY:-}" && -n "${ASC_API_ISSUER:-}" && -n "${ASC_PRIVATE_KEY_PATH:-}" ]]; then
+  if [[ -f "$ASC_PRIVATE_KEY_PATH" ]]; then
+    pass '上传凭据已通过环境变量注入'
+  else
+    fail "找不到私钥文件：$ASC_PRIVATE_KEY_PATH"
+  fi
+elif [[ -f "$ASC_ENV" ]]; then
+  # 只验证文件里三个变量都有值，不 source（避免执行任意内容）
+  if grep -q '^export ASC_API_KEY=' "$ASC_ENV" \
+     && grep -q '^export ASC_API_ISSUER=' "$ASC_ENV" \
+     && grep -q '^export ASC_PRIVATE_KEY_PATH=' "$ASC_ENV"; then
+    pass "上传凭据已就绪（${ASC_ENV}）"
+    printf '  上传时先执行：source %s\n' "$ASC_ENV"
+  else
+    fail "${ASC_ENV} 缺少必要的变量定义"
+  fi
+else
+  fail "缺少上传凭据；创建 App Store Connect API Key 并放到 ${ASC_ENV}，步骤见 docs/testflight-release-runbook.md 步骤 5"
 fi
 
 # ---------------------------------------------------------------- 公网法律页

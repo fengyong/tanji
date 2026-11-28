@@ -2,9 +2,9 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// 系统原生文件选择器（导入用），默认定位到「探记 HG」文件夹。
+/// 系统原生文件选择器（导入用），默认定位到「探记」文件夹。
 ///
-/// 只接受 JSON；默认打开沙盒 Documents ——「文件」App 里的「探记 HG」文件夹，
+/// 只接受 JSON；默认打开沙盒 Documents ——「文件」App 里的「探记」文件夹，
 /// 用户导出的备份就在这个目录里，导入时不用到处找。
 struct DocumentPicker: UIViewControllerRepresentable {
     var onPick: (URL) -> Void

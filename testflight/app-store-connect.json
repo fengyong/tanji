@@ -1,19 +1,103 @@
 {
+  "currentProgress": {
+    "updatedAt": "2026-11-28T23:11:00+08:00",
+    "summary": "纯原生版「探记」(com.ord.tanji.app) 1.0.0 已具备对外分发条件，但 App Store 提交尚未发起。当前状态：TestFlight 内部验收可用 + 已在真机旁加载装成功 + 混合版数据已迁移，App Store 侧仍缺 9 项提交材料与真机业务验收。",
+    "verificationNote": "本区块所有状态均为 2026-11-28 23:11 重新查询 App Store Connect API 的实时返回值，不是历史记录推断。",
+    "milestones": [
+      {
+        "item": "TestFlight 内部验收",
+        "state": "done",
+        "detail": "构建 20261128.212041：processingState=VALID、expired=false、buildAudienceType=APP_STORE_ELIGIBLE、expirationDate=2027-02-26；internalBuildState=IN_BETA_TESTING、externalBuildState=READY_FOR_BETA_SUBMISSION。内部组「探记 内部验收」(27b2129a-8528-459d-9657-f9545f9a6958) 内实测仅 1 名测试员 fengyong@ustc.edu，state=INSTALLED（已接受邀请并在 TestFlight App 装机）。"
+      },
+      {
+        "item": "第二位内部测试员",
+        "state": "waiting_on_third_party",
+        "detail": "1763637894@qq.com 不是 ASC 团队成员，已发 userInvitation 5bfdae2b-8804-4460-adf6-2e60040be62a（角色 DEVELOPER），到期 2026-12-01 22:05（北京时间）。2026-11-28 23:11 复查 GET /v1/userInvitations 仍返回该邀请且未接受；对方接受后执行 npm run asc:add-tester -- 1763637894@qq.com 完成建 tester → 加内部组 → 分配构建 → 发 TestFlight 邀请。"
+      },
+      {
+        "item": "真机旁加载装",
+        "state": "done",
+        "detail": "杨小姐 iPhone 17 Pro (iOS 27.2.1, UDID 00008150-001E654A3C39401C) 安装并启动成功，设备可见「探记 com.ord.tanji.app 1.0.0」，tunnelState=connected。用开发签名 + iOS Team Provisioning Profile: *（含该机 UDID），非 App Store 签名，不可直接提交。"
+      },
+      {
+        "item": "混合版数据迁移",
+        "state": "done",
+        "detail": "探记 HG (com.tanji.hg) 的 2026-11-28 备份已导入原生版；从设备取回 Library/Application Support/探记HG/tanji.sqlite 实测 orders=16、accounts=2、payments=0、settings=2，与备份文件一致。"
+      },
+      {
+        "item": "App Store 提交",
+        "state": "not_submitted",
+        "detail": "版本 1.0.0 (7e8012d1-2117-4cac-9c97-fda593536ff2) 状态 PREPARE_FOR_SUBMISSION，构建 20261128.212041 已挂载，copyright=「2026 探记」；GET /v1/reviewSubmissions?filter[app]=6840332432 实测 total=0，从未提交审核。"
+      }
+    ],
+    "remainingBlockers": [
+      {
+        "item": "第二位测试员接受 ASC 团队邀请",
+        "owner": "对方",
+        "blocking": "仅影响第二位测试员入组，不阻塞提交审核"
+      },
+      {
+        "item": "App Store 文案与元信息",
+        "owner": "本方",
+        "blocking": "阻塞提交",
+        "detail": "版本文案（description / keywords / promotionalText / supportUrl / marketingUrl）与副标题、隐私政策链接均未填"
+      },
+      {
+        "item": "截图",
+        "owner": "本方",
+        "blocking": "阻塞提交",
+        "detail": "appScreenshotSets 与 appPreviewSets 实测 total=0；需先准备演示数据再按机型尺寸上传，建议走网页端"
+      },
+      {
+        "item": "审核联系信息 / 年龄分级 / 上架可用性 / 定价",
+        "owner": "本方",
+        "blocking": "阻塞提交",
+        "detail": "appStoreReviewDetail 为 null；ageRatingDeclaration 各字段 null；appAvailabilityV2 404；appPriceSchedules 的 manualPrices 与 automaticPrices 均 404（基准区域 USD，等同免费）。年龄分级与可用性只能在网页端操作。"
+      },
+      {
+        "item": "中国区 ICP 备案",
+        "owner": "本方",
+        "blocking": "阻塞中国区上架，不阻塞美国区先行上架",
+        "detail": "纯离线零网络 App 符合 Apple 的 ICP 豁免条件（走 ASC 支持工单提交 PDF 声明，约 3 个工作日）；备案号本身不在提交时校验。状态只能由网页端确认，API 看不到。"
+      },
+      {
+        "item": "税务与银行信息",
+        "owner": "本方",
+        "blocking": "不阻塞上架，但未填则无法收款",
+        "detail": "买断制定价上线后需要 Tax + Banking 才能实际收款；同样只能在网页端填写。"
+      },
+      {
+        "item": "真机业务验收",
+        "owner": "本方",
+        "blocking": "阻塞提交（建议在提交前跑完）",
+        "detail": "见 docs/testflight-release-runbook.md §4：Face ID、通知权限与调度、相册选择器、导出 JSON/CSV/.db 到「文件」App 的「探记」目录、带恢复点的导入、后台与强杀后的持久化。目前一项未勾选。"
+      },
+      {
+        "item": "提交用构建",
+        "owner": "本方",
+        "blocking": "阻塞提交",
+        "detail": "装到真机的是开发签名包，不可提交。需产出一份 App Store 签名构建并为每个新构建重新做一次出口合规声明。"
+      }
+    ]
+  },
   "app": {
-    "name": "探记 HG",
-    "bundleId": "com.ord.tanji",
-    "sku": "tanji-hg-ios-001",
+    "name": "探记",
+    "bundleId": "com.ord.tanji.app",
+    "sku": "tanji-ios-001",
+    "skuSource": "用户在 ASC 新建 App 对话框中填写的值（2026-11-28）。SKU 创建后不可更改。",
     "primaryLocale": "zh-Hans",
     "platform": "iOS",
     "category": "Business",
-    "ageRating": "4+"
+    "ageRating": "4+",
+    "ascRecordCreated": true,
+    "ascRecordCreatedAt": "2026-11-28"
   },
   "developerAccount": {
     "teamId": "YC9UFHH73D",
     "teamIdSource": "本机 provisioning profile 的 TeamIdentifier 实测（2026-11-28）",
-    "registeredExplicitAppIds": ["com.tanji.app", "site.zai.aifishing"],
+    "registeredExplicitAppIds": ["com.tanji.app", "site.zai.aifishing", "com.ord.tanji.app", "com.olatanji.app"],
     "registeredWildcardAppId": "*",
-    "note": "com.ord.tanji 尚未注册，需在开发者后台「标识符」下新建显式 App ID。"
+    "note": "App 名称定为「探记」（用户 2026-11-28 定）：ASC 里无同名 App 记录占用（壳版 com.ord.tanji 的记录也从未创建）。com.ord.tanji.app 已注册（App ID 名称「ios」，2026-11-28 用户确认），无需再建 App ID。ASC App 记录已于 2026-11-28 由用户创建完成（名称「探记」，Bundle com.ord.tanji.app）。下一步是创建 Apple Distribution 证书。"
   },
   "release": {
     "marketingVersion": "1.0.0",
@@ -30,11 +114,49 @@
     "reviewNote": "订单、流水、账号资料、压缩照片与头像仅保存在设备沙盒；用户主动导出的文件不经过开发者服务器。"
   },
   "testFlight": {
-    "groupName": "种子测试者",
-    "testerType": "external",
+    "groupName": "探记 内部验收",
+    "groupId": "27b2129a-8528-459d-9657-f9545f9a6958",
+    "isInternalGroup": true,
+    "testerType": "internal",
     "invitationMethod": "email",
     "publicLinkEnabled": false,
     "testerCount": 1,
+    "testerEmail": "fengyong@ustc.edu",
+    "betaTesterId": "26315ba5-b729-4b88-b97e-5e9cabdedebf",
+    "assignedBuilds": ["20261128.212041"],
+    "appResourceId": "6840332432",
+    "testerState": "INSTALLED",
+    "testerStateCheckedAt": "2026-11-28T22:10:00+08:00",
+    "invitationId": "7e2398cb-1ea7-42d3-af2a-32f24780dab5",
+    "buildInternalState": "IN_BETA_TESTING",
+    "buildExternalState": "READY_FOR_BETA_SUBMISSION",
+    "pendingAction": "第一个测试员已于 2026-11-28 接受邀请并安装 TestFlight（state=INSTALLED），可在 TestFlight App 里看到「探记」。第二位测试员（1763637894@qq.com）已发出 ASC 团队邀请，等其接受后执行「加内部组 + 分配构建 + 发 TestFlight 邀请」。2026-11-28 23:11 复查：GET /v1/userInvitations 仍返回该邀请（未接受），GET /v1/betaGroups/{groupId}/betaTesters 仍只有 1 人。",
+    "testers": [
+      {
+        "email": "fengyong@ustc.edu",
+        "betaTesterId": "26315ba5-b729-4b88-b97e-5e9cabdedebf",
+        "invitationId": "7e2398cb-1ea7-42d3-af2a-32f24780dab5",
+        "state": "INSTALLED",
+        "stateCheckedAt": "2026-11-28",
+        "type": "internal",
+        "isTeamMember": true,
+        "ascUserId": "42ca9989-ad5c-4b5b-86e5-e37f0a3b2913"
+      },
+      {
+        "email": "1763637894@qq.com",
+        "firstName": "Test",
+        "lastName": "Tester",
+        "type": "internal",
+        "isTeamMember": false,
+        "userInvitationId": "5bfdae2b-8804-4460-adf6-2e60040be62a",
+        "userInvitationRoles": ["DEVELOPER"],
+        "userInvitationExpiresAt": "2026-12-01T22:05:22+08:00",
+        "userInvitationExpiresAtSource": "ASC 返回 2026-12-01T06:05:22.954-08:00（美西时区），换算北京时间 2026-12-01 22:05:22。此前记录的 14:05+08:00 时区标注有误，已修正。",
+        "betaTesterId": null,
+        "state": "PENDING_TEAM_INVITATION",
+        "note": "内部测试员必须是 ASC 团队成员（Apple 官方：非 App Store Connect 用户无法添加到内部群组）。已发 userInvitation，等对方在邮箱点邮件链接激活并关联 Apple 账户；接受后邀请记录自动删除，/v1/users 出现该用户。此时才能建 betaTester（POST /v1/betaTesters 带 betaGroups 关系，否则 409）、POST /v1/betaGroups/{groupId}/relationships/betaTesters 加入内部组、POST /v1/builds/{buildId}/relationships/individualTesters 分配构建。"
+      }
+    ],
     "feedbackEmail": "fengyong@ustc.edu",
     "contact": {
       "firstName": "yong",
@@ -46,12 +168,19 @@
     "whatToTestFile": "what-to-test.txt",
     "reviewNotesFile": "review-notes.txt",
     "testerInvitationFile": "tester-invitation.txt",
-    "buildValidityDays": 90
+    "buildValidityDays": 90,
+    "exportCompliance": {
+      "usesNonExemptEncryption": false,
+      "note": "必须显式声明，否则 buildBetaDetail 的 internalBuildState 停在 MISSING_EXPORT_COMPLIANCE，构建无法分配到任何测试组（API 报 'Build is not in an internally testable state'）。声明后状态变为 READY_FOR_BETA_TESTING。"
+    },
+    "note": "内部测试组无需 Beta App Review，可直接装机验收。外部测试需另建外部组并提交 Beta 审核。"
   },
   "legalUrls": {
     "privacy": "https://tanji-app-guvc.zai.site/privacy.html",
     "support": "https://tanji-app-guvc.zai.site/support.html",
-    "status": "blocked-until-both-return-http-200"
+    "status": "live-both-return-http-200",
+    "verifiedAt": "2026-11-28T21:00:00+08:00",
+    "note": "2026-11-28 实测两个 URL 均返回 HTTP 200，内容抽查含「隐私政策」「支持」与 fengyong@ustc.edu。原记录的 blocked 状态已过时。"
   },
   "privacyManifest": {
     "file": "ios/TanjiNative/Resources/PrivacyInfo.xcprivacy",
@@ -65,11 +194,123 @@
     ],
     "note": "二进制符号表已核实引用 _OBJC_CLASS_$_NSUserDefaults，调用点为 AmountPrivacy.swift 与 DataStore.swift。"
   },
+  "appStoreSubmission": {
+    "versionId": "7e8012d1-2117-4cac-9c97-fda593536ff2",
+    "versionString": "1.0.0",
+    "appStoreState": "PREPARE_FOR_SUBMISSION",
+    "localizationId": "c7c24edd-d40d-4300-b545-0e0149e24c3f",
+    "appInfoId": "c7681246-c8fe-427d-a8dd-27a2ac8e88ce",
+    "attachedBuild": "20261128.212041",
+    "copyright": "2026 探记",
+    "checkedAt": "2026-11-28T23:11:00+08:00",
+    "done": [
+      "App 记录（探记 / com.ord.tanji.app / SKU tanji-ios-001）",
+      "App Store 版本 1.0.0 已建，状态 PREPARE_FOR_SUBMISSION",
+      "版本号与构建对齐（ASC 版本号由 1.0 改为 1.0.0，匹配 CFBundleShortVersionString）",
+      "构建 20261128.212041 已挂到版本（GET .../build 实测返回该构建）",
+      "copyright 已填（copyright=2026 探记）",
+      "出口合规已声明（usesNonExemptEncryption=false）",
+      "隐私政策 / 支持页公网 HTTP 200",
+      "隐私清单完整",
+      "App 名称已填（appInfoLocalizations.name=探记）"
+    ],
+    "missing": [
+      "版本文案（appStoreVersionLocalizations zh-Hans 全空：description / keywords / promotionalText / supportUrl / marketingUrl / whatsNew 均为 null）",
+      "副标题与隐私政策链接（appInfoLocalizations zh-Hans：subtitle=null、privacyPolicyUrl=null、privacyPolicyText=null）",
+      "App 截图与预览视频（appScreenshotSets total=0、appPreviewSets total=0，需先准备演示数据再按机型尺寸上传，建议走网页端）",
+      "审核联系信息（appStoreReviewDetail 返回 HTTP 200 但 data=null）",
+      "定价（appPriceSchedules 存在但 manualPrices 与 automaticPrices 均 404，baseTerritory=USD，等同免费，需定价后再改）",
+      "上架可用性（appAvailabilityV2 404，未创建 appAvailability）",
+      "年龄分级问卷（ageRatingDeclaration 各字段实测全为 null，需 ASC 网页端作答，API 不可写）",
+      "真机业务验收（见 runbook §4，目前一项未勾选）",
+      "提交审核（GET /v1/reviewSubmissions?filter[app]=6840332432 实测 total=0，从未提交）"
+    ],
+    "fieldLocationNote": "文案字段的 API 归属实测确认：description / keywords / promotionalText / supportUrl / marketingUrl / whatsNew 在 appStoreVersionLocalizations；name / subtitle / privacyPolicyUrl / privacyPolicyText / privacyChoicesUrl 在 appInfoLocalizations。appInfos 与 apps 上都不存在 supportUrl / marketingUrl（fields 过滤会报 'not a valid field name'），此前把它们记在 appInfos 下是错的，已更正。"
+  },
+  "directInstall": {
+    "targetDevice": "扬眉吐气的杨小姐 / iPhone 17 Pro (iOS 27.2.1)",
+    "udid": "00008150-001E654A3C39401C",
+    "ascDeviceRegistered": true,
+    "developerModeStatus": "enabled",
+    "signingIdentity": "Apple Development: fengyong@ustc.edu (DFVF2R4K8Y)（证书有效期至 2027-11-22）",
+    "profileName": "iOS Team Provisioning Profile: *",
+    "profileUuid": "e454e5ef-5327-49aa-9dbc-84d36f628787",
+    "profileExpiresAt": "2027-11-26T13:18:47Z",
+    "profileCoversDevice": true,
+    "artifact": "build/device-install/TanjiNative.app（+ TanjiNative-dev-20261128.zip）",
+    "artifactSha256": "7f696a8039841fbc0fcc1b34562c3d53ba6bdaff21692bceb13dce2500ce20f4",
+    "codeVersion": "与 TestFlight 构建 20261128.212041 同一份代码（Swift 源码最后改动 20:58 < 归档 21:20）",
+    "developerModeNote": "开发者模式是 iOS 16+ 装开发签名 App 的一次性开关，打开后永久保持，不需要每次装都重开。持续成本是签名有效期：本项目开发证书到 2027-11-22、profile 到 2027-11-26，约一年后需重签重装。",
+    "installCommand": "xcrun devicectl device install app --device 00008150-001E654A3C39401C build/device-install/TanjiNative.app",
+    "waitScript": "bash scripts/wait-and-install.sh（DEVICE_UDID=... TIMEOUT=1800）",
+    "installedAt": "2026-11-28T23:00:00+08:00",
+    "installResult": "成功。devicectl 返回 App installed: bundleID=com.ord.tanji.app，随后 devicectl device process launch 返回 Launched application with com.ord.tanji.app bundle identifier。设备上 devicectl list apps 显示「探记 com.ord.tanji.app 1.0.0」，tunnelState=connected。注：首次启动曾报 error 10002 'Application failed preflight checks'（Security），再覆盖安装一次即恢复正常启动。",
+    "tunnelStateSemantics": "unavailable=设备未被 CoreDevice 认到；connecting=握手中；disconnected=已认到但隧道在重建（此时立即重试装机通常就成功）；connected=隧道通。2026-11-28 22:58:11 状态由 unavailable→connecting→disconnected，正是装机翻盘的瞬间。生效前提是 USB 线真正重新插拔一次。",
+    "dataMigration": {
+      "source": "探记 HG（com.tanji.hg）数据容器 Documents/探记 HG/探记-备份-2026-11-28.json（43220 bytes，2026-11-28 23:00 导出）",
+      "method": "devicectl device copy from 取回 → devicectl device copy to 推入 com.ord.tanji.app 的 Documents/探记-工作备份-2026-11-28.json → 用户在 App 内「设置 → 数据与备份 → 导入」选择该文件",
+      "verified": "导入后从设备取回 Library/Application Support/探记HG/tanji.sqlite（116784 bytes，23:02），sqlite3 查询：orders=16、accounts=2、payments=0、settings=2，与备份文件 orders=16/accounts=2 完全一致；抽查订单字段（store/price/deposit/settle_via/account_id/gps_place）与账号（name/phone/douyin/color/avatar 长度 14283 与 17947）均完整迁移",
+      "note": "备份文件格式 version=0.6、无 BOM、字段全 camelCase，原生版 BackupValidator 实测解析通过（临时冒烟测试已删除，保留的正式回归测试见 BackupValidationTests.testImportsHybridAppBackup）"
+    },
+    "notOldApp": "设备上另有「探记 com.olatanji.app 1.0」与「探记 HG com.tanji.hg 1.0」，两者都不在本开发者账号（YC9UFHH73D）下，是更早别的账号装的，与本次新版无关；新版是 com.ord.tanji.app。三个图标名字相近，验收时注意别点错。",
+    "rootCauseSummary": "安装失败的真因是 iOS 26+ 的 RSD（远程服务发现）通道未建立，与老版本探记无关：Ordi's iPhone15 上同样装了老版「探记 HG ord.tanji 1.0」，其隧道状态却是 connected。已逐层排除信任配对、开发者模式、USB 枚举、签名、DeviceSupport 版本、DD 更新。最后靠「USB 重新接入 + 设备被重新枚举（状态从 unavailable 变 disconnected 再到 connected）」成功。",
+    "blocker": null
+  },
+  "hybridMigration": {
+    "question": "混合版「探记 HG」（bundle ord.tanji）的数据能否导入纯原生版「探记」（bundle com.ord.tanji.app）",
+    "answer": "可以，实测通过",
+    "evidence": "新增回归测试 testImportsHybridAppBackup + testImportsHybridBackupWithBOM，用混合版 backupDocument() 的完整真实结构走原生版 BackupValidator，实跑 Executed 27 tests, with 0 failures / TEST SUCCEEDED",
+    "formatMatch": "两边字段名同为 camelCase，版本白名单同为 0.2~0.6（混合版导出 version=0.6 在白名单内）",
+    "bugFoundAndFixed": {
+      "file": "ios/TanjiNative/Sources/Model/BackupValidator.swift",
+      "issue": "混合版 storage.js:102 显式放行空串头像（account.avatar !== '' 才校验 dataURL），因为混合版存账号用 a.avatar||null，默认无头像即导出为 ''。原生版原实现直接要求 isValidStored(avatarText)，空串不是合法 dataURL → 整份备份被拒收，报「第 1 个账号的头像数据无效」。",
+      "fix": "空串按混合版口径放行并落库为 nil；非空串仍走 isValidStored + 体积上限",
+      "gpsPlaceNote": "到店定位存储格式为 lat,lng（无空格），带空格的是展示格式 label()；两版解析口径一致，带空格两边都丢弃。混合版导出用的是存储格式，正常导出不受影响。"
+    },
+    "howToMigrate": [
+      "旧版「探记 HG」：设置 → 数据与备份 → 导出 JSON 备份",
+      "把 JSON 传到新设备（AirDrop / 微信文件传输助手 / iCloud Drive）",
+      "新版「探记」：设置 → 数据与备份 → 导入 → 选 JSON",
+      "导入前自动留恢复点，导入后核对订单数与流水数"
+    ],
+    "doNotUse": "不要导 .db（混合版内部表结构带 mode 列，与原生版不同）；CSV 只能看不能导回"
+  },
   "blockers": [
-    "privacy.html 与 support.html 当前公网 404，部署前不得进行外部测试上传",
-    "本机尚未发现 Apple Distribution 证书（只有 Apple Development）",
-    "App Store Connect 尚未创建 Bundle ID 为 com.ord.tanji 的 iOS App 记录",
-    "首个外部测试构建需要 Beta App Review",
-    "原生版未做真机业务验收（Face ID、通知、相册、文件选择器默认目录等仍待验证）"
-  ]
+    "原生版未做真机业务验收（Face ID、通知、相册、文件选择器默认目录等仍待验证）",
+    "App Store 提交材料仍缺 9 项（详见 currentProgress.remainingBlockers 与 appStoreSubmission.missing）",
+    "中国区上架需先确认 ICP 备案豁免（纯离线零网络 App 可走 Apple 豁免通道），税务与银行信息未填则无法收款"
+  ],
+  "blockersNote": "明细与责任方以 currentProgress.remainingBlockers 为准，此处只做速览。",
+  "credentials": {
+    "ascApiKeyId": "4C52J4ML4Q",
+    "ascIssuerId": "b2f4cab0-dc59-485e-859c-e0180c7bf08d",
+    "privateKeyPath": "~/.config/tanji/AuthKey_4C52J4ML4Q.p8",
+    "envFile": "~/.config/tanji/asc.env",
+    "note": "密钥按约定不入库：Key ID 与 Issuer ID 记录在此（它们本身不是秘密，私钥才是）；.p8 与 asc.env 都在仓库外的 ~/.config/tanji/，权限 600。",
+    "usage": "source ~/.config/tanji/asc.env && npm run upload:testflight -- <IPA 路径>",
+    "apiClient": "scripts/asc-api.mjs（npm run asc:api -- <METHOD> <PATH> [JSON]）",
+    "addTester": "scripts/add-internal-tester.mjs（npm run asc:add-tester -- <邮箱> [名] [姓] [--invite-team]）"
+  },
+  "uploadHistory": [
+    {
+      "version": "1.0.0",
+      "build": "20261128.212041",
+      "uploadedAt": "2026-11-28T21:31:50+08:00",
+      "deliveryUuid": "395355aa-f637-4371-bd6f-cb89a77cd641",
+      "ipaSha256": "1c8cf19d275aeebf9f27ec1f41fc8af8c2d0198470c3c550e86802ec6f305d66",
+      "ipaPath": "build/testflight/TanjiNative-1.0.0-20261128.212041/ipa/TanjiNative.ipa",
+      "altoolResult": "VERIFY SUCCEEDED / UPLOAD SUCCEEDED with no errors",
+      "processingState": "VALID",
+      "expirationDate": "2027-02-26T13:32:31+08:00",
+      "note": "上传成功；ASC 侧构建处理需 5-15 分钟，之后在 TestFlight 页签可见。"
+    }
+  ],
+  "signing": {
+    "certificate": "Apple Distribution: yong feng (YC9UFHH73D)",
+    "provisioningProfileName": "探记 App Store",
+    "provisioningProfileUuid": "c81dd139-e905-4422-89da-d1f669fade91",
+    "getTaskAllow": false,
+    "xcodeAccountLoggedIn": false,
+    "note": "Xcode 开发者身份始终未登录成功（com.apple.dt.Xcode.plist 里 DVTDeveloperAccountManagerAppleIDLists.IDE.Identifiers.Prod 恒为空数组），故走手动签名路线：归档时传 PROVISIONING_PROFILE_SPECIFIER=\"探记 App Store\" 切到 CODE_SIGN_STYLE=Manual。2026-11-28 实测已产出 Distribution 签名 IPA 并通过 codesign 校验。"
+  }
 }

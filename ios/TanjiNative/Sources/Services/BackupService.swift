@@ -2,7 +2,7 @@ import Foundation
 
 /// 导出与导入。
 ///
-/// 导出：全部写进沙盒 Documents —— 开启文件共享后，「文件」App 的「我的 iPhone → 探记 HG」
+/// 导出：全部写进沙盒 Documents —— 开启文件共享后，「文件」App 的「我的 iPhone → 探记」
 /// 里就能直接看到带日期的 JSON / CSV / .db 文件，不需要再过系统分享面板。
 /// 导入：用系统原生文件选择器（`UIDocumentPickerViewController`），默认定位到同一目录；
 /// 导入前自动留一份可恢复的恢复点。
@@ -10,12 +10,12 @@ enum BackupService {
 
     // MARK: - 目录
 
-    /// 导出目录 = 沙盒 Documents = 「文件」App 里的「探记 HG」文件夹
+    /// 导出目录 = 沙盒 Documents = 「文件」App 里的「探记」文件夹
     static func exportFolder() -> URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
-    /// 导出到指定目录（测试用；默认写到「探记 HG」文件夹）
+    /// 导出到指定目录（测试用；默认写到「探记」文件夹）
     static func exportFolder(_ folder: URL?) -> URL {
         folder ?? exportFolder()
     }

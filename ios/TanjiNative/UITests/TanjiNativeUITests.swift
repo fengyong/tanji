@@ -110,11 +110,11 @@ final class TanjiNativeUITests: XCTestCase {
         XCTAssertTrue(export.waitForExistence(timeout: 6), "设置页应有「保存 JSON 备份」")
         export.tap()
 
-        // 导出后要能看到「已保存到「文件 › 探记 HG」」的提示。
+        // 导出后要能看到「已保存到「文件 › 探记」」的提示。
         // 提示条挂在设置页这一层的宿主上（sheet 会盖住根层的提示条）。
         let saved = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", "探记 HG")
+            NSPredicate(format: "label CONTAINS %@", "探记")
         ).firstMatch
-        XCTAssertTrue(saved.waitForExistence(timeout: 8), "导出后应提示文件落在「探记 HG」文件夹")
+        XCTAssertTrue(saved.waitForExistence(timeout: 8), "导出后应提示文件落在「探记」文件夹")
     }
 }
