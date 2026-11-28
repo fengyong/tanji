@@ -1,8 +1,29 @@
 {
   "currentProgress": {
-    "updatedAt": "2026-11-28T23:11:00+08:00",
+    "updatedAt": "2026-11-28T23:30:00+08:00",
+    "sessionState": "closed_for_today",
+    "sessionNote": "2026-11-28 当天工作在此收尾（token 额度用尽）。改动已全部提交并推送到 origin/tanji-native-ios，工作区干净，无未落盘内容。下次会话从下面 nextSessionStartingPoint 直接接续即可，不需要重新摸索。",
+    "lastCommit": {
+      "sha": "6dddfc699d6300e3f429cd71216282ff56b44d2f",
+      "short": "6dddfc6",
+      "branch": "tanji-native-ios",
+      "remote": "git@github-fengyong:fengyong/tanji.git",
+      "pushedRef": "refs/heads/tanji-native-ios",
+      "pushMode": "fast-forward（f7d8e9a..6dddfc6），未 force push、未 merge",
+      "filesChanged": 33,
+      "insertions": 2795,
+      "deletions": 175
+    },
     "summary": "纯原生版「探记」(com.ord.tanji.app) 1.0.0 已具备对外分发条件，但 App Store 提交尚未发起。当前状态：TestFlight 内部验收可用 + 已在真机旁加载装成功 + 混合版数据已迁移，App Store 侧仍缺 9 项提交材料与真机业务验收。",
     "verificationNote": "本区块所有状态均为 2026-11-28 23:11 重新查询 App Store Connect API 的实时返回值，不是历史记录推断。",
+    "nextSessionStartingPoint": [
+      "代码侧已收尾，本轮没有遗留的代码改动。下次直接从「上架材料」和「真机验收」两件事切入，不用再看代码。",
+      "先查第二位测试员：source ~/.config/tanji/asc.env && node scripts/asc-api.mjs GET /v1/userInvitations（返回空 = 对方已接受）。接受后跑 npm run asc:add-tester -- 1763637894@qq.com；邀请 2026-12-01 22:05 到期，过期要重发。",
+      "真机验收优先级最高（runbook §4，目前一条未勾选）：Face ID、通知排程、相册选头像、导出 JSON/CSV/.db 到「文件 › 探记」、带恢复点的导入、后台 15 分钟 + 强杀重开持久化。需要杨小姐配合走一遍。",
+      "App Store 文案与截图：版本级 5 个字段（description/keywords/promotionalText/supportUrl/marketingUrl）+ 元信息级 3 个（subtitle/privacyPolicyUrl/privacyPolicyText）全为 null；截图与预览集都是 0 条，需先造演示数据再按机型尺寸上传（建议网页端）。",
+      "提审前必须另出一份 App Store 签名构建（现在装在真机上的是开发签名包，不可提交），并为每个新构建重新做一次出口合规声明。",
+      "中国区 ICP 备案与税务/银行信息只能在 ASC 网页端确认，API 看不到；纯离线零网络符合豁免条件，提审本身不校验备案号，可先只开美国区。"
+    ],
     "milestones": [
       {
         "item": "TestFlight 内部验收",

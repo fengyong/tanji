@@ -52,16 +52,19 @@ TestFlight 的门槛比正式上架低，但**账号侧的前置条件一样要�
 | 项 | 实测值 | 来源 |
 |---|---|---|
 | Team ID | **`YC9UFHH73D`** | 三个描述文件的 `TeamIdentifier` / `ApplicationIdentifierPrefix` |
-| 已注册的显式 App ID | `com.tanji.app`、`site.zai.aifishing` | 描述文件的 `application-identifier` |
+| 已注册的显式 App ID | `com.tanji.app`、`site.zai.aifishing`（描述文件实测）；**`com.ord.tanji.app`**（2026-11-28 用户在开发者后台确认已注册，名称「ios」） | 描述文件的 `application-identifier` + 开发者后台 App IDs 列表 |
 | 已注册的通配符 App ID | `*`（有效期至 2027-11-26） | 描述文件 `e454e5ef-…` |
-| 本机证书 | 只有 `Apple Development: fengyong@ustc.edu` + 一个第三方 `AISnap Local Signing` | `security find-identity` |
+| 本机证书 | `Apple Development: fengyong@ustc.edu`（有效期至 2027-11-22）+ **`Apple Distribution: yong feng (YC9UFHH73D)`**（2026-11-28 已装，有效期至 2027-11-28）+ 一个第三方 `AISnap Local Signing` | `security find-identity` |
 | Xcode 账号 | **未登录**（归档报 `No Accounts`） | 归档实测 |
 
 > ✅ **`com.ord.tanji.app` 已注册**（App ID 名称「ios」，2026-11-28 用户确认）。
 > 开发者后台「标识符 → App IDs」列表中已可见，**不需要再新建**。
 >
-> ⚠️ 现有描述文件**全部是开发用**（`get-task-allow = true`），不能用于 TestFlight。
-> 通配符 profile 也只是开发用途。
+> ⚠️ 通配符 profile（`iOS Team Provisioning Profile: *`）与 `Apple Development` 证书
+> 是**开发用**（`get-task-allow = true`），只能用于直装到指定设备。
+> 上传 TestFlight 用的是另两份：**`Apple Distribution: yong feng (YC9UFHH73D)`**
+> + **「探记 App Store」** 描述文件（`get-task-allow = false`，
+> UUID `c81dd139-e905-4422-89da-d1f669fade91`），两者均已装好并实测可用。
 
 ### 2.3 阻断项（不解决无法上传）
 
@@ -75,9 +78,13 @@ TestFlight 的门槛比正式上架低，但**账号侧的前置条件一样要�
 | 6 | **归档产出可上传 IPA** | ✅ 已实跑产出（手动签名路线，Distribution 证书链验证通过） | 已完成 |
 | 7 | **上传凭据** | ✅ API Key 已创建（`4C52J4ML4Q`），私钥在 `~/.config/tanji/` | 已完成 |
 | 8 | **真机业务验收** | ❌ Face ID、通知、相册、文件选择器默认目录等未验收 | 用户本人 |
-| 9 | **首个外部构建的 Beta App Review** | ❌ 首次外部测试需审核 | 上传后按需提交 |
-| 10 | **第二位内部测试员加入团队** | 🕐 团队邀请已发出（2026-11-28，`1763637894@qq.com`），等对方接受 | 对方本人（3 天内） |
+| 9 | **App Store 正式提审材料** | ❌ 9 项待补（文案 / 截图 / 审核联系信息 / 定价 / 上架可用性 / 年龄分级 …） | 本方（清单见 `appstore-submission-checklist.md`） |
+| 10 | **第二位内部测试员加入团队** | 🕐 团队邀请已发出，2026-11-28 23:11 复查仍未接受，到期 2026-12-01 22:05 | 对方本人 |
 
+> 📌 原表里的「首个外部构建的 Beta App Review」已移出阻塞表：
+> 当前走的是**内部测试组**，内部测试不需要 Beta 审核；
+> 只有将来开外部测试组时才需要，而那一步排在正式提审之后。
+>
 > ✅ 阻断项 4 已闭环：2026-11-28 ZCode 重新部署 `main` 后，
 > `privacy.html` 与 `support.html` 实测均返回 **HTTP 200**，
 > 内容抽查含「隐私政策」「支持」与 `fengyong@ustc.edu`。
