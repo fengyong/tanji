@@ -2,19 +2,32 @@
 
 探店达人的行程、交付与收款工具。HG 是独立发展的 iOS 产品线：重做信息结构、视觉与交互，保留原 TanJi 的 SQLite 表、`settings` JSON 快照、`tanji_v3_*` 键和 JSON 备份格式。
 
+## 两条并存的技术路线
+
+本仓库同时保留两套实现，**各自独立发展、互不覆盖**：
+
+| 路线 | 位置 | 技术 | 分支 |
+|---|---|---|---|
+| 混合版 | `www/` + `src/` + `ios/App/` | Capacitor 8 + 单一 WKWebView + UIKit 原生底栏 | `tanji-native-hg` |
+| **纯原生版** | `ios/TanjiNative/` | SwiftUI，只用系统框架，无 WebView、无三方依赖 | `tanji-native-ios` |
+
+纯原生版的说明见 [`ios/TanjiNative/README.md`](ios/TanjiNative/README.md)。两条路线的数据格式相同，备份可互相导入。
+
 ## 当前身份与状态
 
 | 项 | 值 |
 |---|---|
-| 分支 | `tanji-native-hg` |
+| 分支 | `tanji-native-hg`（混合版）/ `tanji-native-ios`（纯原生版） |
 | 显示名 | 探记 HG |
-| Bundle ID | `com.tanji.hg` |
+| Bundle ID | 混合版 `com.tanji.hg`；纯原生版 `ord.tanji` |
 | App 版本 | `1.0 (1)` |
-| 技术路线 | Capacitor 8 + 单一 WKWebView + UIKit 原生底栏 |
+| 技术路线 | 见上表 |
 | 数据 | 纯本地；iOS 使用 App 沙盒内 SQLite，无服务器、无云同步 |
 | 基线 | `native-app@534e88b`；HG 不反向修改原 TanJi App |
 
 2026-11-27：Release `1.0 (1)` 已安装并启动到 iPhone 15 Pro，用户已确认原生底栏质感。真机权限、持久化、导入导出与日常业务验收仍待用户完成；当前未上架。
+
+纯原生版（2026-11-28）：SwiftUI 全量重写完成，导出落到「文件」App 的「探记 HG」文件夹（带日期的 JSON / CSV / .db），导入改用系统文件选择器并保留导入前自动恢复点。真机 Face ID、通知、相册、文件选择器默认目录等仍待验证。
 
 ## 产品结构
 

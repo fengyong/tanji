@@ -15,6 +15,9 @@ ios/DerivedData/
 *.dSYM.zip
 tests/.harness.bundle.js
 
+# 纯原生 iOS:xcodegen 生成产物不入库（改 project.yml 后重新 generate）
+ios/TanjiNative/TanjiNative.xcodeproj/
+
 # Watchdog runtime artifacts
 watchdog/heartbeat.json
 watchdog/daemon-status.json
