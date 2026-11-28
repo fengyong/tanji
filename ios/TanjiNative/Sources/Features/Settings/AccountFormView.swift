@@ -23,6 +23,8 @@ struct AccountFormView: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var errorText: String?
     @State private var showDeleteConfirm = false
+    /// 对外登记等级（Lv.5 / Lv.6 / Lv.7）：只用于对外登记，不参与勋章判定。
+    @State private var level: AccountLevel
     /// 新建账号的默认标识色是否已按账号数取过（避免覆盖用户手选）。
     @State private var didApplyDefaultColor = false
 
@@ -36,6 +38,8 @@ struct AccountFormView: View {
         _douyin = State(initialValue: account?.douyin ?? "")
         _colorIndex = State(initialValue: account?.color ?? 0)
         _avatar = State(initialValue: account?.avatar)
+        // 旧账号没有等级字段时按 Lv.5 兜底（与混合版 accLevel 同口径）。
+        _level = State(initialValue: account?.level.flatMap(AccountLevel.init(rawValue:)) ?? AccountLevel.standard)
     }
 
     var body: some View {
@@ -50,15 +54,21 @@ struct AccountFormView: View {
                         AccountFormRow(label: "昵称 *") {
                             TextField("如：饿了才要吃饱饱", text: $name)
                                 .multilineTextAlignment(.trailing)
+                                .accessibilityIdentifier("account.field.name")
                         }
                         AccountFormRow(label: "手机号") {
                             TextField("13800006678", text: $phone)
                                 .keyboardType(.phonePad)
                                 .multilineTextAlignment(.trailing)
+                                .accessibilityIdentifier("account.field.phone")
                         }
                         AccountFormRow(label: "抖音账号") {
                             TextField("抖音号或主页链接", text: $douyin)
                                 .multilineTextAlignment(.trailing)
+                                .accessibilityIdentifier("account.field.douyin")
+                        }
+                        AccountFormRow(label: "对外等级") {
+                            levelPicker
                         }
                         sectionTitle("账号标识")
                         Text("用颜色快速区分不同账号，列表与小标会同步显示。")
@@ -77,6 +87,7 @@ struct AccountFormView: View {
                         PrimaryButton(title: isEditing ? "保存账号" : "添加账号") {
                             save()
                         }
+                        .accessibilityIdentifier("account.save")
                         .padding(.top, 18)
                         if isEditing {
                             GhostButton(title: "删除账号", systemImage: "trash", tint: Theme.red) {
@@ -249,6 +260,32 @@ struct AccountFormView: View {
             .foregroundStyle(Theme.sub)
     }
 
+    // MARK: - 对外等级
+
+    /// 对外登记等级：Lv.5 / Lv.6 / Lv.7。
+    ///
+    /// 只用于对外登记（报名表、服务商对接），不参与勋章判定。
+    private var levelPicker: some View {
+        HStack(spacing: 6) {
+            ForEach(AccountLevel.allCases) { item in
+                Button {
+                    level = item
+                } label: {
+                    Text(item.title)
+                        .font(Theme.body(12, weight: .bold))
+                        .foregroundStyle(item == level ? Theme.brandInk : Theme.ink2)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(item == level ? Theme.brandSoft : Theme.paperDeep, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("对外等级 \(item.title)")
+                .accessibilityIdentifier("account.level.\(item.rawValue)")
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
     // MARK: - 保存 / 删除
 
     private func save() {
@@ -264,7 +301,8 @@ struct AccountFormView: View {
                              douyin: douyin.trimmingCharacters(in: .whitespacesAndNewlines),
                              color: colorIndex % AccountPalette.swatches.count,
                              avatar: avatar,
-                             createdAt: account?.createdAt ?? Logic.nowString())
+                             createdAt: account?.createdAt ?? Logic.nowString(),
+                             level: level.rawValue)
         Task {
             await model.upsertAccount(target)
             model.showToast(isEditing ? "已保存账号" : "已添加账号")

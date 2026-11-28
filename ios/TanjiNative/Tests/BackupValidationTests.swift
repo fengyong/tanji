@@ -214,4 +214,124 @@ final class BackupValidationTests: XCTestCase {
             XCTAssertTrue(error.localizedDescription.contains("流水与已收状态不一致"))
         }
     }
+
+    // MARK: - 勋章门槛与账号等级
+
+    private var backupWithMedalRules: String {
+        """
+        {"app":"探记 TanJi","version":"0.6","exportedAt":"2026-11-20T10:00:00Z",
+         "threshold":15,"notifyEnabled":true,
+         "accounts":[{"id":1,"name":"小满","phone":"","douyin":"","color":0,"level":"Lv.7"}],
+         "providers":[],
+         "medalRules":{"busyOrders":2,"salesAmount":800,"hotOrders":4,"aceAmount":2000},
+         "orders":[],"payments":[]}
+        """
+    }
+
+    func testParsesMedalRulesAndAccountLevel() throws {
+        let state = try BackupValidator.parse(json(backupWithMedalRules))
+        XCTAssertEqual(state.medalRules.busyOrders, 2)
+        XCTAssertEqual(state.medalRules.salesAmount, 800)
+        XCTAssertEqual(state.medalRules.hotOrders, 4)
+        XCTAssertEqual(state.medalRules.aceAmount, 2000)
+        XCTAssertEqual(state.accounts.first?.levelTitle, "Lv.7")
+    }
+
+    func testRejectsInvalidAccountLevel() {
+        let text = backupWithMedalRules.replacingOccurrences(of: "\"level\":\"Lv.7\"", with: "\"level\":\"Lv.9\"")
+        XCTAssertThrowsError(try BackupValidator.parse(json(text))) { error in
+            XCTAssertTrue(error.localizedDescription.contains("等级"), "错误文案要说明等级不合法")
+        }
+    }
+
+    func testRejectsInvalidMedalRules() {
+        // 爆单单数必须严于忙碌日单数。
+        let text = backupWithMedalRules.replacingOccurrences(of: "\"hotOrders\":4", with: "\"hotOrders\":1")
+        XCTAssertThrowsError(try BackupValidator.parse(json(text))) { error in
+            XCTAssertTrue(error.localizedDescription.contains("爆单"))
+        }
+    }
+
+    func testLegacyBackupHasNoMedalRules() throws {
+        // 旧备份没有门槛字段：解析结果要能区分「没有」和「恰好是默认值」。
+        let parsed = try BackupValidator.parseDetailed(json(minimalBackup))
+        XCTAssertFalse(parsed.hasMedalRules)
+        XCTAssertEqual(parsed.data.medalRules, MedalRules.standard)
+    }
+
+    func testImportKeepsCurrentMedalRulesForLegacyBackup() throws {
+        var temp = FileManager.default.temporaryDirectory
+        temp.appendPathComponent("tanji-legacy-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let url = temp.appendingPathComponent("legacy.json")
+        try json(minimalBackup).write(to: url)
+
+        let current = MedalRules(busyOrders: 1, salesAmount: 100, hotOrders: 2, aceAmount: 200)
+        let imported = try BackupService.loadImport(from: url, fallbackMedalRules: current)
+        XCTAssertEqual(imported.medalRules, current, "旧备份没有门槛配置时应沿用当前配置，而不是回落默认值")
+    }
+
+    func testExportImportKeepsMedalRulesAndLevel() throws {
+        var temp = FileManager.default.temporaryDirectory
+        temp.appendPathComponent("tanji-backup-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let source = AppData(
+            orders: [],
+            payments: [],
+            threshold: 15,
+            notifyEnabled: true,
+            accounts: [Account(id: 1, name: "小满", level: "Lv.6")],
+            providers: [],
+            medalRules: MedalRules(busyOrders: 2, salesAmount: 800, hotOrders: 4, aceAmount: 2000))
+
+        let url = try BackupService.exportJSON(source, folder: temp)
+        let imported = try BackupService.loadImport(from: url)
+        XCTAssertEqual(imported.medalRules, source.medalRules)
+        XCTAssertEqual(imported.accounts.first?.levelTitle, "Lv.6")
+    }
+
+    /// 混合版（Capacitor）导出的备份，原生版要能原样读进去。
+    ///
+    /// 样本是混合版 `storage.js` 的 `backupDocument()` 真实输出（用 Node 跑出来的原样 JSON）：
+    /// 顶层带 `medalRules`，账号带 `level`，其中一条账号没有 `level`（旧备份形态）。
+    func testReadsHybridVersionBackup() throws {
+        let json = """
+        {
+          "app": "探记 TanJi",
+          "version": "0.6",
+          "exportedAt": "2026-11-28T11:55:58.466Z",
+          "threshold": 15,
+          "notifyEnabled": true,
+          "accounts": [
+            { "id": 1, "name": "混合版账号甲", "level": "Lv.7", "phone": "13800000000", "douyin": "hg_a", "color": 2, "createdAt": "2026-11-01T10:00" },
+            { "id": 2, "name": "混合版账号乙", "level": "Lv.6", "phone": "", "douyin": "", "color": 5, "createdAt": "2026-11-02T10:00" },
+            { "id": 3, "name": "没有等级的旧账号", "phone": "", "douyin": "", "color": 1, "createdAt": "2026-11-03T10:00" }
+          ],
+          "providers": ["蜂向"],
+          "medalRules": { "busyOrders": 4, "salesAmount": 1200, "hotOrders": 6, "aceAmount": 3200 },
+          "orders": [
+            { "id": 1, "store": "麓野日料", "cat": "餐饮", "contact": "王店长", "price": 1600, "deposit": 500,
+              "appt": "2026-11-28T14:00", "deliverMain": true, "deliverSub": true,
+              "settleVia": "private", "reviewResult": "", "note": "", "remindLog": [] }
+          ],
+          "payments": []
+        }
+        """
+        let data = Data(json.utf8)
+        let parsed = try BackupValidator.parseDetailed(data)
+        XCTAssertTrue(parsed.hasMedalRules, "混合版备份带了门槛，不该走旧备份兜底")
+        XCTAssertEqual(parsed.data.medalRules,
+                       MedalRules(busyOrders: 4, salesAmount: 1200, hotOrders: 6, aceAmount: 3200))
+        XCTAssertEqual(parsed.data.accounts.count, 3)
+        XCTAssertEqual(parsed.data.accounts[0].levelTitle, "Lv.7")
+        XCTAssertEqual(parsed.data.accounts[1].levelTitle, "Lv.6")
+        XCTAssertEqual(parsed.data.accounts[2].levelTitle, "Lv.5", "没等级的账号要回落 Lv.5")
+        XCTAssertEqual(parsed.data.orders.count, 1)
+        XCTAssertEqual(parsed.data.orders[0].store, "麓野日料")
+        XCTAssertEqual(parsed.data.providers, ["蜂向"])
+    }
 }

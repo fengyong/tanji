@@ -60,6 +60,15 @@ enum GeoStore {
     }
 }
 
+/// 备份解析结果。
+///
+/// 除了数据本身，还要记住备份里有没有勋章门槛：旧备份没有这个字段，
+/// 导入时沿用当前配置，而不是回落默认值（与混合版同口径）。
+struct ParsedBackup {
+    var data: AppData
+    var hasMedalRules: Bool
+}
+
 /// 备份文件解析器。
 enum BackupValidator {
 
@@ -68,6 +77,14 @@ enum BackupValidator {
 
     /// 解析备份 JSON，返回可直接落库的一套数据。
     static func parse(_ data: Data) throws -> AppData {
+        try parseDetailed(data).data
+    }
+
+    /// 解析备份 JSON，并保留「备份里有没有勋章门槛」这个信息。
+    ///
+    /// 旧备份没有门槛字段，导入时要沿用当前配置而不是回落默认值，
+    /// 所以只有这里能区分「备份里恰好是默认值」和「备份里根本没这个字段」。
+    static func parseDetailed(_ data: Data) throws -> ParsedBackup {
         let text = String(data: data, encoding: .utf8) ?? ""
         let stripped = text.hasPrefix("\u{FEFF}") ? String(text.dropFirst()) : text
         let object: Any
@@ -79,10 +96,14 @@ enum BackupValidator {
         guard let root = object as? [String: Any] else {
             throw BackupError.invalid("备份必须包含订单与收款流水数组")
         }
-        return try parse(root)
+        return try parseDetailed(root)
     }
 
     static func parse(_ root: [String: Any]) throws -> AppData {
+        try parseDetailed(root).data
+    }
+
+    static func parseDetailed(_ root: [String: Any]) throws -> ParsedBackup {
         // 版本白名单只增不减：0.2~0.4 是老 Web 版备份，0.5 起带正/副片与送审字段，0.6 起带 accounts/providers。
         if let version = root["version"], !(version is NSNull) {
             guard let text = version as? String, supportedVersions.contains(text) else {
@@ -114,13 +135,17 @@ enum BackupValidator {
         let providers = try parseProviders(root["providers"])
         let orders = try parseOrders(ordersRaw, accountIds: Set(accounts.map(\.id)))
         let payments = try parsePayments(paymentsRaw, orderIds: Set(orders.map(\.id)))
+        let medalRules = try parseMedalRules(root["medalRules"])
 
-        return AppData(orders: orders,
-                       payments: payments,
-                       threshold: threshold,
-                       notifyEnabled: notifyEnabled,
-                       accounts: accounts,
-                       providers: providers)
+        return ParsedBackup(
+            data: AppData(orders: orders,
+                          payments: payments,
+                          threshold: threshold,
+                          notifyEnabled: notifyEnabled,
+                          accounts: accounts,
+                          providers: providers,
+                          medalRules: medalRules ?? .standard),
+            hasMedalRules: medalRules != nil)
     }
 
     // MARK: - 分项校验
@@ -192,13 +217,22 @@ enum BackupValidator {
                 avatar = avatarText
             }
             let createdAt = try text(dict["createdAt"], "\(label)的创建时间")
+            // 对外等级：非法值直接报错（与混合版 validateState 同口径）；旧备份没有这个字段则留空。
+            var level: String?
+            if let raw = dict["level"], !(raw is NSNull) {
+                guard let text = raw as? String, AccountLevel.titles.contains(text) else {
+                    throw BackupError.invalid("\(label)的等级应为 Lv.5、Lv.6 或 Lv.7")
+                }
+                level = text
+            }
             accounts.append(Account(id: id,
                                     name: name,
                                     phone: phone,
                                     douyin: douyin,
                                     color: color,
                                     avatar: avatar,
-                                    createdAt: createdAt.isEmpty ? nil : createdAt))
+                                    createdAt: createdAt.isEmpty ? nil : createdAt,
+                                    level: level))
         }
         return accounts
     }
@@ -215,6 +249,46 @@ enum BackupValidator {
             providers.append(trimmed)
         }
         return providers
+    }
+
+    // MARK: - 勋章门槛
+
+    /// 解析勋章门槛。备份里没有这个字段 → 返回 nil（导入时沿用当前配置）。
+    ///
+    /// 单项缺失时回落默认值（与混合版 `validateMedalRules` 同口径）；
+    /// 整体不合法时整份备份拒收。
+    private static func parseMedalRules(_ value: Any?) throws -> MedalRules? {
+        guard let value, !(value is NSNull) else { return nil }
+        guard let dict = value as? [String: Any] else {
+            throw BackupError.invalid("勋章门槛格式无效")
+        }
+        let rules = MedalRules(busyOrders: try medalCount(dict["busyOrders"], "忙碌日单数", fallback: MedalRules.standard.busyOrders),
+                               salesAmount: try medalAmount(dict["salesAmount"], "千元日金额", fallback: MedalRules.standard.salesAmount),
+                               hotOrders: try medalCount(dict["hotOrders"], "爆单单数", fallback: MedalRules.standard.hotOrders),
+                               aceAmount: try medalAmount(dict["aceAmount"], "王牌日金额", fallback: MedalRules.standard.aceAmount))
+        do {
+            return try Logic.validateMedalRules(rules)
+        } catch {
+            throw BackupError.invalid(error.localizedDescription)
+        }
+    }
+
+    private static func medalCount(_ value: Any?, _ label: String, fallback: Int) throws -> Int {
+        guard let value, !(value is NSNull) else { return fallback }
+        guard let number = value as? NSNumber,
+              number.doubleValue == number.doubleValue.rounded(),
+              number.intValue >= 1 else {
+            throw BackupError.invalid("\(label)必须是大于 0 的整数")
+        }
+        return number.intValue
+    }
+
+    private static func medalAmount(_ value: Any?, _ label: String, fallback: Double) throws -> Double {
+        guard let value, !(value is NSNull) else { return fallback }
+        guard let number = value as? NSNumber, Logic.isMoneyAmount(number.doubleValue) else {
+            throw BackupError.invalid("\(label)必须是大于 0 的金额")
+        }
+        return number.doubleValue
     }
 
     private static let orderDateFields = ["shotAt", "submittedAt", "shortAt", "longAt", "depositPaidAt", "finalPaidAt", "remindAt", "publishedAt"]

@@ -146,7 +146,7 @@ enum BackupService {
     // MARK: - 导入
 
     /// 读取用户选中的备份文件并校验（不落库）。
-    static func loadImport(from url: URL) throws -> AppData {
+    static func loadImport(from url: URL, fallbackMedalRules: MedalRules = .standard) throws -> AppData {
         let scoped = url.startAccessingSecurityScopedResource()
         defer {
             if scoped { url.stopAccessingSecurityScopedResource() }
@@ -156,9 +156,13 @@ enum BackupService {
             throw BackupError.invalid("备份文件不能超过 10 MB")
         }
         let data = try Data(contentsOf: url)
-        let parsed = try BackupValidator.parse(data)
-        try verifyPaymentsConsistency(parsed)
-        return parsed
+        var parsed = try BackupValidator.parseDetailed(data)
+        try verifyPaymentsConsistency(parsed.data)
+        // 旧备份没有门槛配置：沿用当前配置，而不是回落默认值（与混合版同口径）。
+        if !parsed.hasMedalRules {
+            parsed.data.medalRules = fallbackMedalRules
+        }
+        return parsed.data
     }
 
     /// 导入前的流水一致性自检：流水金额必须与订单的已收状态对得上。
@@ -192,6 +196,8 @@ struct BackupDocument: Encodable {
     var notifyEnabled: Bool
     var accounts: [Account]
     var providers: [String]
+    /// 勋章门槛：与混合版同字段名，混合版能直接读。
+    var medalRules: MedalRules
     var orders: [Order]
     var payments: [Payment]
 
@@ -201,6 +207,7 @@ struct BackupDocument: Encodable {
         notifyEnabled = data.notifyEnabled
         accounts = data.accounts
         providers = data.providers
+        medalRules = data.medalRules
         orders = data.orders
         payments = data.payments
     }

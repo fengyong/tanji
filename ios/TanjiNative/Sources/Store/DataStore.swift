@@ -8,6 +8,11 @@ struct SnapshotContent: Codable, Equatable {
     var notifyEnabled: Bool
     var accounts: [Account]
     var providers: [String]
+    /// 勋章门槛。
+    ///
+    /// 可选：旧快照里没有这个字段，解码后为 nil，按标准值兜底——
+    /// 直接写成非可选会让旧快照整体解码失败、数据读不出来。
+    var medalRules: MedalRules?
 
     var data: AppData {
         AppData(orders: orders,
@@ -15,7 +20,8 @@ struct SnapshotContent: Codable, Equatable {
                 threshold: threshold,
                 notifyEnabled: notifyEnabled,
                 accounts: accounts,
-                providers: providers)
+                providers: providers,
+                medalRules: medalRules ?? .standard)
     }
 
     init(orders: [Order],
@@ -23,13 +29,15 @@ struct SnapshotContent: Codable, Equatable {
          threshold: Int,
          notifyEnabled: Bool,
          accounts: [Account],
-         providers: [String]) {
+         providers: [String],
+         medalRules: MedalRules? = nil) {
         self.orders = orders
         self.payments = payments
         self.threshold = threshold
         self.notifyEnabled = notifyEnabled
         self.accounts = accounts
         self.providers = providers
+        self.medalRules = medalRules
     }
 
     init(data: AppData) {
@@ -39,6 +47,7 @@ struct SnapshotContent: Codable, Equatable {
         notifyEnabled = data.notifyEnabled
         accounts = data.accounts
         providers = data.providers
+        medalRules = data.medalRules
     }
 }
 
@@ -143,12 +152,21 @@ final class DataStore {
         CREATE TABLE IF NOT EXISTS accounts(
           mode TEXT NOT NULL,
           id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
-          color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
+          color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT, level TEXT DEFAULT 'Lv.5',
           PRIMARY KEY(mode,id))
         """)
+        // 老库没有 level 列（该字段后加），补一列，已有账号按默认值 Lv.5。
+        try ensureColumn(on: db, table: "accounts", column: "level", definition: "TEXT DEFAULT 'Lv.5'")
         try db.execute("""
         CREATE TABLE IF NOT EXISTS settings(scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT, PRIMARY KEY(scope,key))
         """)
+    }
+
+    /// 给已有表补一列：列在就什么都不做（`CREATE TABLE IF NOT EXISTS` 不会改已有表）。
+    private func ensureColumn(on db: SQLiteDatabase, table: String, column: String, definition: String) throws {
+        let columns = try db.query("PRAGMA table_info(\(table))")
+        if columns.contains(where: { $0["name"]?.stringValue == column }) { return }
+        try db.execute("ALTER TABLE \(table) ADD COLUMN \(column) \(definition)")
     }
 
     // MARK: - 读写快照
@@ -201,11 +219,12 @@ final class DataStore {
                                 payment.note.map { SQLValue.text($0) } ?? SQLValue.null])
             }
             for account in snapshot.content.accounts {
-                try db.execute("INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                try db.execute("INSERT INTO accounts (mode,id,name,phone,douyin,color,avatar,created_at,level) VALUES (?,?,?,?,?,?,?,?,?)",
                                [.text(mode.rawValue), .integer(Int64(account.id)), .text(account.name),
                                 .text(account.phone), .text(account.douyin), .integer(Int64(account.color)),
                                 account.avatar.map { SQLValue.text($0) } ?? SQLValue.null,
-                                account.createdAt.map { SQLValue.text($0) } ?? SQLValue.null])
+                                account.createdAt.map { SQLValue.text($0) } ?? SQLValue.null,
+                                .text(account.levelTitle)])
             }
 
             let document = try encoder.encode(snapshot)
@@ -387,7 +406,8 @@ final class DataStore {
                                     douyin: row["douyin"]?.stringValue ?? "",
                                     color: row["color"]?.intValue ?? 0,
                                     avatar: row["avatar"]?.stringValue,
-                                    createdAt: row["created_at"]?.stringValue))
+                                    createdAt: row["created_at"]?.stringValue,
+                                    level: row["level"]?.stringValue))
         }
         let threshold = Int(try settingValue(scope: mode.rawValue, key: "threshold") ?? "") ?? 15
         return SnapshotContent(orders: orders,

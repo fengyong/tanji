@@ -146,6 +146,10 @@ struct Account: Codable, Equatable, Identifiable {
     /// 头像 dataURL
     var avatar: String?
     var createdAt: String?
+    /// 对外登记等级（Lv.5 / Lv.6 / Lv.7）。不参与勋章判定。
+    ///
+    /// 可选：旧备份与旧库里没有这个字段，缺失时按 `AccountLevel.standard` 兜底。
+    var level: String?
 
     init(id: Int,
          name: String,
@@ -153,7 +157,8 @@ struct Account: Codable, Equatable, Identifiable {
          douyin: String = "",
          color: Int = 0,
          avatar: String? = nil,
-         createdAt: String? = nil) {
+         createdAt: String? = nil,
+         level: String? = nil) {
         self.id = id
         self.name = name
         self.phone = phone
@@ -161,6 +166,13 @@ struct Account: Codable, Equatable, Identifiable {
         self.color = color
         self.avatar = avatar
         self.createdAt = createdAt
+        self.level = level
+    }
+
+    /// 对外等级的可读值：缺失或非法时回落到 Lv.5（与混合版 `accLevel` 同口径）。
+    var levelTitle: String {
+        guard let level, AccountLevel.titles.contains(level) else { return AccountLevel.standard.rawValue }
+        return level
     }
 }
 
@@ -172,6 +184,39 @@ struct AppData: Equatable {
     var notifyEnabled: Bool = true
     var accounts: [Account] = []
     var providers: [String] = []
+    /// 勋章门槛：所有账号共用一套标准。
+    var medalRules: MedalRules = .standard
+}
+
+/// 账号对外登记等级（与混合版 `ACCOUNT_LEVELS` 同口径，便于两版备份互导）。
+enum AccountLevel: String, CaseIterable, Codable, Identifiable {
+    case l5 = "Lv.5"
+    case l6 = "Lv.6"
+    case l7 = "Lv.7"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+    /// 缺省等级。
+    static let standard: AccountLevel = .l5
+    /// 合法值集合：导入校验用。
+    static let titles: [String] = AccountLevel.allCases.map(\.rawValue)
+}
+
+/// 勋章门槛：判定某一天拿到哪枚徽标，四档共用一套标准。
+///
+/// 与混合版 `DEFAULT_MEDAL_RULES` 同字段同默认值，两版备份可以互导。
+/// 金额按当天订单总价计算，不是实收。
+struct MedalRules: Codable, Equatable {
+    /// ⭐ 忙碌日：当天订单单数达到即得。
+    var busyOrders: Int
+    /// 💰 千元日：当天订单总价达到即得。
+    var salesAmount: Double
+    /// 🔥 爆单：当天订单单数达到即得。
+    var hotOrders: Int
+    /// 💎 王牌日：当天订单总价达到即得。
+    var aceAmount: Double
+
+    static let standard = MedalRules(busyOrders: 3, salesAmount: 1000, hotOrders: 5, aceAmount: 2500)
 }
 
 /// 账号标识色板（与混合版一致：浅底 + 墨色）。

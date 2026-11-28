@@ -245,6 +245,8 @@ final class AppModel: ObservableObject {
     var orders: [Order] { data.orders }
     var payments: [Payment] { data.payments }
     var threshold: Int { data.threshold }
+    /// 勋章门槛：全账号共用一套标准。
+    var medalRules: MedalRules { data.medalRules }
 
     /// 账号筛选后的订单
     var filteredOrders: [Order] {
@@ -280,6 +282,12 @@ final class AppModel: ObservableObject {
     }
 
     // MARK: - 账号
+
+    /// 保存勋章门槛：全账号共用一套标准，改完历史日期立即按新门槛重判。
+    func setMedalRules(_ rules: MedalRules) async throws {
+        data.medalRules = try Logic.validateMedalRules(rules)
+        await save()
+    }
 
     func upsertAccount(_ account: Account) async {
         if let index = data.accounts.firstIndex(where: { $0.id == account.id }) {

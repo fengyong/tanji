@@ -166,7 +166,7 @@ struct TripView: View {
                 let list = ordersOfDay(iso)
                 TripDayCell(day: day,
                             count: list.count,
-                            badge: Logic.dayBadge(count: list.count, sum: list.reduce(0) { $0 + $1.price }),
+                            badge: Logic.dayBadge(count: list.count, sum: list.reduce(0) { $0 + $1.price }, rules: model.medalRules),
                             isSelected: iso == model.selectedDay,
                             isToday: iso == Format.today()) {
                     selectDay(iso)
@@ -407,7 +407,7 @@ struct TripView: View {
         var money = 0
         for day in monthDays {
             let list = ordersOfDay(day)
-            guard let badge = Logic.dayBadge(count: list.count, sum: list.reduce(0) { $0 + $1.price }) else { continue }
+            guard let badge = Logic.dayBadge(count: list.count, sum: list.reduce(0) { $0 + $1.price }, rules: model.medalRules) else { continue }
             if badge.emoji == "🔥" { fire += 1 }
             if badge.emoji == "💰" { money += 1 }
         }
@@ -435,7 +435,7 @@ struct TripView: View {
             ? "今日行程"
             : "\(dayParts(model.selectedDay).month)月\(dayParts(model.selectedDay).day)日 · 周\(Format.dowOf(model.selectedDay))"
         let sum = dayOrders.reduce(0) { $0 + $1.price }
-        if let badge = Logic.dayBadge(count: dayOrders.count, sum: sum) {
+        if let badge = Logic.dayBadge(count: dayOrders.count, sum: sum, rules: model.medalRules) {
             title += " · \(badge.emoji) \(badge.title)"
         }
         return title

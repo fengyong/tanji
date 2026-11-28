@@ -46,7 +46,7 @@ final class DataStoreTests: XCTestCase {
             ],
             threshold: 30,
             notifyEnabled: false,
-            accounts: [Account(id: 1, name: "大王", phone: "13800000000", douyin: "dawang", color: 3)],
+            accounts: [Account(id: 1, name: "大王", phone: "13800000000", douyin: "dawang", color: 3, level: "Lv.7")],
             providers: ["蜂向", "小爱"]
         ))
     }
@@ -72,6 +72,22 @@ final class DataStoreTests: XCTestCase {
         XCTAssertEqual(result.content.threshold, 30)
         XCTAssertFalse(result.content.notifyEnabled)
         XCTAssertEqual(result.content.providers, ["蜂向", "小爱"])
+        // 勋章门槛与账号等级都要能原样存回、读回。
+        XCTAssertEqual(result.content.medalRules, MedalRules.standard)
+        XCTAssertEqual(result.content.accounts.first?.levelTitle, "Lv.7")
+    }
+
+    /// 勋章门槛存进快照再读回来要一模一样（两套数据空间各存各的）。
+    func testMedalRulesRoundTrip() throws {
+        let store = makeStore()
+        let rules = MedalRules(busyOrders: 4, salesAmount: 1200, hotOrders: 6, aceAmount: 3200)
+        var content = sampleContent()
+        content.medalRules = rules
+        try store.persist(Snapshot(content: content, revision: 1, savedAt: Format.isoString(),
+                                   mode: DataSpace.work.rawValue), mode: .work)
+
+        let loaded = try XCTUnwrap(try store.loadSnapshot(mode: .work).snapshot)
+        XCTAssertEqual(loaded.content.medalRules, rules, "门槛要能原样存回")
     }
 
     func testTwoDataSpacesAreIsolated() throws {
@@ -139,5 +155,41 @@ final class DataStoreTests: XCTestCase {
         XCTAssertEqual(settings.first?["c"]?.intValue, 1)
         let columns = try db.query("PRAGMA table_info(orders)")
         XCTAssertEqual(columns.count, 30, "orders 表列数要与写入语句一致")
+    }
+
+    /// 老库升级：accounts 表是后加 `level` 列的，旧库没有这一列。
+    ///
+    /// 打开旧库时必须自动补列，且**旧账号的等级要回落 Lv.5**（不是 nil、也不是空串）。
+    func testOldDatabaseGetsLevelColumn() throws {
+        let url = tempFolder.appendingPathComponent("tanji.sqlite")
+        // 先按老结构建一个库：accounts 表没有 level 列，且已有一条账号。
+        try createLegacyDatabase(at: url)
+
+        // 打开旧库即触发建表与补列。
+        let store = makeStore()
+        try store.open()
+
+        let db = try SQLiteDatabase(path: url.path)
+        let columns = try db.query("PRAGMA table_info(accounts)")
+        XCTAssertTrue(columns.contains { $0["name"]?.stringValue == "level" },
+                      "老库打开后要自动补上 level 列")
+
+        // 老账号那一行：等级列是新加的，值应回落 Lv.5。
+        let rows = try db.query("SELECT id,name,level FROM accounts WHERE mode=? AND id=1", [.text("work")])
+        XCTAssertEqual(rows.first?["name"]?.stringValue, "老账号", "补列不能动已有数据")
+        XCTAssertEqual(rows.first?["level"]?.stringValue, "Lv.5", "老账号等级应回落 Lv.5")
+    }
+
+    /// 建一个「升级前」的库：accounts 表没有 level 列，已有一条账号。
+    private func createLegacyDatabase(at url: URL) throws {
+        let legacy = try SQLiteDatabase(path: url.path)
+        try legacy.execute("""
+        CREATE TABLE accounts(
+          mode TEXT NOT NULL,
+          id INTEGER NOT NULL, name TEXT NOT NULL, phone TEXT, douyin TEXT,
+          color INTEGER DEFAULT 0, avatar TEXT, created_at TEXT,
+          PRIMARY KEY(mode,id))
+        """)
+        try legacy.execute("INSERT INTO accounts (mode,id,name) VALUES ('work',1,'老账号')")
     }
 }

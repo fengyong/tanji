@@ -78,6 +78,7 @@ struct Account: Codable, Identifiable {
     var color: Int          // 标识色 0-7
     var avatar: String?     // 头像 dataURL
     var createdAt: String?
+    var level: String?      // 对外登记等级 Lv.5/Lv.6/Lv.7；可选，旧备份/旧库没有时按 Lv.5 兜底
 }
 
 struct AppData {
@@ -86,10 +87,38 @@ struct AppData {
     var notifyEnabled: Bool = true
     var accounts: [Account]
     var providers: [String]
+    var medalRules: MedalRules = .standard   // 勋章门槛（两套数据空间各自一份）
+}
+
+// 账号对外登记等级（与混合版 ACCOUNT_LEVELS 同口径，便于两版备份互导）
+enum AccountLevel: String, CaseIterable, Codable {
+    case l5 = "Lv.5"; case l6 = "Lv.6"; case l7 = "Lv.7"
+    static let standard: AccountLevel = .l5      // 缺省等级
+    static let titles: [String]                   // 合法值集合，导入校验用
+}
+
+// 勋章门槛：判定某天拿到哪枚徽标，四档共用一套标准（与混合版 DEFAULT_MEDAL_RULES 同字段同默认值）
+struct MedalRules: Codable, Equatable {
+    var busyOrders: Int     // ⭐ 忙碌日：当天订单单数 ≥ 即得
+    var salesAmount: Double // 💰 千元日：当天订单总价 ≥ 即得（不是实收）
+    var hotOrders: Int      // 🔥 爆单：当天订单单数 ≥ 即得
+    var aceAmount: Double   // 💎 王牌日：当天订单总价 ≥ 即得
+    static let standard = MedalRules(busyOrders: 3, salesAmount: 1000, hotOrders: 5, aceAmount: 2500)
 }
 ```
 
 `Order` / `Payment` / `Account` 的字段名与混合版 JSON 备份**完全一致**，旧备份可原样导入。
+
+**新增字段的兼容口径**（`Account.level`、`AppData.medalRules`）：
+
+- 两个字段都是**可选**：旧备份与旧快照里没有它们，直接写成非可选会让整份解码失败、数据读不出来。
+- `Account.level` 缺失或非法 → `levelTitle` 回落到 `Lv.5`；备份里出现非法值（如 `Lv.8`）→ 整份拒收。
+- `AppData.medalRules` 缺失 → 按 `MedalRules.standard` 兜底；**旧备份导入时沿用当前配置**而不是回落默认值
+  （`BackupService.loadImport(from:fallbackMedalRules:)` 靠 `ParsedBackup.hasMedalRules` 区分
+  「备份里恰好是默认值」与「备份里根本没这个字段」）。
+- `medalRules` 随数据空间独立保存（走 `SnapshotContent` 的 JSON 快照），不单独建 SQLite 列；
+  `accounts.level` 需要单独建列（`level TEXT DEFAULT 'Lv.5'`），老库启动时用
+  `PRAGMA table_info` 判存在再 `ALTER TABLE` 补列。
 
 ## 2. 业务规则（`Sources/Logic/Logic.swift`）
 
@@ -109,7 +138,9 @@ Logic.remindCount(order) / Logic.lastRemind(order)
 Logic.apptOverlap(orders, date, time, excludeId) -> Overlap{same, overlap}
 Logic.statsFor(orders:payments:period:list:now:) -> Stats{start,deals,paid,done,dealSum,paidSum}
 Logic.upcomingByDay(orders, fromISO:, days:) -> [DaySummary{day,count,sum}]
-Logic.dayBadge(count:sum:) -> Badge?   // ⭐忙碌日 🔥爆单 💰千元日 💎王牌日
+Logic.dayBadge(count:sum:rules:) -> Badge?   // ⭐忙碌日 🔥爆单 💰千元日 💎王牌日（取当天最高一档）
+Logic.validateMedalRules(MedalRules) throws -> MedalRules   // 门槛校验，文案与混合版一致
+Logic.isMoneyAmount(Double) -> Bool         // 金额最多两位小数
 Logic.moneyCents / Logic.orderMoney / Logic.paymentSpec
 ```
 
@@ -149,6 +180,7 @@ model.settingsPresented       // 设置页 sheet
 
 model.filteredOrders / model.filteredPayments   // 已按账号筛选
 model.isMultiAccount / model.accounts / model.orders / model.payments / model.threshold
+model.medalRules        // 当前数据空间的勋章门槛（MedalRules）
 model.overdueBadgeCount
 model.account(_:) / model.order(_:) / model.payments(of:)
 model.providerList
@@ -170,6 +202,7 @@ await model.setExpectPayAt(orderId:, value:) / setReviewResult(orderId:, value:)
 await model.setOrderAccount(orderId:, accountId:)
 await model.changeThreshold(±1) / setNotifyEnabled(Bool) / rememberProvider(String)
 await model.toggleAmountPrivacy()      // Face ID 校验后切换
+try await model.setMedalRules(MedalRules)   // 先校验再落库，改完历史日期立即按新门槛重判
 model.showToast("文案")
 
 // 提示条宿主仲裁（ToastHost.swift 用）
@@ -186,6 +219,11 @@ model.activeToastHostID: UUID?        // 当前该显示提示条的宿主（栈
 - UI 测试启动参数带 `-tanji-reset`：把数据重置成 Demo 种子。
   UI 测试会推进订单状态、打卡，不重置的话后一个用例的起点会被前一个改掉。
 - 定位元素**优先用 `accessibilityIdentifier`**：`order.row.<id>`、`export.json` 等。
+  当前可用的标识：
+  `order.row.<id>`、`export.<kind>`、`account.add`、`account.row.<id>`、
+  `account.field.name` / `account.field.phone` / `account.field.douyin`、
+  `account.level.Lv.5` / `account.level.Lv.6` / `account.level.Lv.7`、`account.save`、
+  `medal.busyOrders` / `medal.salesAmount` / `medal.hotOrders` / `medal.aceAmount`、`medal.save`。
 - `.plain` 按钮的可访问性标签是「标题 + 副标题」的拼接串，
   只能用 `label CONTAINS` 匹配，**不能等值匹配**。
 - 首页首屏卡片有三种形态（下一站 / 今天的店都拍完了 / 今天没有安排），
@@ -207,6 +245,20 @@ model.activeToastHostID: UUID?        // 当前该显示提示条的宿主（栈
   两条坑：滚动必须用**长距离坐标拖动**（dy 0.5 → 0.05），短 `swipeUp`
   在 iOS 26 浮动标签栏下滚不动，会误判成「内容被标签栏压住」；
   截图按 `suggestedHumanReadableName` 认页面，别按文件名猜。
+
+  探针有两个用例，分别单独跑：
+  - `TanjiLayoutProbe/testCaptureScrolledPages`：5 个 Tab 的首屏与滚到底截图（约 4–5 分钟）。
+  - `TanjiLayoutProbe/testCaptureSettings`：设置页「勋章门槛」分区、账号表单等级 chip、
+    账号行副标题排版（约 30 秒）。
+
+  ```bash
+  # 只跑设置页那一段
+  xcodebuild test -project ios/TanjiNative/TanjiNative.xcodeproj -scheme TanjiNative \
+    -destination 'platform=iOS Simulator,name=iPhone 17' \
+    -only-testing:TanjiNativeUITests/TanjiLayoutProbe/testCaptureSettings \
+    -resultBundlePath /tmp/probe.xcresult \
+    OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -disable-sandbox'
+  ```
 
 ## 5. 界面组件（`Sources/Design/Components.swift`）
 
@@ -276,7 +328,8 @@ BackupService.exportJSON(AppData) throws -> URL        // 探记-备份-YYYY-MM-
 BackupService.exportCSV(AppData) throws -> URL         // 探记-导出-YYYY-MM-DD.csv
 BackupService.exportSQLite() throws -> URL              // 探记-YYYY-MM-DD.db
 BackupService.exportCheckpoint(AppData) throws -> URL   // 探记-替换前备份-YYYY-MM-DD.json
-BackupService.loadImport(from: URL) throws -> AppData  // 读取 + 校验（不落库）
+BackupService.loadImport(from: URL, fallbackMedalRules: MedalRules = .standard) throws -> AppData
+                                         // 读取 + 校验（不落库）；旧备份无门槛时沿用当前配置
 BackupService.exportFolder() -> URL                    // Documents 目录
 
 // 通知
@@ -364,5 +417,13 @@ struct DocumentPicker: UIViewControllerRepresentable {
 | 设置 | `src/app/views/settings.js` + `src/app/accounts.js` + `src/app/export.js` | `Sources/Features/Settings/` |
 | 视觉 | `www/index.html` 的 `<style>` 段 | `Sources/Design/` |
 | 规则 | `www/logic.js` | `Sources/Logic/Logic.swift` |
+
+**勋章门槛与账号等级的参照位置**（本轮从混合版迁移过来，口径以此为准）：
+
+- 门槛默认值与校验：`src/app/storage.js` 的 `DEFAULT_MEDAL_RULES`、`validateMedalRules`、`isMoneyAmount`。
+- 门槛设置页：`src/app/views/settings.js` 的 `medalSettingsHtml`（四行输入 + 说明文案）。
+- 账号等级：`src/app/storage.js` 的 `ACCOUNT_LEVELS`（`Lv.5`/`Lv.6`/`Lv.7`）、
+  `src/app/accounts.js` 的 `accLevel`（缺失回落 `Lv.5`）、`accountCopyText`（拷贝文本带「等级:」行）。
+- 徽标判定：`src/app/accounts.js` 的 `dayBadge`（取当天最高一档：💎 > 🔥 > 💰 > ⭐）。
 
 页面骨架与弹层在 `www/index.html` 的 `<body>` 段（`<section class="view" id="v-xxx">`、`.sheet` 弹层）。

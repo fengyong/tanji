@@ -20,6 +20,15 @@ struct SettingsView: View {
     @State private var showClearConfirm = false
     @State private var showRestoreConfirm = false
 
+    /// 勋章门槛的输入值：用文本存，保证用户正在输入的内容不会被重绘覆盖。
+    @State private var medalBusyOrders = ""
+    @State private var medalSalesAmount = ""
+    @State private var medalHotOrders = ""
+    @State private var medalAceAmount = ""
+    @State private var medalError: String?
+    /// 门槛输入是否已从当前配置填过（只填一次，之后不覆盖用户输入）。
+    @State private var didFillMedalRules = false
+
     var body: some View {
         ZStack {
             ScreenBackground()
@@ -29,6 +38,7 @@ struct SettingsView: View {
                     accountSection
                     dataSection
                     reminderSection
+                    medalSection
                     spaceSection
                     dangerSection
                     aboutSection
@@ -128,6 +138,7 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.brandInk)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("account.add")
             }
             CardBox(padding: 2) {
                 VStack(spacing: 0) {
@@ -170,7 +181,7 @@ struct SettingsView: View {
                             .font(Theme.body(14, weight: .bold))
                             .foregroundStyle(Theme.ink)
                             .lineLimit(1)
-                        Text("抖音 \(account.douyin.isEmpty ? "—" : account.douyin) · 手机 \(account.phone.isEmpty ? "—" : account.phone) · \(orderCount(of: account)) 单")
+                        Text("\(account.levelTitle) · 抖音 \(account.douyin.isEmpty ? "—" : account.douyin) · 手机 \(account.phone.isEmpty ? "—" : account.phone) · \(orderCount(of: account)) 单")
                             .font(Theme.body(10.5))
                             .foregroundStyle(Theme.sub)
                             .lineLimit(2)
@@ -181,6 +192,7 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("account.row.\(account.id)")
             Button {
                 copyAccount(account)
             } label: {
@@ -205,10 +217,12 @@ struct SettingsView: View {
         }
     }
 
-    /// 拷贝账号资料（昵称 / 抖音 / 手机三行，空字段跳过）——报名表、服务商用。
+    /// 拷贝账号资料（昵称 / 等级 / 抖音 / 手机，空字段跳过）——报名表、服务商用。
     private func copyAccount(_ account: Account) {
         var lines: [String] = []
         if !account.name.isEmpty { lines.append("昵称:\(account.name)") }
+        // 等级总是带上（与混合版 accountCopyText 同口径）。
+        lines.append("等级:\(account.levelTitle)")
         if !account.douyin.isEmpty { lines.append("抖音:\(account.douyin)") }
         if !account.phone.isEmpty { lines.append("手机:\(account.phone)") }
         guard !lines.isEmpty else {
@@ -493,6 +507,118 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 勋章门槛
+
+    /// 勋章门槛：全账号共用一套标准，改完历史日期立即按新门槛重判。
+    ///
+    /// 对应混合版设置页的「勋章门槛」子页（`src/app/views/settings.js` 的
+    /// `medalSettingsHtml`），四项门槛与校验规则同口径。
+    private var medalSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionTitle("勋章门槛")
+            Text("所有账号共用这一套标准。金额按当天订单总价计算，不是实收；修改后历史日期会立即按新门槛重新判定。")
+                .font(Theme.body(10.5))
+                .foregroundStyle(Theme.sub)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 2)
+            CardBox {
+                VStack(spacing: 0) {
+                    medalRow(emoji: "⭐", title: "忙碌日", unit: "单",
+                             keyboard: .numberPad, text: $medalBusyOrders,
+                             identifier: "medal.busyOrders")
+                    medalRow(emoji: "💰", title: "千元日", unit: nil,
+                             keyboard: .decimalPad, text: $medalSalesAmount,
+                             identifier: "medal.salesAmount")
+                    medalRow(emoji: "🔥", title: "爆单", unit: "单",
+                             keyboard: .numberPad, text: $medalHotOrders,
+                             identifier: "medal.hotOrders")
+                    medalRow(emoji: "💎", title: "王牌日", unit: nil,
+                             keyboard: .decimalPad, text: $medalAceAmount,
+                             identifier: "medal.aceAmount")
+                    if let medalError {
+                        Text(medalError)
+                            .font(Theme.body(11.5))
+                            .foregroundStyle(Theme.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 8)
+                    }
+                    PrimaryButton(title: "保存门槛") { saveMedalRules() }
+                        .accessibilityIdentifier("medal.save")
+                        .padding(.top, 14)
+                }
+            }
+        }
+        .onAppear(perform: fillMedalRulesIfNeeded)
+    }
+
+    private func medalRow(emoji: String,
+                          title: String,
+                          unit: String?,
+                          keyboard: UIKeyboardType,
+                          text: Binding<String>,
+                          identifier: String) -> some View {
+        HStack(spacing: 9) {
+            Text(emoji)
+                .font(Theme.body(14))
+            Text(title)
+                .font(Theme.body(13, weight: .semibold))
+                .foregroundStyle(Theme.ink)
+            Spacer(minLength: 0)
+            if let unit {
+                Text(unit)
+                    .font(Theme.body(11.5))
+                    .foregroundStyle(Theme.sub)
+            }
+            TextField("", text: text)
+                .keyboardType(keyboard)
+                .multilineTextAlignment(.trailing)
+                .font(Theme.body(15, weight: .bold))
+                .foregroundStyle(Theme.ink)
+                .frame(width: 96)
+                .accessibilityIdentifier(identifier)
+        }
+        .padding(.vertical, 9)
+    }
+
+    /// 首次进入时把当前门槛填进输入框；之后不再覆盖用户正在输入的内容。
+    private func fillMedalRulesIfNeeded() {
+        guard !didFillMedalRules else { return }
+        didFillMedalRules = true
+        let rules = model.medalRules
+        medalBusyOrders = String(rules.busyOrders)
+        medalSalesAmount = medalAmountText(rules.salesAmount)
+        medalHotOrders = String(rules.hotOrders)
+        medalAceAmount = medalAmountText(rules.aceAmount)
+    }
+
+    /// 金额输入框的初始文本：整数不带小数点，小数最多两位。
+    private func medalAmountText(_ value: Double) -> String {
+        let rounded = (value * 100).rounded() / 100
+        if rounded == rounded.rounded() { return String(Int(rounded)) }
+        return String(rounded)
+    }
+
+    private func saveMedalRules() {
+        let busy = Int(medalBusyOrders.trimmingCharacters(in: .whitespaces))
+        let hot = Int(medalHotOrders.trimmingCharacters(in: .whitespaces))
+        let sales = Double(medalSalesAmount.trimmingCharacters(in: .whitespaces))
+        let ace = Double(medalAceAmount.trimmingCharacters(in: .whitespaces))
+        guard let busy, let hot, let sales, let ace else {
+            medalError = "请填写完整的数字"
+            return
+        }
+        let rules = MedalRules(busyOrders: busy, salesAmount: sales, hotOrders: hot, aceAmount: ace)
+        Task {
+            do {
+                try await model.setMedalRules(rules)
+                medalError = nil
+                model.showToast("勋章门槛已保存")
+            } catch {
+                medalError = error.localizedDescription
+            }
+        }
+    }
+
     // MARK: - 数据空间
 
     private var spaceSection: some View {
@@ -657,7 +783,8 @@ struct SettingsView: View {
         // 文件选择器收起：把挂载点一起关掉，避免留一层空白的 sheet。
         showPicker = false
         do {
-            let parsed = try BackupService.loadImport(from: url)
+            // 旧备份没有勋章门槛时沿用当前配置（不是回落默认值），与混合版同口径。
+            let parsed = try BackupService.loadImport(from: url, fallbackMedalRules: model.medalRules)
             let preview = ImportPreview(fileName: url.lastPathComponent, data: parsed)
             // 等文件选择器 dismiss 完再切到确认页，避免两个 sheet 抢同一个挂载点。
             Task { @MainActor in
@@ -925,6 +1052,7 @@ struct SettingsSchemaView: View {
       color      INTEGER DEFAULT 0, -- 标识色 0-7
       avatar     TEXT,              -- 头像 dataURL
       created_at TEXT,
+      level      TEXT DEFAULT 'Lv.5', -- 对外登记等级 Lv.5/Lv.6/Lv.7
       PRIMARY KEY(mode, id)
     );
 

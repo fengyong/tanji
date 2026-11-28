@@ -186,4 +186,65 @@ final class LogicTests: XCTestCase {
         XCTAssertFalse(Logic.validDateTime(""))
         XCTAssertFalse(Logic.validDateTime(nil))
     }
+
+    // MARK: - 勋章门槛
+
+    func testMedalRulesDefaults() {
+        // 默认门槛与混合版 DEFAULT_MEDAL_RULES 一致，两版备份才能互导。
+        XCTAssertEqual(MedalRules.standard.busyOrders, 3)
+        XCTAssertEqual(MedalRules.standard.salesAmount, 1000)
+        XCTAssertEqual(MedalRules.standard.hotOrders, 5)
+        XCTAssertEqual(MedalRules.standard.aceAmount, 2500)
+    }
+
+    func testDayBadgeUsesConfiguredRules() {
+        // 同一天只给最高一档。
+        XCTAssertEqual(Logic.dayBadge(count: 3, sum: 0, rules: .standard)?.title, "忙碌日")
+        XCTAssertEqual(Logic.dayBadge(count: 0, sum: 1000, rules: .standard)?.title, "千元日")
+        XCTAssertEqual(Logic.dayBadge(count: 5, sum: 0, rules: .standard)?.title, "爆单")
+        XCTAssertEqual(Logic.dayBadge(count: 0, sum: 2500, rules: .standard)?.title, "王牌日")
+        XCTAssertNil(Logic.dayBadge(count: 2, sum: 999, rules: .standard))
+
+        // 改门槛后历史日期立即按新门槛重判。
+        let strict = MedalRules(busyOrders: 1, salesAmount: 100, hotOrders: 2, aceAmount: 200)
+        XCTAssertEqual(Logic.dayBadge(count: 1, sum: 0, rules: strict)?.title, "忙碌日")
+        XCTAssertNil(Logic.dayBadge(count: 1, sum: 0, rules: .standard), "旧门槛下单单一单不成勋章")
+    }
+
+    func testMedalRulesValidation() {
+        // 爆单必须严于忙碌。
+        XCTAssertThrowsError(try Logic.validateMedalRules(
+            MedalRules(busyOrders: 5, salesAmount: 1000, hotOrders: 5, aceAmount: 2500)
+        ))
+        // 王牌不得低于千元。
+        XCTAssertThrowsError(try Logic.validateMedalRules(
+            MedalRules(busyOrders: 3, salesAmount: 3000, hotOrders: 5, aceAmount: 2500)
+        ))
+        // 单数至少 1。
+        XCTAssertThrowsError(try Logic.validateMedalRules(
+            MedalRules(busyOrders: 0, salesAmount: 1000, hotOrders: 5, aceAmount: 2500)
+        ))
+        // 金额必须大于 0。
+        XCTAssertThrowsError(try Logic.validateMedalRules(
+            MedalRules(busyOrders: 3, salesAmount: 0, hotOrders: 5, aceAmount: 2500)
+        ))
+        // 金额最多两位小数。
+        XCTAssertThrowsError(try Logic.validateMedalRules(
+            MedalRules(busyOrders: 3, salesAmount: 1000.123, hotOrders: 5, aceAmount: 2500)
+        ))
+        XCTAssertNoThrow(try Logic.validateMedalRules(.standard))
+    }
+
+    // MARK: - 账号对外等级
+
+    func testAccountLevelFallback() {
+        // 旧数据没有等级字段时按 Lv.5 兜底。
+        let legacy = Account(id: 1, name: "小满")
+        XCTAssertEqual(legacy.levelTitle, "Lv.5")
+        // 非法等级同样回落，不让脏数据冒到界面上。
+        let broken = Account(id: 1, name: "小满", level: "Lv.9")
+        XCTAssertEqual(broken.levelTitle, "Lv.5")
+        XCTAssertEqual(Account(id: 1, name: "小满", level: "Lv.6").levelTitle, "Lv.6")
+        XCTAssertEqual(AccountLevel.titles, ["Lv.5", "Lv.6", "Lv.7"])
+    }
 }

@@ -1,5 +1,16 @@
 import Foundation
 
+/// 勋章门槛不合法时的原因（文案与混合版 `validateMedalRules` 一致）。
+enum MedalRulesError: LocalizedError {
+    case invalid(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalid(let message): return message
+        }
+    }
+}
+
 /// 业务规则层（纯函数，不碰 UI、不读全局状态）。
 ///
 /// 这是产品口径的唯一真源，Swift 版逐条对应 Web 版的 `www/logic.js`。
@@ -287,11 +298,47 @@ enum Logic {
     }
 
     /// ⭐ 忙碌日 ≥3 单 · 🔥 爆单 ≥5 单 · 💰 千元日 ≥¥1,000 · 💎 王牌日 ≥¥2,500
-    static func dayBadge(count: Int, sum: Double) -> Badge? {
-        if sum >= 2500 { return Badge(emoji: "💎", title: "王牌日") }
-        if count >= 5 { return Badge(emoji: "🔥", title: "爆单") }
-        if sum >= 1000 { return Badge(emoji: "💰", title: "千元日") }
-        if count >= 3 { return Badge(emoji: "⭐", title: "忙碌日") }
+    /// 单日徽标：返回当天拿到的最高一档（💎 > 🔥 > 💰 > ⭐）。
+    ///
+    /// 门槛是全账号共用的一套标准（`MedalRules`），改门槛后历史日期立即按新门槛重判。
+    static func dayBadge(count: Int, sum: Double, rules: MedalRules) -> Badge? {
+        if sum >= rules.aceAmount { return Badge(emoji: "💎", title: "王牌日") }
+        if count >= rules.hotOrders { return Badge(emoji: "🔥", title: "爆单") }
+        if sum >= rules.salesAmount { return Badge(emoji: "💰", title: "千元日") }
+        if count >= rules.busyOrders { return Badge(emoji: "⭐", title: "忙碌日") }
         return nil
+    }
+
+    /// 校验勋章门槛。
+    ///
+    /// 规则与混合版 `validateMedalRules` 一致：单数为大于 0 的整数、金额为大于 0 的
+    /// 两位小数金额，且爆单必须严于忙碌、王牌不得低于千元。
+    static func validateMedalRules(_ rules: MedalRules) throws -> MedalRules {
+        guard rules.busyOrders >= 1 else {
+            throw MedalRulesError.invalid("忙碌日单数必须是大于 0 的整数")
+        }
+        guard rules.hotOrders >= 1 else {
+            throw MedalRulesError.invalid("爆单单数必须是大于 0 的整数")
+        }
+        guard rules.hotOrders > rules.busyOrders else {
+            throw MedalRulesError.invalid("爆单单数必须大于忙碌日单数")
+        }
+        guard isMoneyAmount(rules.salesAmount), rules.salesAmount > 0 else {
+            throw MedalRulesError.invalid("千元日金额必须是大于 0 的金额")
+        }
+        guard isMoneyAmount(rules.aceAmount), rules.aceAmount > 0 else {
+            throw MedalRulesError.invalid("王牌日金额必须是大于 0 的金额")
+        }
+        guard rules.aceAmount >= rules.salesAmount else {
+            throw MedalRulesError.invalid("王牌日金额不能低于千元日金额")
+        }
+        return rules
+    }
+
+    /// 金额最多两位小数（与混合版 `isMoneyAmount` 同口径）。
+    static func isMoneyAmount(_ value: Double) -> Bool {
+        guard value.isFinite, value >= 0 else { return false }
+        let cents = (value * 100).rounded()
+        return abs(value * 100 - cents) < 0.00001 && cents <= Double(Int64.max)
     }
 }
