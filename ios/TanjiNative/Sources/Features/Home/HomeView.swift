@@ -547,51 +547,60 @@ private struct HomeTodayRow: View {
     let onPunch: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 11) {
-            Button(action: onTap) {
-                HStack(alignment: .center, spacing: 11) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(Format.fmtHM(order.appt))
-                            .font(Theme.display(19))
-                            .foregroundStyle(Theme.brandInk)
-                        Text("预约")
-                            .font(Theme.body(10.5))
-                            .foregroundStyle(Theme.sub)
-                    }
-                    .frame(width: 50, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 11) {
+                Button(action: onTap) {
+                    HStack(alignment: .center, spacing: 11) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Format.fmtHM(order.appt))
+                                .font(Theme.display(19))
+                                .foregroundStyle(Theme.brandInk)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                            Text("预约")
+                                .font(Theme.body(10.5))
+                                .foregroundStyle(Theme.sub)
+                        }
+                        .frame(minWidth: 60, alignment: .leading)
                         Text(order.store)
                             .font(Theme.body(15, weight: .bold))
                             .foregroundStyle(Theme.ink)
                             .lineLimit(1)
-                        HStack(spacing: 6) {
-                            if let account {
-                                AccountBadge(account: account)
-                            }
-                            Chip.work(work)
-                            if depositDue > 0 {
-                                Chip(text: "待定金 \(Format.fmtMoney(depositDue, masked: masked))",
-                                     ink: Theme.orange,
-                                     background: Theme.orangeSoft)
-                            } else {
-                                Chip.pay(pay)
-                            }
-                            Chip(text: order.cat)
-                        }
+                        Spacer(minLength: 0)
+                        MoneyText(value: order.price, masked: masked, font: Theme.body(15, weight: .heavy))
+                            .layoutPriority(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
-                    Spacer(minLength: 0)
-                    MoneyText(value: order.price, masked: masked, font: Theme.body(15, weight: .heavy))
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                if !(order.shotAt ?? "").isEmpty {
+                    Image(systemName: "chevron.right")
+                        .font(Theme.body(13, weight: .semibold))
+                        .foregroundStyle(Theme.lineStrong)
+                }
             }
-            .buttonStyle(.plain)
-            if (order.shotAt ?? "").isEmpty {
-                HomeMiniButton(title: "到店打卡", action: onPunch)
-            } else {
-                Image(systemName: "chevron.right")
-                    .font(Theme.body(13, weight: .semibold))
-                    .foregroundStyle(Theme.lineStrong)
+            HStack(alignment: .center, spacing: 8) {
+                WrapLayout(spacing: 6, lineSpacing: 6) {
+                    if let account {
+                        AccountBadge(account: account)
+                    }
+                    Chip.work(work)
+                    if depositDue > 0 {
+                        Chip(text: "待定金 \(Format.fmtMoney(depositDue, masked: masked))",
+                             ink: Theme.orange,
+                             background: Theme.orangeSoft)
+                    } else {
+                        Chip.pay(pay)
+                    }
+                    Chip(text: order.cat)
+                }
+                Spacer(minLength: 0)
+                if (order.shotAt ?? "").isEmpty {
+                    HomeMiniButton(title: "到店打卡", action: onPunch)
+                }
             }
+            .padding(.leading, 71)
         }
         .padding(.vertical, 14)
         .opacity((order.shotAt ?? "").isEmpty ? 1 : 0.62)
@@ -744,6 +753,8 @@ private struct HomePillButton: View {
                     Image(systemName: systemImage).font(Theme.body(12, weight: .bold))
                 }
                 Text(title).font(Theme.body(12, weight: .bold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundStyle(Theme.card)
             .padding(.horizontal, 14)

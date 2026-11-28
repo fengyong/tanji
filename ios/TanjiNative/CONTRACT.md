@@ -6,7 +6,14 @@
 ## 0. 基本约束
 
 - 只用系统框架：SwiftUI / UIKit / SQLite3 / Charts / LocalAuthentication / UserNotifications / PhotosUI / CoreLocation。**不引入任何第三方依赖**。
-- 部署目标 iOS 17.0；Swift 5 语言模式；主线程约束用 `@MainActor`。
+- **最低支持设备：iPhone 15 Pro**（首发系统 iOS 17.0）→ deployment target 锁定 **iOS 17.0**。
+  - **不为更低版本做兼容**：不要写 `@available` / `#available` 分支去兼容 iOS 17 以下，
+    也不需要为 iPhone 14 及更早机型做适配。iOS 17+ 的 API（`onChange(of:initial:)` 双参版、
+    `scrollClipDisabled`、Swift Charts 的 `plotFrame`）可以直接用。
+  - 若将来要下调 target，**先量编译错误再动手**：`SWIFT_COMPILATION_MODE=wholemodule` 才会报全
+    全部可用性错误（默认分批编译首批失败即中断，会漏报，实测 iOS 16 从「1 处」变成「7 处」，
+    iOS 15 从「34 处」变成「108 处」）。
+- Swift 5 语言模式；主线程约束用 `@MainActor`。
 - 全程简体中文文案，与 Web 版逐句对齐（Web 版原文在 `src/app/` 与 `www/`）。
 - 共享文件（`Sources/Model`、`Sources/Logic`、`Sources/Store`、`Sources/Design`、`Sources/Services`、`Sources/App`）除非任务明确要求，**不要改动**；需要新能力时先在回复里说明。
 - 视觉走 `Theme` 里的暖纸色系；组件优先复用 `Sources/Design/Components.swift`。
@@ -178,6 +185,23 @@ model.activeToastHostID: UUID?        // 当前该显示提示条的宿主（栈
   只能用 `label CONTAINS` 匹配，**不能等值匹配**。
 - 首页首屏卡片有三种形态（下一站 / 今天的店都拍完了 / 今天没有安排），
   取决于当天数据状态，断言要接受任一分支。
+- `UITests/TanjiLayoutProbe.swift` 是**人工版面核对工具**：只截图、不断言，
+  一轮 5 个 Tab 约 4–5 分钟，因此 `npm run ios:test` 默认用
+  `-skip-testing:TanjiNativeUITests/TanjiLayoutProbe` 跳过它。
+  需要核对版面时单独跑：
+
+  ```bash
+  xcodebuild test -project ios/TanjiNative/TanjiNative.xcodeproj -scheme TanjiNative \
+    -destination 'platform=iOS Simulator,name=iPhone 17' \
+    -only-testing:TanjiNativeUITests/TanjiLayoutProbe \
+    -resultBundlePath /tmp/probe.xcresult \
+    OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -disable-sandbox'
+  xcrun xcresulttool export attachments --path /tmp/probe.xcresult --output-path /tmp/probe
+  ```
+
+  两条坑：滚动必须用**长距离坐标拖动**（dy 0.5 → 0.05），短 `swipeUp`
+  在 iOS 26 浮动标签栏下滚不动，会误判成「内容被标签栏压住」；
+  截图按 `suggestedHumanReadableName` 认页面，别按文件名猜。
 
 ## 5. 界面组件（`Sources/Design/Components.swift`）
 
@@ -220,6 +244,24 @@ someHeader.toastTopAnchor()
 - `toastHost()` 的宿主在 `AppModel.toastHostStack` 里登记；同一时刻只有栈顶（最上层）宿主渲染提示条。
 - 顶层是 `RootView`，各 sheet 内容各自是独立宿主；sheet 打开时它压过根层宿主，关闭后根层恢复。
 - `toastTopAnchor()` 用 `PreferenceKey` 上报顶栏高度，宿主读它决定下沉量；顶栏文案或字号变了也不会压住标题。
+
+## 5.2 排版约定（固定宽度必须先量字宽）
+
+- **文字塞进固定宽度容器前，先实测字宽再定宽**。`Theme.display`（衬线）
+  的数字明显比 `Theme.body` 宽：`display(21)` 下「09:00」实测 60pt，
+  给 52pt 会被截成「09:…」，给 50pt 还会折成两行「09:3 / 0」。
+- 固定宽度里的 `Text` 要加 `.lineLimit(1)` + `.fixedSize(horizontal: true, vertical: false)`，
+  让它保持单行，由容器 padding 吸收压缩，而不是把字挤到换行。
+- **金额用 `MoneyText` 并加 `.layoutPriority(1)`**：同行还有其它元素时，
+  金额不能被压成极小字号或省略号。
+- 标签行用 `WrapLayout` 而不是 `HStack`：对齐 Web 版
+  `.chiprow{display:flex;gap:6px;flex-wrap:wrap}`，窄容器里折行而不是溢出。
+- 顶栏右侧的胶囊按钮（首页/行程/订单的「+ 预约」）文字必须单行：
+  按钮宽度会被标题挤掉，文字若可换行就会排成「+ 预 / 约」两行。
+
+```swift
+WrapLayout(spacing: 6, lineSpacing: 6) { ... }   // 标签行折行（Sources/Design/WrapLayout.swift）
+```
 
 ## 6. 服务（`Sources/Services/`）
 

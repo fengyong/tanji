@@ -85,18 +85,21 @@ struct TripView: View {
     private var monthCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(year)年 \(month)月")
-                        .font(Theme.display(20, weight: .bold))
-                        .foregroundStyle(Theme.ink)
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .center, spacing: 12) {
+                        Text("\(year)年 \(month)月")
+                            .font(Theme.display(20, weight: .bold))
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        monthNav
+                    }
+                    // 摘要独占一行：挤在标题右侧会在窄屏断成两行，把末尾的徽标数甩到孤立的一行。
                     Text(monthSummary)
                         .font(Theme.body(9.5, weight: .semibold))
                         .foregroundStyle(Theme.sub)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: 0)
-                monthNav
             }
             .padding(.horizontal, 4)
             .padding(.bottom, 12)
@@ -598,12 +601,13 @@ private struct TripOrderRow: View {
                                 .font(Theme.display(21))
                                 .foregroundStyle(Theme.brandInk)
                                 .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                             Text(order.cat)
                                 .font(Theme.body(10.5))
                                 .foregroundStyle(Theme.sub)
                                 .lineLimit(1)
                         }
-                        .frame(width: 52, alignment: .leading)
+                        .frame(minWidth: 64, alignment: .leading)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(order.store)
                                 .font(Theme.body(15, weight: .bold))
@@ -639,7 +643,7 @@ private struct TripOrderRow: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("编辑 \(order.store)")
             }
-            HStack(spacing: 6) {
+            WrapLayout(spacing: 6, lineSpacing: 6) {
                 if let account {
                     AccountBadge(account: account, compact: true)
                 }
@@ -655,7 +659,7 @@ private struct TripOrderRow: View {
                     Chip(text: order.channel)
                 }
             }
-            .padding(.leading, 63)
+            .padding(.leading, 75)
         }
         .padding(.vertical, 15)
     }
@@ -676,6 +680,8 @@ private struct TripPillButton: View {
                     Image(systemName: systemImage).font(Theme.body(12, weight: .bold))
                 }
                 Text(title).font(Theme.body(12, weight: .bold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundStyle(Theme.card)
             .padding(.horizontal, 14)

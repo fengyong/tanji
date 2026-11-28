@@ -4,6 +4,10 @@ name: TanjiNative
 options:
   bundleIdPrefix: ord
   createIntermediateGroups: true
+  # 最低支持设备:iPhone 15 Pro(首发系统 iOS 17.0)。
+  # 因此 deployment target 锁定 iOS 17.0,不再向下兼容更低机型/更低系统。
+  # 代价:可以直接用 iOS 17+ 的 API(如 onChange(of:initial:) 双参版、
+  # scrollClipDisabled、Chart 的 plotFrame),不必写 @available 双轨分支。
   deploymentTarget:
     iOS: "17.0"
 
@@ -38,9 +42,7 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UISupportedInterfaceOrientations~ipad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
+        # 只支持 iPhone(TARGETED_DEVICE_FAMILY = 1),不配 iPad 专属方向。
         NSFaceIDUsageDescription: 用于确认是你本人后隐藏或显示探记中的金额。Face ID 信息由系统处理，不会提供给探记。
         NSCameraUsageDescription: 拍一张店铺门口照片，作为「已到店」的标记。照片会压缩保存在本机，并包含在你主动导出的 JSON 备份中，不会上传。
         NSPhotoLibraryUsageDescription: 从相册选择店铺照片或账号头像。照片仅在本机压缩保存，不会上传。

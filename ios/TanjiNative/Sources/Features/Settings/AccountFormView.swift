@@ -224,7 +224,8 @@ struct AccountFormView: View {
                                 .foregroundStyle(.white)
                         }
                     }
-                    .frame(width: 40, height: 40)
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(1, contentMode: .fit)
                     .overlay {
                         if colorIndex == index {
                             Circle().stroke(Theme.ink, lineWidth: 2)

@@ -31,6 +31,16 @@ ios/TanjiNative/
   UITests/                   UI 回归测试
 ```
 
+## 支持的设备范围
+
+**最低支持：iPhone 15 Pro**（首发系统 iOS 17.0），deployment target 锁定 iOS 17.0。
+
+- 只面向 iPhone（`TARGETED_DEVICE_FAMILY = "1"`），iPad 不在支持范围。
+- **不为更低版本做兼容**：工程里不写 `@available` / `#available` 分支，iOS 17+ 的 API
+  （`onChange(of:initial:)` 双参版、`scrollClipDisabled`、Swift Charts 的 `plotFrame`）直接用。
+- 若将来要下调 target，先用 `SWIFT_COMPILATION_MODE=wholemodule` 量真实编译错误再动手
+  ——默认分批编译会在首批失败时中断并漏报（实测 iOS 16 从 1 处变成 7 处，iOS 15 从 34 处变成 108 处）。
+
 ## 构建与测试
 
 工程用 [xcodegen](https://github.com/yonaskolb/XcodeGen) 生成，`.xcodeproj` 不入库：

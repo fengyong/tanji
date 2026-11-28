@@ -314,6 +314,8 @@ private struct OrderPillButton: View {
                     Image(systemName: systemImage).font(Theme.body(12, weight: .bold))
                 }
                 Text(title).font(Theme.body(12, weight: .bold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundStyle(Theme.card)
             .padding(.horizontal, 14)
