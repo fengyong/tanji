@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  探记 HG · 纯原生 iOS 版 隐私清单 / Privacy Manifest
+
+	  App Store Connect 上架必需（2024-05-01 起缺失会被拒收，ITMS-91053）。
+
+	  本应用为纯本地工具：无账号、无网络请求、无第三方统计/广告 SDK，
+	  因此 NSPrivacyCollectedDataTypes 为空数组 —— 不收集任何用户数据。
+
+	  NSPrivacyAccessedAPITypes：
+	    - UserDefaults / CA92.1
+	      本工程 ios/TanjiNative/Sources 下的自有代码访问 UserDefaults：
+	        Services/AmountPrivacy.swift —— 读写「隐藏金额」开关状态；
+	        Store/DataStore.swift      —— 读写 settings JSON 快照（第二副本）。
+	      所访问的是 App 自身沙盒内、仅本 App 可读写的 user defaults，
+	      符合 CA92.1「访问仅限 App 本身专有的 user defaults」。
+
+	  未声明 DiskSpace / SystemBootTime / ActiveKeyboards / FileTimestamp：
+	    已逐个核查本工程的调用点，均未命中这些类别的受限 API：
+	      - ProcessInfo.processInfo 仅用于读 arguments（App/DebugSelfCheck.swift），
+	        不是 systemUptime / systemBootTime；
+	      - BackupService.swift 只用 url.resourceValues(.fileSizeKey) 取文件大小，
+	        不是 .contentModificationDateKey / .creationDateKey / volumeAvailableCapacityKey；
+	      - FileManager 只做 urls(for:) / fileExists / copyItem / removeItem，
+	        不读文件时间戳。
+	    本工程只链接系统框架（SwiftUI / Charts / SQLite3 / UserNotifications /
+	    LocalAuthentication / PhotosUI），无第三方 SDK，故无 SDK 自带清单需要合并。
+
+	  说明：二进制符号表已核实引用 _OBJC_CLASS_$_NSUserDefaults，
+	  与上面的调用点一致。Apple 按编译后二进制做审计，故以实际调用为准。
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

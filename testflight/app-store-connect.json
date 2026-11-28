@@ -1,0 +1,75 @@
+{
+  "app": {
+    "name": "探记 HG",
+    "bundleId": "com.ord.tanji",
+    "sku": "tanji-hg-ios-001",
+    "primaryLocale": "zh-Hans",
+    "platform": "iOS",
+    "category": "Business",
+    "ageRating": "4+"
+  },
+  "developerAccount": {
+    "teamId": "YC9UFHH73D",
+    "teamIdSource": "本机 provisioning profile 的 TeamIdentifier 实测（2026-11-28）",
+    "registeredExplicitAppIds": ["com.tanji.app", "site.zai.aifishing"],
+    "registeredWildcardAppId": "*",
+    "note": "com.ord.tanji 尚未注册，需在开发者后台「标识符」下新建显式 App ID。"
+  },
+  "release": {
+    "marketingVersion": "1.0.0",
+    "buildNumberFormat": "YYYYMMDD.HHMMSS",
+    "buildTimeZone": "Asia/Shanghai",
+    "distributionModel": "paid-upfront",
+    "inAppPurchases": false,
+    "accountSystem": false,
+    "serverBackend": false
+  },
+  "appPrivacy": {
+    "dataCollection": "none",
+    "tracking": false,
+    "reviewNote": "订单、流水、账号资料、压缩照片与头像仅保存在设备沙盒；用户主动导出的文件不经过开发者服务器。"
+  },
+  "testFlight": {
+    "groupName": "种子测试者",
+    "testerType": "external",
+    "invitationMethod": "email",
+    "publicLinkEnabled": false,
+    "testerCount": 1,
+    "feedbackEmail": "fengyong@ustc.edu",
+    "contact": {
+      "firstName": "yong",
+      "lastName": "feng",
+      "email": "fengyong@ustc.edu",
+      "phone": null
+    },
+    "betaDescriptionFile": "beta-description.txt",
+    "whatToTestFile": "what-to-test.txt",
+    "reviewNotesFile": "review-notes.txt",
+    "testerInvitationFile": "tester-invitation.txt",
+    "buildValidityDays": 90
+  },
+  "legalUrls": {
+    "privacy": "https://tanji-app-guvc.zai.site/privacy.html",
+    "support": "https://tanji-app-guvc.zai.site/support.html",
+    "status": "blocked-until-both-return-http-200"
+  },
+  "privacyManifest": {
+    "file": "ios/TanjiNative/Resources/PrivacyInfo.xcprivacy",
+    "tracking": false,
+    "collectedDataTypes": [],
+    "accessedAPIs": [
+      {
+        "category": "NSPrivacyAccessedAPICategoryUserDefaults",
+        "reasons": ["CA92.1"]
+      }
+    ],
+    "note": "二进制符号表已核实引用 _OBJC_CLASS_$_NSUserDefaults，调用点为 AmountPrivacy.swift 与 DataStore.swift。"
+  },
+  "blockers": [
+    "privacy.html 与 support.html 当前公网 404，部署前不得进行外部测试上传",
+    "本机尚未发现 Apple Distribution 证书（只有 Apple Development）",
+    "App Store Connect 尚未创建 Bundle ID 为 com.ord.tanji 的 iOS App 记录",
+    "首个外部测试构建需要 Beta App Review",
+    "原生版未做真机业务验收（Face ID、通知、相册、文件选择器默认目录等仍待验证）"
+  ]
+}

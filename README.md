@@ -19,7 +19,7 @@
 |---|---|
 | 分支 | `tanji-native-hg`（混合版）/ `tanji-native-ios`（纯原生版） |
 | 显示名 | 探记 HG |
-| Bundle ID | 混合版 `com.tanji.hg`；纯原生版 `ord.tanji` |
+| Bundle ID | 混合版 `com.tanji.hg`；纯原生版 `com.ord.tanji` |
 | App 版本 | `1.0 (1)` |
 | 技术路线 | 见上表 |
 | 数据 | 纯本地；iOS 使用 App 沙盒内 SQLite，无服务器、无云同步 |

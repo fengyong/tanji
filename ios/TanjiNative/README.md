@@ -129,7 +129,7 @@ provisioning profile，然后构建 → 手工 `codesign` → 嵌入 profile →
 - 相册选择头像、拍照打卡的真实流程。
 - `UIDocumentPickerViewController` 的默认目录与「文件」App 中的「探记 HG」文件夹在真机上的表现。
 
-> 已验证：真机安装与启动（iPhone 15 Pro / iOS 27.2.1，bundle `ord.tanji`，显示名「探记 HG」）。
+> 已验证：真机安装与启动（iPhone 15 Pro / iOS 27.2.1，bundle `com.ord.tanji`，显示名「探记 HG」）。
 > 上面这些是 App 内部功能点，需要在真机上逐个点一遍确认。
 
 ## 与混合版的关系

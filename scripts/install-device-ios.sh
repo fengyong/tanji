@@ -18,7 +18,7 @@
 #                      覆盖目标设备、且已过期的通配符 profile
 #   SIGNING_IDENTITY   代码签名身份;缺省自动挑本机第一个 Apple Development 身份
 #   TEAM_ID            团队 ID;缺省从 profile 的 TeamIdentifier 取
-#   BUNDLE_ID          bundle id;缺省用工程里的 ord.tanji
+#   BUNDLE_ID          bundle id;缺省用工程里的 com.ord.tanji
 #   CONFIGURATION      Debug(默认) / Release
 #
 # 注意:
@@ -30,7 +30,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${CONFIGURATION:-Debug}"
-BUNDLE="${BUNDLE_ID:-ord.tanji}"
+BUNDLE="${BUNDLE_ID:-com.ord.tanji}"
 
 # ---------------------------------------------------------------- 设备选择
 DEVICE="${DEVICE_UDID:-}"

@@ -2,7 +2,7 @@
 # 用法：xcodegen generate --spec ios/TanjiNative/project.yml
 name: TanjiNative
 options:
-  bundleIdPrefix: ord
+  bundleIdPrefix: com.ord
   createIntermediateGroups: true
   # 最低支持设备:iPhone 15 Pro(首发系统 iOS 17.0)。
   # 因此 deployment target 锁定 iOS 17.0,不再向下兼容更低机型/更低系统。
@@ -49,7 +49,7 @@ targets:
         NSLocationWhenInUseUsageDescription: 到店拍摄时记录一次当时的位置，方便事后回看「这单在哪拍的」并一键导航过去。位置只存本机、不上传，也不参与任何统计。
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ord.tanji
+        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1"
@@ -71,7 +71,7 @@ targets:
       - target: TanjiNative
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ord.tanji.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: TanjiNative
 
@@ -85,5 +85,5 @@ targets:
       - target: TanjiNative
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ord.tanji.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ord.tanji.tests
         GENERATE_INFOPLIST_FILE: YES

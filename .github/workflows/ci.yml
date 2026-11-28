@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, native-app, tanji-native-hg]
+    branches: [main, native-app, tanji-native-hg, tanji-native-ios]
   pull_request:
-    branches: [main, native-app, tanji-native-hg]
+    branches: [main, native-app, tanji-native-hg, tanji-native-ios]
   workflow_dispatch:
 
 jobs:
@@ -88,3 +88,43 @@ jobs:
           grep -q "NSPrivacyAccessedAPICategoryFileTimestamp" ios/App/App/PrivacyInfo.xcprivacy
           # 纯本地应用不得声明任何数据收集
           ! grep -q "NSPrivacyCollectedDataTypes</key>[[:space:]]*<array>[[:space:]]*<dict>" ios/App/App/PrivacyInfo.xcprivacy
+
+  privacy-native-ios:
+    name: 纯原生 iOS 隐私清单与上架就绪
+    runs-on: ubuntu-latest
+    # 纯原生版分支（ios/TanjiNative/）的上架前置校验。
+    if: github.ref_name == 'tanji-native-ios' || github.base_ref == 'tanji-native-ios'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 隐私清单存在且能被解析
+        run: |
+          test -f ios/TanjiNative/Resources/PrivacyInfo.xcprivacy
+          # ubuntu runner 没有 plutil：用自带的 python3 解析 plist
+          python3 -c 'import plistlib,sys; plistlib.load(open(sys.argv[1],"rb"))' ios/TanjiNative/Resources/PrivacyInfo.xcprivacy
+
+      - name: 隐私清单声明了实际命中的受限 API
+        run: |
+          # 纯原生版二进制引用 _OBJC_CLASS_$_NSUserDefaults，
+          # 故必须声明 UserDefaults / CA92.1，否则上传被 ITMS-91053 拒收。
+          grep -q "NSPrivacyAccessedAPICategoryUserDefaults" ios/TanjiNative/Resources/PrivacyInfo.xcprivacy
+          grep -q "CA92.1" ios/TanjiNative/Resources/PrivacyInfo.xcprivacy
+          # 纯本地应用不得声明任何数据收集
+          ! grep -q "NSPrivacyCollectedDataTypes</key>[[:space:]]*<array>[[:space:]]*<dict>" ios/TanjiNative/Resources/PrivacyInfo.xcprivacy
+          # 不追踪
+          grep -q "NSPrivacyTracking</key>[[:space:]]*<false/>" ios/TanjiNative/Resources/PrivacyInfo.xcprivacy
+
+      - name: 上架资产检查（隐私清单 + 图标 + 脚本）
+        run: node scripts/check-release-assets.cjs
+
+      - name: 隐私清单已登记进 Xcode 工程（xcodegen 生成后校验）
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec ios/TanjiNative/project.yml
+          grep -q "PrivacyInfo.xcprivacy in Resources" ios/TanjiNative/TanjiNative.xcodeproj/project.pbxproj
+
+      - name: 发布脚本语法检查
+        run: |
+          bash -n scripts/archive-testflight.sh
+          bash -n scripts/upload-testflight.sh
+          bash -n scripts/check-testflight-ready.sh

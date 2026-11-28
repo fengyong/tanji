@@ -48,7 +48,7 @@ git push git@github-fengyong:fengyong/tanji.git HEAD:refs/heads/<分支>
 - **纯本地**：数据不上传任何服务器，无云同步、无广告、无分析 SDK。
 - 保留原 TanJi 的 SQLite 表、`settings` JSON 快照、`tanji_v3_*` 键和 JSON 备份格式。
 - 工作/演示两套数据空间独立保存。
-- 混合版 Bundle ID 为 `com.tanji.hg`；纯原生版为 `ord.tanji`；两者沙盒隔离，旧数据通过 JSON 导入互迁。
+- 混合版 Bundle ID 为 `com.tanji.hg`；纯原生版为 `com.ord.tanji`；两者沙盒隔离，旧数据通过 JSON 导入互迁。
 
 纯原生版细节见 [`ios/TanjiNative/README.md`](ios/TanjiNative/README.md)，接口约定见 `ios/TanjiNative/CONTRACT.md`。
 

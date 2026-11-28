@@ -194,7 +194,9 @@ test('CI 两个回归 job 都先安装依赖,再运行完整 npm test', () => {
     assert.match(match[0], /run:\s*npm test\b/, `${job} job 必须运行完整 npm test`);
     assert.ok(match[0].indexOf('npm ci') < match[0].indexOf('npm test'), `${job} job 必须先安装依赖再测试`);
   }
-  assert.match(workflow, /branches:\s*\[main, native-app, tanji-native-hg\]/);
+  // 分支白名单：纯原生线 tanji-native-ios 也要跑 CI（web 回归 + 纯原生隐私清单校验），
+  // 加分支时这里要同步，否则本 job 会红。
+  assert.match(workflow, /branches:\s*\[main, native-app, tanji-native-hg, tanji-native-ios\]/);
   assert.match(workflow, /HG 构建产物校验[\s\S]*?check-web-sync\.cjs --artifact-only/);
   assert.match(workflow, /main \/ native 漂移校验[\s\S]*?check-web-sync\.cjs --main-ref origin\/main/);
 });
