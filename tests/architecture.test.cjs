@@ -94,7 +94,7 @@ test('依赖方向:只允许白名单内的跨层边', () => {
   // 层序:低 ← 高(高层可以 import 低层);同层业务模块之间不许互引(views 例外,见白名单)
   const LAYER = {
     env: 0, util: 1, demo: 2, storage: 3, 'sqlite-bytes': 4,
-    ui: 4, 'native-tabs': 4, derived: 5,
+    ui: 4, 'native-tabs': 4, privacy: 4, derived: 5,
     sheets: 6, accounts: 6, stats: 6, notify: 6,
     'views/home': 7, 'views/trip': 7, 'views/orders': 7, 'views/pay': 7, 'views/stats': 7, 'views/settings': 7,
     'order-forms': 7, 'order-actions': 7, detail: 7, 'share-image': 7, export: 7, 'avatar-crop': 7,
@@ -114,7 +114,6 @@ test('依赖方向:只允许白名单内的跨层边', () => {
     'views/home→detail',    // 首页点行进详情
     'views/orders→detail',  // 订单页点行进详情
     'stats→ui',             // headBtns 读 ui.privacy
-    'stats→storage',        // 读 Store.mode 徽标
     'detail→accounts',      // 详情页账号标签
     'share-image→ui',       // 分享日读 ui.selDay
   ]);

@@ -311,7 +311,7 @@ export async function switchMode(mode){
     Store.mode=mode;db=target.value?validateState(target.value):mode==='work'?{orders:[],payments:[],threshold:15}:demoSeed();
     Store.revision=Math.max(Store.revision,target.value?.revision||0);Store.backup=target.value?.previous||null;
     afterLoad&&afterLoad.closeSheets();afterLoad&&afterLoad.resetFilters();await save();afterLoad&&(afterLoad.renderAll(),afterLoad.showTab('home'));afterLoad&&(afterLoad.notify.syncDaily(),afterLoad.notify.syncDeliver());
-    afterLoad&&afterLoad.toast(mode==='work'?'已切换到工作数据':'已切换到独立演示数据，工作数据未改动');
+    afterLoad&&afterLoad.toast('已切换数据空间，原数据未改动');
   }finally{Store.busy=false}
 }
 export async function replaceData(state){

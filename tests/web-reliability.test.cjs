@@ -106,15 +106,18 @@ test('统计页只保留业务内容与设置入口',()=>{
   const a=app();setState(a);a.run('db.accounts=[{id:2,name:"账号甲",color:0},{id:3,name:"账号乙",color:1}];renderAll()');
   const stats=a.element('#v-stats').innerHTML;
   assert.match(stats,/data-act="open-settings"/);
+  assert.match(stats,/class="ic settings-gear"/);
+  assert.doesNotMatch(stats,/M12 2\.8v2\.4/, '设置按钮不能退回太阳放射图标');
   assert.match(stats,/data-act="acc-filter"/);
   for(const act of ['open-account','import-json','export-json','export-db','export-csv','restore-backup','switch-mode','clear-data','app-store-soon'])assert.ok(!stats.includes(`data-act="${act}"`),`统计页不应再包含低频动作 ${act}`);
 });
 test('设置页集中收纳账号、数据、提醒、模式与关于',()=>{
   const a=app();setState(a);a.run('ui.privacy=true;renderSettings()');
   const html=a.element('#v-settings').innerHTML;
-  for(const text of ['我的账号','数据与备份','提醒与隐私','数据模式','危险操作','关于与支持'])assert.ok(html.includes(text),`设置页缺少分组 ${text}`);
+  for(const text of ['我的账号','数据与备份','提醒与隐私','数据空间','危险操作','关于与支持'])assert.ok(html.includes(text),`设置页缺少分组 ${text}`);
   for(const act of ['open-account','import-json','export-json','export-db','export-csv','restore-backup','privacy','th','switch-mode','clear-data','app-store-soon'])assert.ok(html.includes(`data-act="${act}"`),`设置页缺少动作 ${act}`);
   assert.match(html,/隐私模式[\s\S]*已开启/);
+  assert.doesNotMatch(html,/DEMO|演示|mode-label/);
 });
 test('设置页从统计进入并返回统计,不改变业务周期与账号筛选',()=>{
   const a=app();setState(a);a.run('showTab("stats");ui.period="30";ui.accFilter=2;openSettings()');
@@ -401,6 +404,13 @@ test('账号筛选要覆盖行程页与收款流水(同一屏两个口径最容�
   a.run('ui.accFilter=null');
   a.run('renderTrip()');
   assert.match(a.element('#v-trip').innerHTML,/B账号/,'取消筛选后应看到全部账号');
+});
+
+test('Web 金额开关保持即时切换，不要求系统 Face ID',()=>{
+  const a=app();setState(a);
+  const click=()=>a.events.click({target:{closest:()=>({dataset:{act:'privacy'}})}});
+  click();assert.equal(a.run('ui.privacy'),true);
+  a.tick(400);click();assert.equal(a.run('ui.privacy'),false);
 });
 
 test('隐私模式不能被编辑弹层绕过(截图模式不能露金额)',()=>{

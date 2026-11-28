@@ -51,8 +51,17 @@ export function exportCsv(){
   download(`探记-导出-${TODAY}.csv`,[head.map(q).join(','),...lines,'','',phead.map(q).join(','),...plines].join('\n'),'text/csv;charset=utf-8');
   toast('已导出 CSV(订单 + 流水)✓');
 }
-export function exportJson(){
-  download(`探记-${Store.mode==='work'?'工作':'演示'}备份-${toISO(new Date())}.json`,JSON.stringify(backupDocument(),null,2),'application/json');
+export async function exportJson(){
+  const name=`探记-备份-${toISO(new Date())}.json`;
+  const content=JSON.stringify(backupDocument(),null,2);
+  if(isNative){
+    try{
+      const result=await CAP.Capacitor.registerPlugin('BackupFiles').saveBackup({name,content});
+      toast(`已保存到「文件 › 探记 HG」：${result?.name||name}`);
+    }catch(error){console.error('保存备份失败',error);toast('保存失败:'+(error&&error.message||error))}
+    return;
+  }
+  download(name,content,'application/json');
   toast('已导出 JSON 备份');
 }
 export function exportDb(){
@@ -62,7 +71,7 @@ export function exportDb(){
   toast('已导出 SQLite 数据库 ✓');
 }
 const SCHEMA=`<span class="c">-- 探记 TanJi · 本机 SQLite 结构(v0.6 · 单数据集视图)</span>
-<span class="c">-- 注意:App 内真实库在同一个 .db 里用 mode 列区分 work/demo 两套数据,
+<span class="c">-- 注意:App 内真实库在同一个 .db 里用 mode 列区分两套数据,
 --       orders/accounts 主键为 (mode,id),payments 带 mode,settings 主键为 (scope,key);
 --       本页与「导出 .db」展示的是去掉 mode 的单数据集视图。
 --       跨设备搬运请用 JSON 备份(统计页可导入),不要直接对拷 .db。</span>
@@ -127,6 +136,13 @@ ORDER BY days DESC;`;
 $('#schema-pre').innerHTML=SCHEMA;
 
 /* ================= 导入 / 替换前备份(T2-A 自 storage.js 搬入) ================= */
+export async function openImportPicker(){
+  if(!isNative){const input=$('#import-file');input.value='';input.click();return}
+  try{
+    const picked=await CAP.Capacitor.registerPlugin('BackupFiles').pickBackup();
+    await previewImport({name:picked.name,size:picked.size,text:async()=>picked.content});
+  }catch(error){if(error?.code!=='PICK_CANCELED')toast('不能导入：'+(error&&error.message||error))}
+}
 export async function previewImport(file){
   if(!file)return;
   try{
@@ -141,7 +157,7 @@ export async function previewImport(file){
     }
     Store.pending=state;
     const total=state.payments.reduce((sum,p)=>sum+p.amount,0);
-    document.querySelector('#import-summary').textContent=`${file.name}：${state.orders.length} 笔订单、${state.payments.length} 笔流水、实收 ${fmtMoney(total,ui.privacy)}、催收阈值 ${state.threshold} 天。将替换当前${Store.mode==='work'?'工作':'演示'}数据，替换前自动保存一份本机备份。`;
+    document.querySelector('#import-summary').textContent=`${file.name}：${state.orders.length} 笔订单、${state.payments.length} 笔流水、实收 ${fmtMoney(total,ui.privacy)}、催收阈值 ${state.threshold} 天。将替换当前数据，替换前自动保存一份本机备份。`;
     showSheet('sheet-import');
   }catch(error){Store.pending=null;toast(`不能导入：${error.message}`)}
 }
@@ -164,6 +180,6 @@ export async function exportCheckpoint(){
   const mode=Store.mode;
   const saved=await readSnapshot(mode,'backup');
   if(!saved.value){toast('没有可用的替换前备份');return}
-  download(`探记-${mode==='work'?'工作':'演示'}-替换前备份.json`,JSON.stringify(backupDocument(saved.value),null,2),'application/json');
+  download('探记-替换前备份.json',JSON.stringify(backupDocument(saved.value),null,2),'application/json');
   toast('已导出替换前备份，原存储未改动');
 }

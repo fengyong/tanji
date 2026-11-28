@@ -5,6 +5,7 @@
 import * as storageNS from '../src/app/storage.js';
 import * as utilNS from '../src/app/util.js';
 import * as envNS from '../src/app/env.js';
+import * as privacyNS from '../src/app/privacy.js';
 import * as uiNS from '../src/app/ui.js';
 import * as nativeTabsNS from '../src/app/native-tabs.js';
 import * as derivedNS from '../src/app/derived.js';
@@ -30,7 +31,7 @@ import * as settingsViewNS from '../src/app/views/settings.js';
 const { renderHome } = homeNS, { renderTrip } = tripNS, { renderOrders } = ordersNS,
   { renderPay } = payNS, { renderStats } = statsViewNS, { renderSettings } = settingsViewNS;
 
-Object.assign(globalThis, storageNS, utilNS, envNS, uiNS, nativeTabsNS, derivedNS, demoNS, accountsNS,
+Object.assign(globalThis, storageNS, utilNS, envNS, privacyNS, uiNS, nativeTabsNS, derivedNS, demoNS, accountsNS,
   orderFormsNS, orderActionsNS, detailNS, sheetsNS, exportNS, sqliteNS, statsNS, shareNS, notifyNS, avatarCropNS,
   homeNS, tripNS, ordersNS, payNS, statsViewNS, settingsViewNS);
 

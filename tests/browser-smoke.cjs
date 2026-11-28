@@ -84,8 +84,27 @@ const server=http.createServer((request,response)=>{
     assert.equal(narrow.scrollWidth,narrow.viewport,'320px 窄屏不能横向溢出: '+JSON.stringify(narrow));
     assert.deepEqual(narrow.phone,[0,0,320,568],'窄屏应铺满视口，不能再套桌面机身: '+JSON.stringify(narrow));
     await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+    await click('.tab[data-tab="stats"]');
+    const dailyChart=await evaluate(`(()=>{const bars=[...document.querySelectorAll('#v-stats .bar')];return {bars:bars.length,peaks:bars.filter(el=>el.classList.contains('peak')).length,heights:bars.map(el=>parseFloat(el.querySelector('i').style.getPropertyValue('--h'))),label:document.querySelector('#v-stats .daily-plot')?.getAttribute('aria-label')||'',total:document.querySelector('#v-stats .daily-total b')?.textContent||''}})()`);
+    assert.equal(dailyChart.bars,7,'近 7 天应绘制 7 根柱');assert.equal(dailyChart.peaks,1,'只能强调一个峰值');assert.ok(dailyChart.heights.every(h=>Number.isFinite(h)&&h>=0&&h<=100),'柱高必须按有效比例缩放');assert.equal(Math.max(...dailyChart.heights),100,'峰值必须到满刻度');assert.match(dailyChart.label,/近 7 天每日实收/);assert.match(dailyChart.total,/^¥/);
+    await click('#v-stats [data-act="period"][data-period="30"]');
+    assert.equal(await evaluate('document.querySelectorAll("#v-stats .bar").length'),30,'近 30 天应绘制 30 根柱');
+    assert.equal(await evaluate('document.querySelectorAll("#v-stats .daily-axis span:not(.axis-blank)").length'),4,'30 天只显示稀疏日期标签');
+    assert.equal(await evaluate('document.querySelector("#v-stats .daily-plot").classList.contains("dense")'),true,'30 天应使用紧凑柱距');
+    await click('#v-stats [data-act="period"][data-period="M"]');
+    assert.equal(await evaluate('document.querySelectorAll("#v-stats .bar").length'),new Date().getDate(),'本月柱数应等于已过自然日数');
+    await click('#v-stats [data-act="period"][data-period="7"]');
+    await call('Emulation.setDeviceMetricsOverride',{width:320,height:568,deviceScaleFactor:1,mobile:true});
+    assert.equal(await evaluate('document.querySelector("#v-stats").scrollWidth<=document.querySelector("#v-stats").clientWidth'),true,'320px 下图表不能横向溢出');
+    await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+    await capture('stats-mobile');
+    await click('#v-stats [data-act="privacy"]');
+    const maskedChart=await evaluate(`(()=>{const card=document.querySelector('#v-stats .daily-card');return (card.textContent+' '+(card.querySelector('.daily-plot')?.getAttribute('aria-label')||'')+' '+[...card.querySelectorAll('.bar')].map(el=>el.title).join(' '))})()`);
+    assert.doesNotMatch(maskedChart,/¥[\d,]/,'隐私模式下图表的文本、读屏标签与提示都不能泄露金额');assert.match(maskedChart,/¥✱✱✱/,'隐私模式应保留遮蔽占位');
+    await click('#v-stats [data-act="privacy"]');
     await openSettings();
     assert.equal(await evaluate('document.querySelector("#v-settings").classList.contains("active")&&__TANJI__.ui.settingsOpen'),true,'齿轮应进入独立设置页');
+    assert.equal(await evaluate('/DEMO|演示|work\\/demo/.test(document.querySelector("#v-settings").textContent)'),false,'设置页不应再展示演示模式文案');
     assert.equal(await evaluate('document.querySelectorAll("#v-stats [data-act=export-json],#v-stats [data-act=open-account]").length'),0,'低频动作不应留在统计页');
     await click('#v-settings [data-act="close-settings"]');
     assert.equal(await evaluate('document.querySelector("#v-stats").classList.contains("active")&&!__TANJI__.ui.settingsOpen'),true,'返回应回到统计页');
@@ -182,7 +201,7 @@ const server=http.createServer((request,response)=>{
     const timer=setTimeout(()=>reject(new Error('export-json 没有产出下载文件')),10000);
     const check=()=>{
       const files=fs.readdirSync(profile)
-        .filter(n=>n.startsWith('探记-工作备份-')&&n.endsWith('.json'))
+        .filter(n=>n.startsWith('探记-备份-')&&n.endsWith('.json'))
         .map(n=>({n,t:fs.statSync(path.join(profile,n)).mtimeMs}))
         .filter(f=>f.t>=beforeExport);
       if(files.length){clearTimeout(timer);resolve(path.join(profile,files[files.length-1].n))}
@@ -220,7 +239,10 @@ const server=http.createServer((request,response)=>{
     await evaluate('__TANJI__.previewImport(new File(["{bad"],"bad.json"))');assert.equal(await evaluate('__TANJI__.Store.pending'),null);assert.equal(await evaluate('__TANJI__.db.orders.length'),1);
     await openSettings();await click('#v-settings [data-act="clear-data"]');await evaluate('new Promise(resolve=>{const check=()=>__TANJI__.Store.busy?setTimeout(check,25):resolve();check()})');
     await call('Page.reload');await ready();assert.equal(await evaluate('__TANJI__.db.orders.length'),0);
-    await click('.tab[data-tab="stats"]');await capture('stats-mobile');
+    await click('.tab[data-tab="stats"]');
+    assert.equal(await evaluate('!!document.querySelector("#v-stats .daily-empty")'),true,'无收款时应显示真实空状态');
+    assert.equal(await evaluate('document.querySelectorAll("#v-stats .bar").length'),0,'无收款时不能绘制假柱');
+    await capture('stats-empty-mobile');
     await openSettings();await capture('settings-mobile');
     // 付费漏斗:必须有 iOS 原生版入口(未上架显示「即将上架」,上架后是可点的 App Store 链接)
     const iosRow=await evaluate(`(()=>{const r=[...document.querySelectorAll('#v-settings .menu-row')].find(x=>(x.querySelector('.menu-name')?.textContent||'').includes('iOS 原生版'));if(!r)return null;return {isLink:r.tagName==='A',href:r.getAttribute('href')||'',badge:r.querySelector('.tag-badge')?.textContent||''}})()`);

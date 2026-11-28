@@ -24,11 +24,17 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>拍一张店铺门口照片，作为「已到店」的标记。照片会压缩保存在本机，并包含在你主动导出的 JSON 备份中，不会上传。</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>用于确认是你本人后隐藏或显示探记中的金额。Face ID 信息由系统处理，不会提供给探记。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>从相册选择店铺照片或账号头像。照片仅在本机压缩保存，不会上传。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>到店拍摄时记录一次当时的位置，方便事后回看「这单在哪拍的」并一键导航过去。位置只存本机、不上传，也不参与任何统计。</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

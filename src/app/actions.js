@@ -1,5 +1,7 @@
 /* ================= 事件委托(P0 §3;P0-3 起改为 action 注册表) ================= */
 import {$,esc,pad,now,TODAY,dOff,fmtD,copyText} from './util.js';
+import {isNative} from './env.js';
+import {toggleAmountPrivacy,privacyFailureMessage} from './privacy.js';
 import {ui,showTab,openSettings,closeSettings,renderAll,refreshClock} from './ui.js';
 import {db,Store,save,switchMode,replaceData,loadState,accountCopyText} from './storage.js';
 import {Notify} from './notify.js';
@@ -9,7 +11,7 @@ import {openNew,saveOrder,duplicateOrder,openEdit,saveEdit,toggleReceipt,updateC
 import {mark,pay,openPay,capturePlace,openRemind,saveRemind,openExpect,saveExpect,clearExpect,MILE_ORDER} from './order-actions.js';
 import {openDetail,rerenderDetail,MILE_LABEL} from './detail.js';
 import {closeSheets,showSheet,toast,dismissToast} from './sheets.js';
-import {exportCsv,exportJson,exportDb,download,confirmImport,restoreCheckpoint,exportCheckpoint} from './export.js';
+import {exportCsv,exportJson,exportDb,download,openImportPicker,confirmImport,restoreCheckpoint,exportCheckpoint} from './export.js';
 import {shareToday} from './share-image.js';
 import {closeCrop,useCrop} from './avatar-crop.js';
 import {renderOrders} from './views/orders.js';
@@ -312,8 +314,12 @@ registerAction('toggle-fin',(t,oid)=>{
   toggleReceipt(oid,'final');
 });
 
-registerAction('privacy',(t,oid)=>{
-  ui.privacy=!ui.privacy;renderAll();rerenderDetail();toast(ui.privacy?'已隐藏金额 · 截图模式':'已恢复显示金额');
+registerAction('privacy',async()=>{
+  if(isNative){
+    try{ui.privacy=await toggleAmountPrivacy()}
+    catch(error){toast(privacyFailureMessage(error));return}
+  }else ui.privacy=!ui.privacy;
+  renderAll();rerenderDetail();toast(ui.privacy?(isNative?'已隐藏金额 · 仅 Face ID 可恢复':'已隐藏金额 · 截图模式'):'已恢复显示金额');
 });
 
 registerAction('app-store-soon',(t,oid)=>{
@@ -361,7 +367,7 @@ registerAction('th',(t,oid)=>{
 });
 
 registerAction('import-json',(t,oid)=>{
-  $('#import-file').value='';$('#import-file').click();
+  openImportPicker();
 });
 
 registerAction('confirm-import',(t,oid)=>{
@@ -379,7 +385,7 @@ registerAction('switch-mode',(t,oid)=>{
 registerAction('clear-data',(t,oid)=>{
   // 账号资料与服务商预设跟 notifyEnabled 一样随清空保留:用户"重新开始记账"
       // 不该把精心录好的账号资料一并抹掉(订单与流水才是"数据"的本体)
-      if(confirm('清空当前'+(Store.mode==='work'?'工作':'演示')+'数据？订单与流水会清空，账号与设置保留，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold,notifyEnabled:db.notifyEnabled,accounts:db.accounts||[],providers:db.providers||[]}).then(ok=>{if(ok)toast('已清空，替换前数据可在设置页恢复')});
+      if(confirm('清空当前数据？订单与流水会清空，账号与设置保留，替换前会自动备份。'))replaceData({orders:[],payments:[],threshold:db.threshold,notifyEnabled:db.notifyEnabled,accounts:db.accounts||[],providers:db.providers||[]}).then(ok=>{if(ok)toast('已清空，替换前数据可在设置页恢复')});
 });
 
 registerAction('export-checkpoint',(t,oid)=>{

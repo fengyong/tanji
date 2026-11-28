@@ -82,6 +82,35 @@ test('清除催收提醒必须接 cancelSnooze(只撤备忘段),不能接删单�
   assert.doesNotMatch(m[0], /cancelOrder/, 'clear-remind 不能调 cancelOrder(删单语义,会连带撤掉 24h 出片提醒)');
 });
 
+test('金额隐私动作在原生端必须经过 Face ID 门禁', () => {
+  const action = actionsSrc.match(/registerAction\('privacy',[\s\S]*?\n\}\);/);
+  assert.ok(action, '找不到隐私动作处理器');
+  assert.match(action[0], /await toggleAmountPrivacy\(\)/);
+  assert.match(action[0], /privacyFailureMessage\(error\)/);
+  assert.match(action[0], /else ui\.privacy=!ui\.privacy/, 'Web 端保留原有即时切换');
+  const main = readApp('main.js');
+  assert.match(main, /ui\.privacy=true;[\s\S]*?await restoreAmountPrivacy\(\)/);
+  assert.ok(main.indexOf('await restoreAmountPrivacy()') < main.indexOf('renderAll();showTab'), '首次渲染前必须恢复隐私状态');
+});
+
+test('原生 JSON 备份走 Files 目录与系统选择器，Web 保留下载和文件输入', () => {
+  const exportSource = readApp('export.js');
+  const actions = readApp('actions.js');
+  assert.match(exportSource, /registerPlugin\('BackupFiles'\)\.saveBackup/);
+  assert.match(exportSource, /registerPlugin\('BackupFiles'\)\.pickBackup/);
+  assert.match(exportSource, /文件 › 探记 HG/);
+  const jsonExport = exportSource.match(/export async function exportJson[\s\S]*?\n\}/);
+  assert.ok(jsonExport, '找不到 JSON 备份导出实现');
+  const nativeExport = jsonExport[0].match(/if\(isNative\)\{[\s\S]*?return;\s*\}/);
+  assert.ok(nativeExport, 'JSON 备份缺少原生保存分支');
+  assert.doesNotMatch(nativeExport[0], /download\(|nativeShareFile/, '原生 JSON 备份不能继续走下载或 Cache + Share');
+  assert.match(jsonExport[0], /download\(name,content,'application\/json'\)/, 'Web 端必须保留原 JSON 下载');
+  const importAction = actions.match(/registerAction\('import-json',[\s\S]*?\n\}\);/);
+  assert.ok(importAction, '找不到导入动作处理器');
+  assert.match(importAction[0], /openImportPicker\(\)/);
+  assert.doesNotMatch(importAction[0], /\$\('#import-file'\)\.click/, '原生导入不能依赖网页文件输入');
+});
+
 test('保存按钮必须落在常驻操作条里,而不是滚动区', () => {
   // 新建预约:滚动区以 flush 结尾,紧跟一个 sheet-foot 包住保存按钮
   const create = index.match(
@@ -123,6 +152,8 @@ test('原生壳按真实安全区排版并隐藏 Web 假状态栏', () => {
   const mainSrc = readApp('main.js');
   assert.match(mainSrc, /document\.documentElement\.classList\.toggle\('native',isNative\)/);
   assert.match(mainSrc, /initTripGestures\(\)/, '行程触摸手势必须在启动时接线');
+  const nativeTabs = readApp('native-tabs.js');
+  assert.doesNotMatch(nativeTabs, /heading\.focus|h1.*focus/, '原生 Tab 切换不能把焦点移进 Web 标题，避免 iOS 显示间歇性蓝色外框');
 });
 
 /* ---------- P0 拆分安全网(2026-11-22) ---------- */

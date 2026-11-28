@@ -40,6 +40,14 @@ function newDevice(options={}){
     createCount:0,
     openCount:0,
     closeCount:0,
+    amountHidden:options.amountHidden===true,
+    privacyReads:0,
+    privacyToggles:[],
+    backupSaves:[],
+    backupPicks:0,
+    pickedBackup:null,
+    shareCalls:0,
+    focusCalls:[],
   };
 }
 
@@ -138,14 +146,49 @@ function makeCap(device){
       Capacitor:{
         isNativePlatform:()=>true,
         registerPlugin(name){
-          if(name!=='NativeTabs')throw new Error('未知原生插件：'+name);
-          return {async setState(value){device.tabStates.push({...value});return {bottomInset:96};}};
+          if(name==='NativeTabs')return {async setState(value){device.tabStates.push({...value});return {bottomInset:96};}};
+          if(name==='AmountPrivacy')return {
+            async getState(){
+              device.privacyReads++;
+              if(device.options.failPrivacyRead)throw new Error('privacy read failed');
+              return {enabled:device.amountHidden};
+            },
+            async toggle(){
+              if(device.options.privacyGate)await device.options.privacyGate;
+              if(device.options.faceIdOutcome){
+                const error=new Error(device.options.faceIdOutcome.message);
+                error.code=device.options.faceIdOutcome.code;
+                throw error;
+              }
+              device.amountHidden=!device.amountHidden;
+              device.privacyToggles.push(device.amountHidden);
+              return {enabled:device.amountHidden};
+            },
+          };
+          if(name==='BackupFiles')return {
+            async saveBackup(payload){
+              if(device.options.failBackupSave)throw new Error('disk is full');
+              device.backupSaves.push({...payload});
+              return {name:payload.name,path:'探记 HG/'+payload.name,size:Buffer.byteLength(payload.content)};
+            },
+            async pickBackup(){
+              device.backupPicks++;
+              if(device.options.backupPickError){
+                const error=new Error(device.options.backupPickError.message);
+                error.code=device.options.backupPickError.code;
+                throw error;
+              }
+              if(!device.pickedBackup)throw new Error('没有选择文件');
+              return device.pickedBackup;
+            },
+          };
+          throw new Error('未知原生插件：'+name);
         },
       },
       SQLiteConnection,
       LocalNotifications,
       Filesystem:{async writeFile(opts){device.written.push(opts);return {uri:'file:///tmp/'+opts.path};}},
-      Share:{async share(){return {activityType:'custom'};}},
+      Share:{async share(){device.shareCalls++;return {activityType:'custom'};}},
       Directory:{Cache:'CACHE'},
       Encoding:{UTF8:'utf8',Base64:'base64'},
       // 定位插件:iOS 真机返回 WGS84 十进制度,这里固定一个深圳坐标便于断言
@@ -163,7 +206,7 @@ function app(device=newDevice()){
   }
   const elements=new Map(),events={},local=device.local,texts=[];
   const element=selector=>{
-    if(!elements.has(selector))elements.set(selector,{value:'',checked:false,innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){},setAttribute(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
+    if(!elements.has(selector))elements.set(selector,{value:'',checked:false,innerHTML:'',textContent:'',hidden:false,style:{},dataset:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:child=>element(selector+' '+child),addEventListener(){},focus(){device.focusCalls.push(selector)},setAttribute(){},setSelectionRange(){},click(){},getContext:()=>new Proxy({fillText:text=>texts.push(text),createLinearGradient:()=>({addColorStop(){}})},{get:(target,key)=>target[key]||(()=>{})}),toBlob:callback=>callback(new Blob(['image']))});
     return elements.get(selector);
   };
   const context=vm.createContext({
@@ -187,7 +230,7 @@ function app(device=newDevice()){
   // IndexedDB 在原生端不该被读写；这里给一个「读得到但为空」的实现，模拟 WKWebView 正常行为
   run('idb.get=async()=>({ok:true,value:null});idb.setMany=async()=>true;');
   run('Store.ready=true;Store.mode="work";');
-  return {run,context,local,device,mock,elements,element,events,texts,json:code=>JSON.parse(run('JSON.stringify('+code+')'))};
+  return {run,context,local,device,mock,elements,element,events,texts,tick:milliseconds=>{time+=milliseconds},json:code=>JSON.parse(run('JSON.stringify('+code+')'))};
 }
 
 const order=overrides=>({
@@ -204,6 +247,121 @@ const OVERDUE=order({shotAt:'2026-01-01T11:00'});
 // ESM 后 db 是模块 live binding,不允许外部整体重赋值;__replaceDb 做清空+变异(见 harness-entry)
 const setState=(a,orders=[order()],payments=[])=>a.run(`__replaceDb(${JSON.stringify({orders,payments,threshold:15})})`);
 const tick=()=>new Promise(r=>setImmediate(r));
+
+/* ---------- 金额隐私 / Face ID ---------- */
+
+const clickPrivacy=a=>a.events.click({target:{closest:()=>({dataset:{act:'privacy'}})}});
+
+test('金额隐私：Face ID 成功后才切换，隐藏状态跨 App 实例保留',async()=>{
+  const a=app();setState(a);
+  assert.equal(a.run('ui.privacy'),false);
+  assert.equal(await a.run('restoreAmountPrivacy()'),false);
+
+  clickPrivacy(a);
+  assert.equal(a.run('ui.privacy'),false,'系统验证完成前不能先露出或隐藏状态变化');
+  await tick();
+  assert.equal(a.run('ui.privacy'),true);
+  assert.equal(a.device.amountHidden,true);
+  assert.deepEqual(a.device.privacyToggles,[true]);
+  assert.match(a.element('#toast').textContent,/仅 Face ID 可恢复/);
+
+  const restarted=app(a.device);
+  assert.equal(await restarted.run('restoreAmountPrivacy()'),true,'重启后必须恢复隐藏状态');
+
+  a.tick(400);clickPrivacy(a);await tick();
+  assert.equal(a.run('ui.privacy'),false);
+  assert.equal(a.device.amountHidden,false);
+  assert.deepEqual(a.device.privacyToggles,[true,false]);
+});
+
+test('金额隐私：失败、取消与不可用均不改变界面或持久状态',async()=>{
+  for(const outcome of [
+    {code:'AUTH_FAILED',message:'Face ID 验证失败，金额状态未改变。'},
+    {code:'USER_CANCELED',message:'已取消 Face ID 验证，金额状态未改变。'},
+    {code:'BIOMETRY_LOCKOUT',message:'Face ID 已锁定，请稍后重试。金额状态未改变。'},
+    {code:'FACE_ID_UNAVAILABLE',message:'尚未录入 Face ID。金额状态未改变。'},
+  ]){
+    const device=newDevice({amountHidden:true,faceIdOutcome:outcome});
+    const a=app(device);setState(a);a.run('ui.privacy=true');
+    clickPrivacy(a);await tick();
+    assert.equal(a.run('ui.privacy'),true,`${outcome.code} 不能解除隐藏`);
+    assert.equal(device.amountHidden,true,`${outcome.code} 不能改写持久状态`);
+    assert.deepEqual(device.privacyToggles,[]);
+    assert.match(a.element('#toast').textContent,/金额状态未改变/);
+  }
+});
+
+test('金额隐私：并发切换只发一次系统验证',async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve});
+  const device=newDevice({privacyGate:gate});
+  const a=app(device);
+  const first=a.run('toggleAmountPrivacy()');
+  const second=a.run('toggleAmountPrivacy()');
+  assert.equal(first,second,'认证挂起时复用同一个请求');
+  release();await first;await second;
+  assert.deepEqual(device.privacyToggles,[true]);
+});
+
+test('金额隐私：读取失败必须拒绝，让启动层保持隐藏',async()=>{
+  const a=app(newDevice({failPrivacyRead:true}));
+  await assert.rejects(a.run('restoreAmountPrivacy()'),/privacy read failed/);
+});
+
+test('金额隐私：设置页明确原生端仅接受 Face ID 且重启保留',()=>{
+  const a=app();setState(a);a.run('renderSettings()');
+  assert.match(a.element('#v-settings').innerHTML,/仅 Face ID 可隐藏或显示，重启后保留/);
+});
+
+/* ---------- 文件 App 备份 / 原生导入 ---------- */
+
+test('原生 JSON 备份直接保存到 Files，不调起分享面板',async()=>{
+  const a=app();setState(a);
+  await a.run('exportJson()');
+  assert.equal(a.device.backupSaves.length,1);
+  const saved=a.device.backupSaves[0];
+  assert.equal(saved.name,'探记-备份-2026-11-21.json');
+  const backup=JSON.parse(saved.content);
+  assert.equal(backup.app,'探记 TanJi');
+  assert.equal(backup.orders[0].store,'测试店');
+  assert.equal(a.device.shareCalls,0);
+  assert.equal(a.device.written.length,0,'JSON 备份不应再写入 Cache');
+  assert.match(a.element('#toast').textContent,/文件 › 探记 HG/);
+});
+
+test('原生导入走文件选择器，确认后仍保留导入前恢复点',async()=>{
+  const a=app();setState(a);
+  const imported={app:'探记 TanJi',version:'0.6',threshold:30,notifyEnabled:true,accounts:[],providers:[],orders:[order({id:8,store:'文件备份店'})],payments:[]};
+  a.device.pickedBackup={name:'文件备份.json',content:JSON.stringify(imported),size:Buffer.byteLength(JSON.stringify(imported))};
+  await a.run('openImportPicker()');
+  assert.equal(a.device.backupPicks,1);
+  assert.equal(a.run('Store.pending.orders[0].store'),'文件备份店');
+  assert.match(a.element('#import-summary').textContent,/文件备份\.json/);
+  await a.run('confirmImport()');
+  assert.equal(a.run('db.orders[0].store'),'文件备份店');
+  await a.run('restoreCheckpoint()');
+  assert.equal(a.run('db.orders[0].store'),'测试店');
+});
+
+test('原生导入取消不提示错误，备份保存失败明确反馈',async()=>{
+  const canceled=app(newDevice({backupPickError:{code:'PICK_CANCELED',message:'已取消选择备份。'}}));
+  setState(canceled);await canceled.run('openImportPicker()');
+  assert.equal(canceled.run('Store.pending'),null);
+  assert.equal(canceled.element('#toast').textContent,'');
+
+  const failed=app(newDevice({failBackupSave:true}));setState(failed);
+  await failed.run('exportJson()');
+  assert.match(failed.element('#toast').textContent,/保存失败/);
+  assert.equal(failed.device.shareCalls,0);
+});
+
+test('原生设置页明确 Files 目录与系统选择器入口',()=>{
+  const a=app();setState(a);a.run('renderSettings()');
+  const html=a.element('#v-settings').innerHTML;
+  assert.match(html,/从文件导入备份/);
+  assert.match(html,/保存 JSON 备份/);
+  assert.match(html,/文件 › 探记 HG/);
+});
 
 /* ---------- 原生底栏桥接 ---------- */
 
@@ -224,6 +382,7 @@ test('原生底栏：状态、角标、命令 ACK 与无效 Tab 过滤',()=>{
   assert.equal(a.run('ui.tab'),'orders');
   assert.equal(a.device.tabStates.at(-1).appliedCommandId,7);
   assert.equal(a.device.tabStates.at(-1).tab,'orders');
+  assert.deepEqual(a.device.focusCalls,[],'原生 Tab 切换不能把焦点移进 Web 标题，否则 iOS 会显示间歇性蓝框');
   a.events['window:tanjiNativeLayout']({bottomInset:83.4});
 });
 

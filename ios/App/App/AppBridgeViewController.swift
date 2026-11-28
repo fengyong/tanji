@@ -7,6 +7,10 @@ final class AppBridgeViewController: CAPBridgeViewController {
         guard let container = parent as? NativeTabContainerViewController else { return }
         let plugin = NativeTabsPlugin(container: container)
         bridge?.registerPluginInstance(plugin)
+        let privacyPlugin = AmountPrivacyPlugin()
+        bridge?.registerPluginInstance(privacyPlugin)
+        let backupFilesPlugin = BackupFilesPlugin()
+        bridge?.registerPluginInstance(backupFilesPlugin)
         container.attach(plugin)
     }
 }

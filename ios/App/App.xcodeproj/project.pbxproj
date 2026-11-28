@@ -21,6 +21,8 @@
 		A11000000000000000000001 /* AppBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000004 /* AppBridgeViewController.swift */; };
 		A11000000000000000000002 /* NativeTabsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000005 /* NativeTabsPlugin.swift */; };
 		A11000000000000000000003 /* NativeTabContainerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000006 /* NativeTabContainerViewController.swift */; };
+		A11000000000000000000008 /* AmountPrivacyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000007 /* AmountPrivacyPlugin.swift */; };
+		A11000000000000000000009 /* BackupFilesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1100000000000000000000A /* BackupFilesPlugin.swift */; };
 		A8C1BA2F746280446AA672FE /* NativeTabsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC662A6ADD89FBE62F15389D /* NativeTabsUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -52,6 +54,8 @@
 		A11000000000000000000004 /* AppBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBridgeViewController.swift; sourceTree = "<group>"; };
 		A11000000000000000000005 /* NativeTabsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTabsPlugin.swift; sourceTree = "<group>"; };
 		A11000000000000000000006 /* NativeTabContainerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTabContainerViewController.swift; sourceTree = "<group>"; };
+		A11000000000000000000007 /* AmountPrivacyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmountPrivacyPlugin.swift; sourceTree = "<group>"; };
+		A1100000000000000000000A /* BackupFilesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupFilesPlugin.swift; sourceTree = "<group>"; };
 		DC662A6ADD89FBE62F15389D /* NativeTabsUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NativeTabsUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -111,6 +115,8 @@
 				A11000000000000000000004 /* AppBridgeViewController.swift */,
 				A11000000000000000000005 /* NativeTabsPlugin.swift */,
 				A11000000000000000000006 /* NativeTabContainerViewController.swift */,
+				A11000000000000000000007 /* AmountPrivacyPlugin.swift */,
+				A1100000000000000000000A /* BackupFilesPlugin.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -253,6 +259,8 @@
 				A11000000000000000000001 /* AppBridgeViewController.swift in Sources */,
 				A11000000000000000000002 /* NativeTabsPlugin.swift in Sources */,
 				A11000000000000000000003 /* NativeTabContainerViewController.swift in Sources */,
+				A11000000000000000000008 /* AmountPrivacyPlugin.swift in Sources */,
+				A11000000000000000000009 /* BackupFilesPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

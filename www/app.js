@@ -4,6 +4,39 @@ var isNative = !!(CAP && CAP.Capacitor && CAP.Capacitor.isNativePlatform && CAP.
 var APP_STORE_URL = "";
 var LEGAL_BASE = "https://tanji-app-guvc.zai.site/";
 
+// src/app/privacy.js
+var plugin = null;
+var pending = null;
+function nativePlugin() {
+  if (!plugin) plugin = CAP.Capacitor.registerPlugin("AmountPrivacy");
+  return plugin;
+}
+async function restoreAmountPrivacy() {
+  if (!isNative) return false;
+  const result = await nativePlugin().getState();
+  if (typeof result?.enabled !== "boolean") throw new Error("\u91D1\u989D\u9690\u79C1\u72B6\u6001\u683C\u5F0F\u65E0\u6548");
+  return result.enabled;
+}
+function toggleAmountPrivacy() {
+  if (!isNative) return Promise.resolve(null);
+  if (pending) return pending;
+  pending = (async () => {
+    try {
+      const result = await nativePlugin().toggle();
+      if (typeof result?.enabled !== "boolean") throw new Error("\u91D1\u989D\u9690\u79C1\u72B6\u6001\u683C\u5F0F\u65E0\u6548");
+      return result.enabled;
+    } finally {
+      pending = null;
+    }
+  })();
+  return pending;
+}
+function privacyFailureMessage(error) {
+  if (error?.code === "AUTH_IN_PROGRESS") return "\u6B63\u5728\u9A8C\u8BC1 Face ID\uFF0C\u8BF7\u7A0D\u5019";
+  if (error?.code === "USER_CANCELED") return "\u5DF2\u53D6\u6D88\uFF0C\u91D1\u989D\u72B6\u6001\u672A\u6539\u53D8";
+  return typeof error?.message === "string" && error.message ? error.message : "Face ID \u9A8C\u8BC1\u672A\u5B8C\u6210\uFF0C\u91D1\u989D\u72B6\u6001\u672A\u6539\u53D8";
+}
+
 // src/app/util.js
 var $ = (s) => document.querySelector(s);
 var pad = (n) => String(n).padStart(2, "0");
@@ -758,7 +791,7 @@ async function switchMode(mode) {
     await save();
     afterLoad && (afterLoad.renderAll(), afterLoad.showTab("home"));
     afterLoad && (afterLoad.notify.syncDaily(), afterLoad.notify.syncDeliver());
-    afterLoad && afterLoad.toast(mode === "work" ? "\u5DF2\u5207\u6362\u5230\u5DE5\u4F5C\u6570\u636E" : "\u5DF2\u5207\u6362\u5230\u72EC\u7ACB\u6F14\u793A\u6570\u636E\uFF0C\u5DE5\u4F5C\u6570\u636E\u672A\u6539\u52A8");
+    afterLoad && afterLoad.toast("\u5DF2\u5207\u6362\u6570\u636E\u7A7A\u95F4\uFF0C\u539F\u6570\u636E\u672A\u6539\u52A8");
   } finally {
     Store.busy = false;
   }
@@ -1050,7 +1083,7 @@ function markDailySynced(day = TODAY) {
 
 // src/app/native-tabs.js
 var TAB_IDS = /* @__PURE__ */ new Set(["home", "trip", "orders", "pay", "stats"]);
-var plugin = null;
+var plugin2 = null;
 var initialized = false;
 var sheetOpen = false;
 var cropOpen = false;
@@ -1062,16 +1095,16 @@ function applyBottomInset(value) {
   document.documentElement.style.setProperty("--native-tab-height", `${height}px`);
 }
 function sendState() {
-  if (!plugin) return;
+  if (!plugin2) return;
   const payload = JSON.stringify(state);
   if (payload === lastPayload) return;
   lastPayload = payload;
-  plugin.setState({ ...state }).then((result) => {
+  plugin2.setState({ ...state }).then((result) => {
     if (result) applyBottomInset(result.bottomInset);
   }).catch((error) => console.warn("[TanJi] \u539F\u751F\u5E95\u680F\u72B6\u6001\u540C\u6B65\u5931\u8D25", error));
 }
 function syncNativeTabs(update = {}) {
-  if (!plugin) return;
+  if (!plugin2) return;
   Object.assign(state, update);
   sendState();
 }
@@ -1079,7 +1112,7 @@ function syncOverlay() {
   syncNativeTabs({ overlay: cropOpen ? "crop" : sheetOpen ? "sheet" : "none" });
 }
 function setNativeSheetOpen(open) {
-  if (!plugin) return;
+  if (!plugin2) return;
   sheetOpen = open;
   clearTimeout(sheetTimer);
   if (open) {
@@ -1092,24 +1125,19 @@ function setNativeSheetOpen(open) {
   }, 360);
 }
 function setNativeCropOpen(open) {
-  if (!plugin) return;
+  if (!plugin2) return;
   cropOpen = open;
   syncOverlay();
 }
 function initNativeTabs(showTab2) {
   if (initialized || !isNative || !CAP?.Capacitor?.registerPlugin) return;
   initialized = true;
-  plugin = CAP.Capacitor.registerPlugin("NativeTabs");
+  plugin2 = CAP.Capacitor.registerPlugin("NativeTabs");
   window.addEventListener("tanjiNativeLayout", (event) => applyBottomInset(event.bottomInset));
   window.addEventListener("tanjiNativeTab", (event) => {
     if (!TAB_IDS.has(event.tab)) return;
     state.appliedCommandId = event.commandId ?? null;
     showTab2(event.tab);
-    const heading = document.querySelector("#v-" + event.tab + " h1");
-    if (heading) {
-      heading.tabIndex = -1;
-      heading.focus({ preventScroll: true });
-    }
   });
   syncNativeTabs();
 }
@@ -2661,8 +2689,20 @@ function exportCsv() {
   download(`\u63A2\u8BB0-\u5BFC\u51FA-${TODAY}.csv`, [head.map(q).join(","), ...lines, "", "", phead.map(q).join(","), ...plines].join("\n"), "text/csv;charset=utf-8");
   toast("\u5DF2\u5BFC\u51FA CSV(\u8BA2\u5355 + \u6D41\u6C34)\u2713");
 }
-function exportJson() {
-  download(`\u63A2\u8BB0-${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u5907\u4EFD-${toISO(/* @__PURE__ */ new Date())}.json`, JSON.stringify(backupDocument(), null, 2), "application/json");
+async function exportJson() {
+  const name = `\u63A2\u8BB0-\u5907\u4EFD-${toISO(/* @__PURE__ */ new Date())}.json`;
+  const content = JSON.stringify(backupDocument(), null, 2);
+  if (isNative) {
+    try {
+      const result = await CAP.Capacitor.registerPlugin("BackupFiles").saveBackup({ name, content });
+      toast(`\u5DF2\u4FDD\u5B58\u5230\u300C\u6587\u4EF6 \u203A \u63A2\u8BB0 HG\u300D\uFF1A${result?.name || name}`);
+    } catch (error) {
+      console.error("\u4FDD\u5B58\u5907\u4EFD\u5931\u8D25", error);
+      toast("\u4FDD\u5B58\u5931\u8D25:" + (error && error.message || error));
+    }
+    return;
+  }
+  download(name, content, "application/json");
   toast("\u5DF2\u5BFC\u51FA JSON \u5907\u4EFD");
 }
 function exportDb() {
@@ -2675,7 +2715,7 @@ function exportDb() {
   toast("\u5DF2\u5BFC\u51FA SQLite \u6570\u636E\u5E93 \u2713");
 }
 var SCHEMA = `<span class="c">-- \u63A2\u8BB0 TanJi \xB7 \u672C\u673A SQLite \u7ED3\u6784(v0.6 \xB7 \u5355\u6570\u636E\u96C6\u89C6\u56FE)</span>
-<span class="c">-- \u6CE8\u610F:App \u5185\u771F\u5B9E\u5E93\u5728\u540C\u4E00\u4E2A .db \u91CC\u7528 mode \u5217\u533A\u5206 work/demo \u4E24\u5957\u6570\u636E,
+<span class="c">-- \u6CE8\u610F:App \u5185\u771F\u5B9E\u5E93\u5728\u540C\u4E00\u4E2A .db \u91CC\u7528 mode \u5217\u533A\u5206\u4E24\u5957\u6570\u636E,
 --       orders/accounts \u4E3B\u952E\u4E3A (mode,id),payments \u5E26 mode,settings \u4E3B\u952E\u4E3A (scope,key);
 --       \u672C\u9875\u4E0E\u300C\u5BFC\u51FA .db\u300D\u5C55\u793A\u7684\u662F\u53BB\u6389 mode \u7684\u5355\u6570\u636E\u96C6\u89C6\u56FE\u3002
 --       \u8DE8\u8BBE\u5907\u642C\u8FD0\u8BF7\u7528 JSON \u5907\u4EFD(\u7EDF\u8BA1\u9875\u53EF\u5BFC\u5165),\u4E0D\u8981\u76F4\u63A5\u5BF9\u62F7 .db\u3002</span>
@@ -2738,6 +2778,20 @@ FROM orders
 WHERE final_paid_at IS NULL AND shot_at IS NOT NULL AND settle_via='private'
 ORDER BY days DESC;`;
 $("#schema-pre").innerHTML = SCHEMA;
+async function openImportPicker() {
+  if (!isNative) {
+    const input = $("#import-file");
+    input.value = "";
+    input.click();
+    return;
+  }
+  try {
+    const picked = await CAP.Capacitor.registerPlugin("BackupFiles").pickBackup();
+    await previewImport({ name: picked.name, size: picked.size, text: async () => picked.content });
+  } catch (error) {
+    if (error?.code !== "PICK_CANCELED") toast("\u4E0D\u80FD\u5BFC\u5165\uFF1A" + (error && error.message || error));
+  }
+}
 async function previewImport(file) {
   if (!file) return;
   try {
@@ -2752,7 +2806,7 @@ async function previewImport(file) {
     }
     Store.pending = state2;
     const total = state2.payments.reduce((sum, p) => sum + p.amount, 0);
-    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state2.orders.length} \u7B14\u8BA2\u5355\u3001${state2.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state2.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D${Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
+    document.querySelector("#import-summary").textContent = `${file.name}\uFF1A${state2.orders.length} \u7B14\u8BA2\u5355\u3001${state2.payments.length} \u7B14\u6D41\u6C34\u3001\u5B9E\u6536 ${fmtMoney(total, ui.privacy)}\u3001\u50AC\u6536\u9608\u503C ${state2.threshold} \u5929\u3002\u5C06\u66FF\u6362\u5F53\u524D\u6570\u636E\uFF0C\u66FF\u6362\u524D\u81EA\u52A8\u4FDD\u5B58\u4E00\u4EFD\u672C\u673A\u5907\u4EFD\u3002`;
     showSheet("sheet-import");
   } catch (error) {
     Store.pending = null;
@@ -2794,7 +2848,7 @@ async function exportCheckpoint() {
     toast("\u6CA1\u6709\u53EF\u7528\u7684\u66FF\u6362\u524D\u5907\u4EFD");
     return;
   }
-  download(`\u63A2\u8BB0-${mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A"}-\u66FF\u6362\u524D\u5907\u4EFD.json`, JSON.stringify(backupDocument(saved.value), null, 2), "application/json");
+  download("\u63A2\u8BB0-\u66FF\u6362\u524D\u5907\u4EFD.json", JSON.stringify(backupDocument(saved.value), null, 2), "application/json");
   toast("\u5DF2\u5BFC\u51FA\u66FF\u6362\u524D\u5907\u4EFD\uFF0C\u539F\u5B58\u50A8\u672A\u6539\u52A8");
 }
 
@@ -2893,7 +2947,6 @@ function statsFor(period, list) {
 }
 function headBtns(share) {
   return `<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-    <span class="mode-label">${Store.mode === "demo" ? "DEMO" : "WORK"}</span>
     ${share ? `<button class="icon-btn" data-act="share" aria-label="\u5206\u4EAB\u884C\u7A0B"><svg class="ic" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></svg></button>` : ""}
     <button class="icon-btn ${ui.privacy ? "on" : ""}" data-act="privacy" aria-label="${ui.privacy ? "\u663E\u793A\u91D1\u989D" : "\u9690\u85CF\u91D1\u989D"}"><svg class="ic" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>${ui.privacy ? '<path d="M4.5 4.5l15 15"/>' : ""}</svg></button>
   </div>`;
@@ -3067,6 +3120,20 @@ function renderPay() {
 
 // src/app/views/stats.js
 var fmtMoney6 = (n) => fmtMoney(n, ui.privacy);
+function dailyChartHTML(days, values, periodLabel, total) {
+  if (!values.some((v) => v > 0)) return `
+    <div class="daily-head"><div><div class="daily-title">\u6BCF\u65E5\u5B9E\u6536</div><div class="daily-meta">${periodLabel}</div></div><div class="daily-total"><span>\u5408\u8BA1</span><b>${fmtMoney6(total)}</b></div></div>
+    <div class="daily-empty" role="status"><span class="daily-empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M12 19V5M19 19v-5"/></svg></span><div><b>\u6682\u65E0\u6536\u6B3E</b><span>\u8BE5\u533A\u95F4\u8FD8\u6CA1\u6709\u5B9E\u6536\u8BB0\u5F55</span></div></div>`;
+  const max = Math.max(...values), peak = values.indexOf(max), dense = days.length > 14;
+  const labelIndexes = days.length <= 7 ? days.map((_, i) => i) : [.../* @__PURE__ */ new Set([0, Math.floor((days.length - 1) / 3), Math.floor((days.length - 1) * 2 / 3), days.length - 1])];
+  const labels = new Set(labelIndexes);
+  const bars = values.map((v, i) => `<div class="bar ${v ? "" : "zero"} ${i === peak ? "peak" : ""}" title="${days[i]} \u5B9E\u6536 ${fmtMoney6(v)}"><i style="--h:${v ? Math.max(4, Math.round(v / max * 100)) : 0}%"></i></div>`).join("");
+  const axis = days.map((d, i) => `<span class="${labels.has(i) ? "" : "axis-blank"}" aria-hidden="true">${labels.has(i) ? fmtD(d) : ""}</span>`).join("");
+  return `
+    <div class="daily-head"><div><div class="daily-title">\u6BCF\u65E5\u5B9E\u6536</div><div class="daily-meta">${periodLabel} \xB7 \u6700\u9AD8 ${fmtMoney6(max)}</div></div><div class="daily-total"><span>\u5408\u8BA1</span><b>${fmtMoney6(total)}</b></div></div>
+    <div class="daily-plot ${dense ? "dense" : ""}" role="img" aria-label="${periodLabel}\u6BCF\u65E5\u5B9E\u6536\uFF0C\u5408\u8BA1 ${fmtMoney6(total)}\uFF1B${days[peak]} \u6700\u9AD8 ${fmtMoney6(max)}"><div class="daily-baseline"></div><div class="bars">${bars}</div></div>
+    <div class="daily-axis">${axis}</div>`;
+}
 function renderStats() {
   const st = statsFor(ui.period, db.orders.filter(accMatch)), avg = st.deals.length ? Math.round(st.dealSum / st.deals.length * 100) / 100 : 0;
   let days = [];
@@ -3080,8 +3147,7 @@ function renderStats() {
       days.push(toISO(d));
     }
   }
-  const daily = days.map((d) => st.paid.filter((p) => p.at.slice(0, 10) === d).reduce((s, p) => s + Math.round(p.amount * 100), 0) / 100), mx = Math.max(...daily, 1);
-  const bars = daily.map((v, i) => `<div class="bar ${v ? "" : "zero"}" title="${days[i]} \u5B9E\u6536 ${fmtMoney6(v)}"><i style="height:${Math.max(3, Math.round(v / mx * 100))}%"></i></div>`).join("");
+  const daily = days.map((d) => st.paid.filter((p) => p.at.slice(0, 10) === d).reduce((s, p) => s + Math.round(p.amount * 100), 0) / 100);
   const totOwed = db.orders.filter(accMatch).reduce((s, o) => s + owedOf(o), 0);
   const sending = db.orders.filter(accMatch).filter((o) => ["\u540E\u671F\u4E2D", "\u53D1\u7247\u4E2D"].includes(workOf(o))).length;
   const segP = [["7", "\u8FD1 7 \u5929"], ["30", "\u8FD1 30 \u5929"], ["M", "\u672C\u6708"]].map(([k, l]) => `<button class="${ui.period === k ? "on" : ""}" data-act="period" data-period="${k}">${l}</button>`).join("");
@@ -3092,7 +3158,7 @@ function renderStats() {
   const entries = Object.entries(byM).sort((a, b) => b[1] - a[1]), mxm = Math.max(...entries.map((e) => e[1]), 1);
   const chRows = entries.length ? entries.map(([m, v]) => `<div class="row" style="padding:10px 0"><span class="chip ${METHOD_CLS[m] || "c-gray"}" style="width:70px;justify-content:center">${esc(m)}</span><div style="flex:1;height:7px;background:rgba(23,53,47,.07);border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(4, Math.round(v / mxm * 100))}%;background:var(--brand);border-radius:4px"></i></div><div class="rside" style="min-width:74px"><div class="rprice" style="font-size:13px">${fmtMoney6(v)}</div></div></div>`).join("") : '<div class="empty" style="padding:18px 0">\u8BE5\u533A\u95F4\u6682\u65E0\u6536\u6B3E</div>';
   $("#v-stats").innerHTML = `
-    <div class="app-header"><div><div class="eyebrow">Overview / \u6253\u5F00\u5373\u5237\u65B0</div><h1 class="big">\u7EDF\u8BA1</h1><div class="hsub">\u770B\u6E05\u6536\u5165\uFF0C\u4E5F\u770B\u6E05\u8FD8\u6709\u591A\u5C11\u6CA1\u6536\u56DE\u6765\u3002</div></div><div class="app-actions">${headBtns(false)}<button class="icon-btn" data-act="open-settings" aria-label="\u6253\u5F00\u8BBE\u7F6E"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"/></svg></button></div></div>
+    <div class="app-header"><div><div class="eyebrow">Overview / \u6253\u5F00\u5373\u5237\u65B0</div><h1 class="big">\u7EDF\u8BA1</h1><div class="hsub">\u770B\u6E05\u6536\u5165\uFF0C\u4E5F\u770B\u6E05\u8FD8\u6709\u591A\u5C11\u6CA1\u6536\u56DE\u6765\u3002</div></div><div class="app-actions">${headBtns(false)}<button class="icon-btn" data-act="open-settings" aria-label="\u6253\u5F00\u8BBE\u7F6E"><svg class="ic settings-gear" viewBox="0 0 24 24"><path d="M12 2.5a2.5 2.5 0 0 0-2.5 2.5v.6a6.4 6.4 0 0 0-1.2.7l-.5-.3a2.5 2.5 0 0 0-3.5 3.5l.3.5a6.4 6.4 0 0 0-.7 1.2h-.6a2.5 2.5 0 0 0 0 5h.6a6.4 6.4 0 0 0 .7 1.2l-.3.5a2.5 2.5 0 0 0 3.5 3.5l.5-.3a6.4 6.4 0 0 0 1.2.7v.6a2.5 2.5 0 0 0 5 0v-.6a6.4 6.4 0 0 0 1.2-.7l.5.3a2.5 2.5 0 0 0 3.5-3.5l-.3-.5a6.4 6.4 0 0 0 .7-1.2h.6a2.5 2.5 0 0 0 0-5h-.6a6.4 6.4 0 0 0-.7-1.2l.3-.5a2.5 2.5 0 0 0-3.5-3.5l-.5.3a6.4 6.4 0 0 0-1.2-.7V5A2.5 2.5 0 0 0 12 2.5Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
     ${accChipbarHTML()}
     <div class="seg" style="margin-bottom:15px">${segP}</div>
     <div class="mini-grid">
@@ -3101,7 +3167,7 @@ function renderStats() {
       <div class="mini"><div class="mv" style="color:var(--brand-ink)">${st.done.length} \u5355</div><div class="ml">\u5DF2\u4EA4\u4ED8\u5B8C\u7ED3\uFF08\u6309\u4EA4\u4ED8\u65E5\uFF09</div></div>
       <div class="mini"><div class="mv">${fmtMoney6(avg)}</div><div class="ml">\u5BA2\u5355\u4EF7</div></div>
     </div>
-    <div class="card" style="margin-top:13px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;font-weight:800">\u6BCF\u65E5\u5B9E\u6536</span><span style="font-size:10px;color:var(--sub)">${ui.period === "M" ? "\u672C\u6708" : "\u8FD1 " + ui.period + " \u5929"}\u5408\u8BA1 <b style="color:var(--green);font-size:12px">${fmtMoney6(st.paidSum)}</b></span></div><div class="bars">${bars}</div><div class="bar-x"><span>${fmtD(days[0])}</span><span>${fmtD(days[days.length - 1])}</span></div></div>
+    <div class="card daily-card" style="margin-top:13px">${dailyChartHTML(days, daily, ui.period === "M" ? "\u672C\u6708" : "\u8FD1 " + ui.period + " \u5929", st.paidSum)}</div>
     <div class="card" style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;font-weight:800">\u6536\u6B3E\u6E20\u9053\u6784\u6210</span><span style="font-size:10px;color:var(--sub)">${ui.period === "M" ? "\u672C\u6708" : "\u8FD1 " + ui.period + " \u5929"}</span></div><div style="margin-top:5px">${chRows}</div></div>
     <div class="card rows" style="margin-top:12px"><div class="row"><div class="rmain"><div class="rname" style="font-size:13.5px">\u5F53\u524D\u5F85\u6536\u6B3E</div><div class="rsub">\u542B\u5B9A\u91D1\u4E0E\u5C3E\u6B3E</div></div><div class="rside"><div class="rprice" style="color:var(--orange)">${fmtMoney6(totOwed)}</div></div></div><div class="row"><div class="rmain"><div class="rname" style="font-size:13.5px">\u5F85\u53D1\u7247\u8BA2\u5355</div><div class="rsub">\u540E\u671F\u4E2D / \u53D1\u7247\u4E2D</div></div><div class="rside"><div class="rprice" style="color:var(--orange)">${sending} \u5355</div></div></div></div>
     `;
@@ -3566,11 +3632,18 @@ registerAction("toggle-dep", (t, oid) => {
 registerAction("toggle-fin", (t, oid) => {
   toggleReceipt(oid, "final");
 });
-registerAction("privacy", (t, oid) => {
-  ui.privacy = !ui.privacy;
+registerAction("privacy", async () => {
+  if (isNative) {
+    try {
+      ui.privacy = await toggleAmountPrivacy();
+    } catch (error) {
+      toast(privacyFailureMessage(error));
+      return;
+    }
+  } else ui.privacy = !ui.privacy;
   renderAll();
   rerenderDetail();
-  toast(ui.privacy ? "\u5DF2\u9690\u85CF\u91D1\u989D \xB7 \u622A\u56FE\u6A21\u5F0F" : "\u5DF2\u6062\u590D\u663E\u793A\u91D1\u989D");
+  toast(ui.privacy ? isNative ? "\u5DF2\u9690\u85CF\u91D1\u989D \xB7 \u4EC5 Face ID \u53EF\u6062\u590D" : "\u5DF2\u9690\u85CF\u91D1\u989D \xB7 \u622A\u56FE\u6A21\u5F0F" : "\u5DF2\u6062\u590D\u663E\u793A\u91D1\u989D");
 });
 registerAction("app-store-soon", (t, oid) => {
   toast("iOS \u539F\u751F\u7248\u5373\u5C06\u4E0A\u67B6,\u4E0A\u7EBF\u540E\u53EF\u76F4\u63A5\u5728 App Store \u4E70\u65AD");
@@ -3628,8 +3701,7 @@ registerAction("th", (t, oid) => {
   toast(`\u50AC\u6536\u9608\u503C\u5DF2\u8BBE\u4E3A ${db.threshold} \u5929`);
 });
 registerAction("import-json", (t, oid) => {
-  $("#import-file").value = "";
-  $("#import-file").click();
+  openImportPicker();
 });
 registerAction("confirm-import", (t, oid) => {
   confirmImport();
@@ -3641,7 +3713,7 @@ registerAction("switch-mode", (t, oid) => {
   switchMode(Store.mode === "demo" ? "work" : "demo");
 });
 registerAction("clear-data", (t, oid) => {
-  if (confirm("\u6E05\u7A7A\u5F53\u524D" + (Store.mode === "work" ? "\u5DE5\u4F5C" : "\u6F14\u793A") + "\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [] }).then((ok) => {
+  if (confirm("\u6E05\u7A7A\u5F53\u524D\u6570\u636E\uFF1F\u8BA2\u5355\u4E0E\u6D41\u6C34\u4F1A\u6E05\u7A7A\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF0C\u66FF\u6362\u524D\u4F1A\u81EA\u52A8\u5907\u4EFD\u3002")) replaceData({ orders: [], payments: [], threshold: db.threshold, notifyEnabled: db.notifyEnabled, accounts: db.accounts || [], providers: db.providers || [] }).then((ok) => {
     if (ok) toast("\u5DF2\u6E05\u7A7A\uFF0C\u66FF\u6362\u524D\u6570\u636E\u53EF\u5728\u8BBE\u7F6E\u9875\u6062\u590D");
   });
 });
@@ -3810,12 +3882,15 @@ function accountSectionHtml() {
   return html;
 }
 function renderSettings() {
-  const mode = Store.mode === "demo" ? "DEMO" : "WORK";
+  const privacyHelp = isNative ? "\u4EC5 Face ID \u53EF\u9690\u85CF\u6216\u663E\u793A\uFF0C\u91CD\u542F\u540E\u4FDD\u7559" : "\u9690\u85CF\u6240\u6709\u91D1\u989D\uFF0C\u9002\u5408\u622A\u56FE\u4E0E\u5BF9\u8D26";
+  const importTitle = isNative ? "\u4ECE\u6587\u4EF6\u5BFC\u5165\u5907\u4EFD" : "\u4ECE\u65E7\u7248\u63A2\u8BB0\u5BFC\u5165";
+  const importHelp = isNative ? "\u9ED8\u8BA4\u6253\u5F00\u300C\u6587\u4EF6 \u203A \u63A2\u8BB0 HG\u300D\uFF1B\u9884\u89C8\u540E\u66FF\u6362\uFF0C\u81EA\u52A8\u7559\u6062\u590D\u70B9" : "\u9009\u62E9 JSON \u5907\u4EFD\uFF1B\u9884\u89C8\u540E\u66FF\u6362\uFF0C\u81EA\u52A8\u7559\u6062\u590D\u70B9";
+  const exportTitle = isNative ? "\u4FDD\u5B58 JSON \u5907\u4EFD" : "\u5BFC\u51FA JSON \u5907\u4EFD";
+  const exportHelp = isNative ? "\u76F4\u63A5\u5B58\u5165\u300C\u6587\u4EF6 \u203A \u63A2\u8BB0 HG\u300D\uFF1B\u6362\u673A\u8FC1\u79FB\u9009\u8FD9\u4E2A" : "\u8BA2\u5355\u3001\u6D41\u6C34\u3001\u8D26\u53F7\u4E0E\u8BBE\u7F6E\uFF1B\u6362\u673A\u8FC1\u79FB\u9009\u8FD9\u4E2A";
   $("#v-settings").innerHTML = `
     <div class="app-header">
       <button class="icon-btn" data-act="close-settings" aria-label="\u8FD4\u56DE\u7EDF\u8BA1"><svg class="ic" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div style="flex:1;min-width:0"><div class="eyebrow">Settings / \u672C\u673A\u4E0E\u504F\u597D</div><h1 class="big">\u8BBE\u7F6E</h1></div>
-      <span class="mode-label">${mode}</span>
     </div>
 
     <div class="sec-title">\u6211\u7684\u8D26\u53F7 <span class="more" role="button" tabindex="0" data-act="open-account">+ \u6DFB\u52A0 \u203A</span></div>
@@ -3823,8 +3898,8 @@ function renderSettings() {
 
     <div class="sec-title">\u6570\u636E\u4E0E\u5907\u4EFD <span class="rsub">\u672C\u673A SQLite \xB7 \u5B8C\u5168\u79BB\u7EBF</span></div>
     <div class="card rows">
-      <div class="menu-row" data-act="import-json" role="button" tabindex="0"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10l4.5 4.5L16.5 10"/><path d="M4.5 19.5h15"/></svg></span><div class="menu-t"><div class="menu-name">\u4ECE\u65E7\u7248\u63A2\u8BB0\u5BFC\u5165</div><div class="menu-sub">\u9009\u62E9 JSON \u5907\u4EFD\uFF1B\u9884\u89C8\u540E\u66FF\u6362\uFF0C\u81EA\u52A8\u7559\u6062\u590D\u70B9</div></div>${chevron}</div>
-      <div class="menu-row" data-act="export-json" role="button" tabindex="0"><span class="menu-ic" style="background:var(--green-soft);color:var(--green)"><svg class="ic" viewBox="0 0 24 24"><path d="M8 4.5H6A2.5 2.5 0 0 0 3.5 7v3A2.5 2.5 0 0 1 1 12.5 2.5 2.5 0 0 1 3.5 15v3A2.5 2.5 0 0 0 6 20.5h2M16 4.5h2A2.5 2.5 0 0 1 20.5 7v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3A2.5 2.5 0 0 1 16 20.5h-2"/></svg></span><div class="menu-t"><div class="menu-name">\u5BFC\u51FA JSON \u5907\u4EFD</div><div class="menu-sub">\u8BA2\u5355\u3001\u6D41\u6C34\u3001\u8D26\u53F7\u4E0E\u8BBE\u7F6E\uFF1B\u6362\u673A\u8FC1\u79FB\u9009\u8FD9\u4E2A</div></div>${chevron}</div>
+      <div class="menu-row" data-act="import-json" role="button" tabindex="0"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10l4.5 4.5L16.5 10"/><path d="M4.5 19.5h15"/></svg></span><div class="menu-t"><div class="menu-name">${importTitle}</div><div class="menu-sub">${importHelp}</div></div>${chevron}</div>
+      <div class="menu-row" data-act="export-json" role="button" tabindex="0"><span class="menu-ic" style="background:var(--green-soft);color:var(--green)"><svg class="ic" viewBox="0 0 24 24"><path d="M8 4.5H6A2.5 2.5 0 0 0 3.5 7v3A2.5 2.5 0 0 1 1 12.5 2.5 2.5 0 0 1 3.5 15v3A2.5 2.5 0 0 0 6 20.5h2M16 4.5h2A2.5 2.5 0 0 1 20.5 7v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3A2.5 2.5 0 0 1 16 20.5h-2"/></svg></span><div class="menu-t"><div class="menu-name">${exportTitle}</div><div class="menu-sub">${exportHelp}</div></div>${chevron}</div>
       <div class="menu-row" data-act="export-db" role="button" tabindex="0"><span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/></svg></span><div class="menu-t"><div class="menu-name">\u5BFC\u51FA SQLite\uFF08.db\uFF09</div><div class="menu-sub">\u5B8C\u6574\u6570\u636E\u5E93\u5B58\u6863\uFF0C\u53EF\u7528 SQLite \u5DE5\u5177\u6253\u5F00</div></div>${chevron}</div>
       <div class="menu-row" data-act="export-csv" role="button" tabindex="0"><span class="menu-ic" style="background:var(--green-soft);color:var(--green)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7.5 11l4.5 4.5L16.5 11"/><path d="M4.5 19.5h15"/></svg></span><div class="menu-t"><div class="menu-name">\u5BFC\u51FA CSV</div><div class="menu-sub">\u8BA2\u5355\u8868 + \u6536\u6B3E\u6D41\u6C34\uFF0CExcel / Numbers \u53EF\u76F4\u63A5\u6253\u5F00</div></div>${chevron}</div>
       <div class="menu-row" data-act="open-schema" role="button" tabindex="0"><span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg></span><div class="menu-t"><div class="menu-name">\u6570\u636E\u7ED3\u6784 \xB7 SQLite</div><div class="menu-sub">orders / payments / accounts / settings</div></div>${chevron}</div>
@@ -3833,16 +3908,16 @@ function renderSettings() {
 
     <div class="sec-title">\u63D0\u9192\u4E0E\u9690\u79C1</div>
     <div class="card rows">
-      <div class="menu-row" data-act="privacy" role="button" tabindex="0"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></span><div class="menu-t"><div class="menu-name">\u9690\u79C1\u6A21\u5F0F</div><div class="menu-sub">\u9690\u85CF\u6240\u6709\u91D1\u989D\uFF0C\u9002\u5408\u622A\u56FE\u4E0E\u5BF9\u8D26</div></div><span class="tag-badge">${ui.privacy ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED"}</span></div>
+      <div class="menu-row" data-act="privacy" role="button" tabindex="0"><span class="menu-ic" style="background:var(--brand-soft);color:var(--brand-ink)"><svg class="ic" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></span><div class="menu-t"><div class="menu-name">\u9690\u79C1\u6A21\u5F0F</div><div class="menu-sub">${privacyHelp}</div></div><span class="tag-badge">${ui.privacy ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED"}</span></div>
       <div class="menu-row"><span class="menu-ic" style="background:var(--orange-soft);color:var(--orange)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/></svg></span><div class="menu-t"><div class="menu-name">\u5C3E\u6B3E\u50AC\u6536\u9608\u503C</div><div class="menu-sub">\u8D85\u8FC7\u8BE5\u5929\u6570\u672A\u6536\u5C3E\u6B3E\u5373\u6807\u8BB0\u903E\u671F</div></div><div class="stepper"><button data-act="th" data-v="-1" aria-label="\u51CF\u5C11\u50AC\u6536\u9608\u503C">\u2212</button><span>${db.threshold} \u5929</span><button data-act="th" data-v="1" aria-label="\u589E\u52A0\u50AC\u6536\u9608\u503C">+</button></div></div>
       ${isNative ? `<div class="menu-row" data-act="notify-toggle" role="button" tabindex="0"><span class="menu-ic" style="background:var(--blue-soft);color:var(--blue)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5a6 6 0 0 0-6 6v3.2l-1.6 3a1 1 0 0 0 .9 1.5h13.4a1 1 0 0 0 .9-1.5l-1.6-3V9.5a6 6 0 0 0-6-6z"/><path d="M10 19.5a2 2 0 0 0 4 0"/></svg></span><div class="menu-t"><div class="menu-name">\u903E\u671F\u50AC\u6536\u6BCF\u65E5\u63D0\u9192</div><div class="menu-sub">\u6BCF\u5929 09:00 \xB7 \u53EA\u62A5\u6761\u6570\u4E0E\u6700\u957F\u5929\u6570\uFF0C\u4E0D\u542B\u91D1\u989D</div></div><span class="tag-badge">${db.notifyEnabled === false ? "\u5DF2\u5173\u95ED" : "\u5DF2\u5F00\u542F"}</span></div>` : ""}
     </div>
 
-    <div class="sec-title">\u6570\u636E\u6A21\u5F0F</div>
-    <div class="card rows"><div class="menu-row" data-act="switch-mode" role="button" tabindex="0"><span class="menu-ic" style="background:var(--ink);color:var(--card)"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h12l-3-3M19 17H7l3 3M19 7l-3 3M5 17l3-3"/></svg></span><div class="menu-t"><div class="menu-name">${Store.mode === "demo" ? "\u8FDB\u5165\u5DE5\u4F5C\u6570\u636E" : "\u5207\u6362\u5230\u6F14\u793A\u6570\u636E"}</div><div class="menu-sub">\u5F53\u524D\u4E3A${Store.mode === "demo" ? "\u6F14\u793A" : "\u5DE5\u4F5C"}\u6570\u636E\uFF1B\u4E24\u5957\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58</div></div>${chevron}</div></div>
+    <div class="sec-title">\u6570\u636E\u7A7A\u95F4</div>
+    <div class="card rows"><div class="menu-row" data-act="switch-mode" role="button" tabindex="0"><span class="menu-ic" style="background:var(--ink);color:var(--card)"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h12l-3-3M19 17H7l3 3M19 7l-3 3M5 17l3-3"/></svg></span><div class="menu-t"><div class="menu-name">\u5207\u6362\u6570\u636E\u7A7A\u95F4</div><div class="menu-sub">\u4E24\u5957\u6570\u636E\u72EC\u7ACB\u4FDD\u5B58\uFF0C\u5207\u6362\u4E0D\u4F1A\u8986\u76D6\u53E6\u4E00\u5957</div></div>${chevron}</div></div>
 
     <div class="sec-title">\u5371\u9669\u64CD\u4F5C</div>
-    <div class="card rows"><div class="menu-row" data-act="clear-data" role="button" tabindex="0"><span class="menu-ic" style="background:var(--red);color:#fff"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></span><div class="menu-t"><div class="menu-name" style="color:var(--red)">\u6E05\u7A7A\u5F53\u524D${Store.mode === "demo" ? "\u6F14\u793A" : "\u5DE5\u4F5C"}\u6570\u636E</div><div class="menu-sub">\u6E05\u7A7A\u8BA2\u5355\u4E0E\u6D41\u6C34\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF1B\u66FF\u6362\u524D\u81EA\u52A8\u5907\u4EFD</div></div>${chevron}</div></div>
+    <div class="card rows"><div class="menu-row" data-act="clear-data" role="button" tabindex="0"><span class="menu-ic" style="background:var(--red);color:#fff"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></span><div class="menu-t"><div class="menu-name" style="color:var(--red)">\u6E05\u7A7A\u5F53\u524D\u6570\u636E</div><div class="menu-sub">\u6E05\u7A7A\u8BA2\u5355\u4E0E\u6D41\u6C34\uFF0C\u8D26\u53F7\u4E0E\u8BBE\u7F6E\u4FDD\u7559\uFF1B\u66FF\u6362\u524D\u81EA\u52A8\u5907\u4EFD</div></div>${chevron}</div></div>
 
     <div class="sec-title">\u5173\u4E8E\u4E0E\u652F\u6301</div>
     <div class="card rows">
@@ -3915,6 +3990,15 @@ addEventListener("storage", (event) => {
 });
 $("#f-date").value = TODAY;
 (async () => {
+  if (isNative) {
+    ui.privacy = true;
+    try {
+      ui.privacy = await restoreAmountPrivacy();
+    } catch (error) {
+      console.error("[TanJi] \u91D1\u989D\u9690\u79C1\u72B6\u6001\u8BFB\u53D6\u5931\u8D25", error);
+      toast("\u9690\u79C1\u72B6\u6001\u8BFB\u53D6\u5931\u8D25\uFF0C\u5DF2\u6682\u65F6\u9690\u85CF\u91D1\u989D");
+    }
+  }
   try {
     if (isNative) await nativeOpen();
   } catch (e) {

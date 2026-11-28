@@ -1,5 +1,6 @@
 /* ================= 启动(P0 §3:组合根) ================= */
 import {isNative} from './env.js';
+import {restoreAmountPrivacy} from './privacy.js';
 import {$,TODAY} from './util.js';
 import {ui,renderAll,showTab,refreshVisible,registerRenderers,registerDetailRerender,registerBadgeCounter,registerDailySync,markDailySynced,registerNativeSync} from './ui.js';
 import {initNativeTabs,syncNativeTabs} from './native-tabs.js';
@@ -76,6 +77,11 @@ addEventListener('storage',event=>{
 });
 $('#f-date').value=TODAY;
 (async()=>{
+  if(isNative){
+    ui.privacy=true;
+    try{ui.privacy=await restoreAmountPrivacy()}
+    catch(error){console.error('[TanJi] 金额隐私状态读取失败',error);toast('隐私状态读取失败，已暂时隐藏金额')}
+  }
   try{if(isNative)await nativeOpen()}catch(e){console.error('[TanJi] SQLite 初始化失败',e)}
   await acquireWriter();
   const had=await loadState();

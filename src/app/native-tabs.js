@@ -47,8 +47,6 @@ export function initNativeTabs(showTab){
     if(!TAB_IDS.has(event.tab))return;
     state.appliedCommandId=event.commandId??null;
     showTab(event.tab);
-    const heading=document.querySelector('#v-'+event.tab+' h1');
-    if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true})}
   });
   syncNativeTabs();
 }
