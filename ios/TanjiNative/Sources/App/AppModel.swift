@@ -1,6 +1,18 @@
 import Foundation
 import Combine
 
+/// 主标签页。
+///
+/// 放在状态中枢里而不是 `RootView` 的 `@State`：这样任何页面都能直接切换
+/// （首页「整月行程 ›」「全部 ›」「统计 ›」「催收清单」都是跨标签跳转）。
+enum AppTab: Int, Hashable {
+    case home = 0
+    case trip
+    case orders
+    case pay
+    case stats
+}
+
 /// 全局状态中枢：数据装载、保存、替换、切换数据空间，以及各页筛选条件。
 ///
 /// 数据流与 Web 版一致：任何改动先改内存，再整体落一份快照（SQLite + 第二副本）。
@@ -54,6 +66,9 @@ final class AppModel: ObservableObject {
 
     // MARK: - 偏好与筛选
 
+    /// 当前标签页。跨标签跳转统一改这里（`model.selectedTab = .trip`）。
+    @Published var selectedTab: AppTab = .home
+
     /// 金额隐私（原生端只能经 Face ID 切换）
     @Published var privacyHidden = false
     /// 全局账号筛选：nil = 全部
@@ -73,6 +88,12 @@ final class AppModel: ObservableObject {
 
     init(store: DataStore = .shared) {
         self.store = store
+        #if DEBUG
+        // 调试启动参数 `-tanji-tab N`：直接落到第 N 个标签页（截图 / UI 验收）。
+        if let raw = DebugSelfCheck.tab, let tab = AppTab(rawValue: raw) {
+            selectedTab = tab
+        }
+        #endif
     }
 
     // MARK: - 装载

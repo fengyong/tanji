@@ -144,6 +144,7 @@ model.privacyHidden   // 金额隐私（只能经 Face ID 切换）
 model.accountFilter: Int?   // 全局账号筛选（nil = 全部）
 model.orderQuery / model.orderChip / model.payBucket / model.statsPeriod
 model.selectedDay / model.tripMonth
+model.selectedTab          // 当前标签页（AppTab：home/trip/orders/pay/stats）
 model.settingsPresented       // 设置页 sheet
 
 model.filteredOrders / model.filteredPayments   // 已按账号筛选
@@ -175,6 +176,10 @@ model.showToast("文案")
 model.registerToastHost(UUID) / model.unregisterToastHost(UUID)
 model.activeToastHostID: UUID?        // 当前该显示提示条的宿主（栈顶）
 ```
+
+**跨标签跳转**：直接改 `model.selectedTab`（`.home` / `.trip` / `.orders` / `.pay` / `.stats`），
+不要弹「请在底部切到…」这种提示——选中态在状态中枢里，任何页面都能切。
+跳转前先预置目标页的筛选状态（如 `model.statsPeriod = "M"`、`model.payBucket = "over"`）。
 
 ## 4.1 测试约定
 

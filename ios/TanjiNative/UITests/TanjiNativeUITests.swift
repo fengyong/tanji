@@ -56,6 +56,33 @@ final class TanjiNativeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["每日实收"].waitForExistence(timeout: 5), "统计页应有「每日实收」图表")
     }
 
+    /// 首页的跨标签跳转必须**直接切过去**，不能只弹「请在底部切到…」的提示。
+    func testHomeJumpsAcrossTabs() {
+        XCTAssertTrue(app.staticTexts["今日安排"].waitForExistence(timeout: 8), "应在首页")
+
+        // 「今日拍摄」分区标题右侧的「整月行程 ›」
+        let tripLink = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "整月行程")
+        ).firstMatch
+        XCTAssertTrue(tripLink.waitForExistence(timeout: 6), "首页应有「整月行程 ›」入口")
+        tripLink.tap()
+
+        XCTAssertTrue(app.staticTexts["行程"].waitForExistence(timeout: 6), "点「整月行程 ›」应直接切到行程页")
+        XCTAssertFalse(
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "请在底部")).firstMatch.exists,
+            "跨标签跳转不应再弹「请在底部切到…」的提示"
+        )
+
+        // 切回首页，验证「统计 ›」
+        tabBarButton("首页").tap()
+        let statsLink = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "统计 ›")
+        ).firstMatch
+        XCTAssertTrue(statsLink.waitForExistence(timeout: 6), "首页应有「统计 ›」入口")
+        statsLink.tap()
+        XCTAssertTrue(app.staticTexts["统计"].waitForExistence(timeout: 6), "点「统计 ›」应直接切到统计页")
+    }
+
     func testOpensOrderDetail() {
         tabBarButton("订单").tap()
         // 用标识找订单行：靠「第一个按钮」会误命中顶栏的隐私开关。

@@ -5,9 +5,8 @@ import SwiftUI
 /// 信息结构与文案逐句对齐 Web 版 `src/app/views/home.js`：
 ///   顶栏 → 账号筛选条 → 下一站卡片 → 逾期提醒 → 今日拍摄 → 待发片 → 本月速览。
 ///
-/// 跨标签页跳转说明：原生版的 TabView 由 `RootView` 私有持有选中态，
-/// 本页无法直接切换标签（契约未提供该能力），因此「整月行程 ›」「全部 ›」
-/// 「统计 ›」「催收清单」等跳转改为：预置目标页的筛选状态 + 提示用户切到对应标签。
+/// 跨标签页跳转：「整月行程 ›」「全部 ›」「统计 ›」「催收清单」直接切标签页，
+/// 与 Web 版的 `data-act="tab"` 口径一致；切过去之前先预置目标页的筛选状态。
 struct HomeView: View {
     @EnvironmentObject private var model: AppModel
 
@@ -504,19 +503,19 @@ struct HomeView: View {
     private func gotoTrip() {
         model.tripMonth = Date()
         model.selectedDay = Format.today()
-        model.showToast("请在底部切到「行程」标签查看整月档期")
+        model.selectedTab = .trip
     }
 
     /// 跳到「订单」标签：预置待发片筛选。
     private func gotoSending() {
         model.orderChip = "sending"
-        model.showToast("请在底部切到「订单」标签查看全部待发片")
+        model.selectedTab = .orders
     }
 
     /// 跳到「统计」标签：预置本月。
     private func gotoStats() {
         model.statsPeriod = "M"
-        model.showToast("请在底部切到「统计」标签查看本月统计")
+        model.selectedTab = .stats
     }
 
     /// 跳到「收款」标签：预置催收筛选。
@@ -524,7 +523,7 @@ struct HomeView: View {
         model.payBucket = model.orders.contains {
             Logic.isOver($0, payments: model.payments, threshold: model.threshold) && !Logic.snoozed($0)
         } ? "over" : "snoozed"
-        model.showToast("请在底部切到「收款」标签查看催收清单")
+        model.selectedTab = .pay
     }
 
     /// 分享今天的行程（不含金额，与 Web 的分享图口径一致）。

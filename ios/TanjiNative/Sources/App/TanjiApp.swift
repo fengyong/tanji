@@ -36,36 +36,26 @@ struct TanjiApp: App {
 /// 五个主 Tab + 设置页 + 顶部提示。
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var selectedTab = RootView.launchTab()
-
-    /// 调试用：以 `-tanji-tab N` 启动时直接落到第 N 个 Tab（截图 / UI 验收）
-    static func launchTab() -> Int {
-        #if DEBUG
-        return DebugSelfCheck.tab ?? 0
-        #else
-        return 0
-        #endif
-    }
 
     var body: some View {
         ZStack(alignment: .top) {
-            TabView(selection: $selectedTab) {
+            TabView(selection: $model.selectedTab) {
                 HomeView()
                     .tabItem { Label("首页", systemImage: "house") }
-                    .tag(0)
+                    .tag(AppTab.home)
                 TripView()
                     .tabItem { Label("行程", systemImage: "calendar") }
-                    .tag(1)
+                    .tag(AppTab.trip)
                 OrdersView()
                     .tabItem { Label("订单", systemImage: "list.bullet.rectangle") }
-                    .tag(2)
+                    .tag(AppTab.orders)
                 PayView()
                     .tabItem { Label("收款", systemImage: "creditcard") }
-                    .tag(3)
+                    .tag(AppTab.pay)
                     .badge(model.overdueBadgeCount)
                 StatsView()
                     .tabItem { Label("统计", systemImage: "chart.bar.xaxis") }
-                    .tag(4)
+                    .tag(AppTab.stats)
             }
             .sheet(isPresented: $model.settingsPresented) {
                 SettingsView()
